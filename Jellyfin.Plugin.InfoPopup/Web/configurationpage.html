@@ -346,29 +346,27 @@
     // Il faut écouter l'event "pageshow" sur l'élément de page — c'est le
     // pattern standard pour les pages de configuration de plugins Jellyfin.
 
-    var page = document.querySelector('#infoPopupConfigPage');
+	var page = document.querySelector('#infoPopupConfigPage');
+	var selectedIds = new Set();
 
-    page.addEventListener('pageshow', function() {
-        var selectedIds = new Set();
+	page.querySelector('#ip-publish-btn').addEventListener('click', function() {
+	    publishMessage(page, selectedIds);
+	});
 
-        page.querySelector('#ip-publish-btn').addEventListener('click', function() {
-            publishMessage(page, selectedIds);
-        });
+	page.querySelector('#ip-delete-btn').addEventListener('click', function() {
+	    deleteSelected(page, selectedIds);
+	});
 
-        page.querySelector('#ip-delete-btn').addEventListener('click', function() {
-            deleteSelected(page, selectedIds);
-        });
+	page.querySelector('#ip-select-all').addEventListener('change', function(e) {
+	    page.querySelectorAll('.ip-row-check').forEach(function(cb) {
+	        cb.checked = e.target.checked;
+	        if (e.target.checked) selectedIds.add(cb.dataset.id);
+	        else selectedIds.delete(cb.dataset.id);
+	    });
+	    updateSelectionUI(page, selectedIds);
+	});
 
-        page.querySelector('#ip-select-all').addEventListener('change', function(e) {
-            page.querySelectorAll('.ip-row-check').forEach(function(cb) {
-                cb.checked = e.target.checked;
-                if (e.target.checked) selectedIds.add(cb.dataset.id);
-                else selectedIds.delete(cb.dataset.id);
-            });
-            updateSelectionUI(page, selectedIds);
-        });
-
-        loadMessages(page, selectedIds);
+	loadMessages(page, selectedIds);
     });
 
 })();
