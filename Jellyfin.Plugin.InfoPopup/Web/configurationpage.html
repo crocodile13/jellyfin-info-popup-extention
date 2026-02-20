@@ -104,83 +104,99 @@
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    function getToken() { try { return window.ApiClient?.accessToken?.(); } catch(_){return null;} }
+    function getToken() {
+        try {
+            var client = window.ApiClient;
+            if (!client) return null;
+            // accessToken est une méthode dans jellyfin-apiclient
+            if (typeof client.accessToken === 'function') return client.accessToken();
+            // fallback : propriété directe
+            if (typeof client.accessToken === 'string') return client.accessToken;
+            return null;
+        } catch (e) { return null; }
+    }
 
-    async function apiFetch(path, opts = {}) {
-        const token = getToken();
-        const res = await fetch(path, {
-            ...opts,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `MediaBrowser Token="${token}"` } : {}),
-                ...opts.headers
-            }
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status} — ${await res.text().catch(()=>'')}`);
-        return res;
+    function apiFetch(path, opts) {
+        opts = opts || {};
+        var token = getToken();
+        var headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'MediaBrowser Token="' + token + '"';
+        if (opts.headers) {
+            Object.keys(opts.headers).forEach(function(k) { headers[k] = opts.headers[k]; });
+        }
+        return fetch(path, Object.assign({}, opts, { headers: headers }))
+            .then(function(res) {
+                if (!res.ok) {
+                    return res.text().catch(function() { return ''; }).then(function(body) {
+                        throw new Error('HTTP ' + res.status + ' \u2014 ' + body);
+                    });
+                }
+                return res;
+            });
     }
 
     function escHtml(str) {
-        const d = document.createElement('div');
+        var d = document.createElement('div');
         d.textContent = String(str);
         return d.innerHTML;
     }
 
     function formatDate(iso) {
-        const d = new Date(iso);
-        return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')} ` +
-               `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
+        var d = new Date(iso);
+        return d.getUTCFullYear() + '-' +
+               String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getUTCDate()).padStart(2, '0') + ' ' +
+               String(d.getUTCHours()).padStart(2, '0') + ':' +
+               String(d.getUTCMinutes()).padStart(2, '0') + ' UTC';
     }
 
     // ── Toast ────────────────────────────────────────────────────────────────
 
-    let toastTimer = null;
-    function showToast(msg, err = false) {
-        const el = document.getElementById('ip-toast');
+    var toastTimer = null;
+
+    function showToast(page, msg, isErr) {
+        var el = page.querySelector('#ip-toast');
         if (!el) return;
         el.textContent = msg;
-        el.className = err ? 'ip-toast-err' : 'ip-toast-ok';
+        el.className = isErr ? 'ip-toast-err' : 'ip-toast-ok';
         el.style.display = 'block';
         if (toastTimer) clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+        toastTimer = setTimeout(function() { el.style.display = 'none'; }, 4000);
     }
 
     // ── Confirmation ─────────────────────────────────────────────────────────
 
     function showConfirm(msg) {
-        return new Promise(resolve => {
-            const backdrop = document.createElement('div');
+        return new Promise(function(resolve) {
+            var backdrop = document.createElement('div');
             backdrop.className = 'ip-confirm-backdrop';
-            const box = document.createElement('div');
+            var box = document.createElement('div');
             box.className = 'ip-confirm-box';
-            box.innerHTML = `
-                <h4>Confirmation</h4>
-                <p>${escHtml(msg)}</p>
-                <div class="ip-confirm-actions">
-                    <button class="emby-button" id="ip-c-cancel">Annuler</button>
-                    <button class="raised button-delete emby-button" id="ip-c-ok">Supprimer</button>
-                </div>`;
+            box.innerHTML = '<h4>Confirmation</h4>' +
+                '<p>' + escHtml(msg) + '</p>' +
+                '<div class="ip-confirm-actions">' +
+                '<button class="emby-button" id="ip-c-cancel">Annuler</button>' +
+                '<button class="raised button-delete emby-button" id="ip-c-ok">Supprimer</button>' +
+                '</div>';
             backdrop.appendChild(box);
             document.body.appendChild(backdrop);
-            box.querySelector('#ip-c-ok').addEventListener('click', () => { backdrop.remove(); resolve(true); });
-            box.querySelector('#ip-c-cancel').addEventListener('click', () => { backdrop.remove(); resolve(false); });
+            box.querySelector('#ip-c-ok').addEventListener('click', function() { backdrop.remove(); resolve(true); });
+            box.querySelector('#ip-c-cancel').addEventListener('click', function() { backdrop.remove(); resolve(false); });
         });
     }
 
     // ── Sélection ────────────────────────────────────────────────────────────
 
-    let selectedIds = new Set();
-
-    function updateSelectionUI() {
-        const deleteBtn = document.getElementById('ip-delete-btn');
-        const countEl   = document.getElementById('ip-sel-count');
-        const selAll    = document.getElementById('ip-select-all');
-        const boxes     = document.querySelectorAll('.ip-row-check');
-        const count     = selectedIds.size;
+    function updateSelectionUI(page, selectedIds) {
+        var deleteBtn = page.querySelector('#ip-delete-btn');
+        var countEl   = page.querySelector('#ip-sel-count');
+        var selAll    = page.querySelector('#ip-select-all');
+        var boxes     = page.querySelectorAll('.ip-row-check');
+        var count     = selectedIds.size;
 
         deleteBtn.disabled = count === 0;
         countEl.textContent = count === 0 ? '' :
-            `${count} message${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}`;
+            count + ' message' + (count > 1 ? 's' : '') + ' s\u00e9lectionn\u00e9' + (count > 1 ? 's' : '');
 
         if (!boxes.length || count === 0) { selAll.checked = false; selAll.indeterminate = false; }
         else if (count === boxes.length)  { selAll.checked = true;  selAll.indeterminate = false; }
@@ -189,13 +205,13 @@
 
     // ── Rendu tableau ────────────────────────────────────────────────────────
 
-    function renderMessages(messages) {
-        const container = document.getElementById('ip-msg-container');
-        const empty     = document.getElementById('ip-empty');
+    function renderMessages(page, messages, selectedIds) {
+        var container = page.querySelector('#ip-msg-container');
+        var empty     = page.querySelector('#ip-empty');
         selectedIds.clear();
-        updateSelectionUI();
+        updateSelectionUI(page, selectedIds);
 
-        if (!messages?.length) {
+        if (!messages || !messages.length) {
             container.innerHTML = '';
             container.appendChild(empty);
             empty.style.display = 'block';
@@ -203,30 +219,31 @@
         }
         empty.style.display = 'none';
 
-        const table = document.createElement('table');
+        var table = document.createElement('table');
         table.className = 'ip-table';
-        table.innerHTML = `
-            <thead><tr>
-                <th class="ip-col-check"></th>
-                <th>Titre</th>
-                <th class="ip-col-date">Publié le</th>
-            </tr></thead>
-            <tbody id="ip-tbody"></tbody>`;
+        table.innerHTML =
+            '<thead><tr>' +
+            '<th class="ip-col-check"></th>' +
+            '<th>Titre</th>' +
+            '<th class="ip-col-date">Publi\u00e9 le</th>' +
+            '</tr></thead>' +
+            '<tbody id="ip-tbody"></tbody>';
 
-        const tbody = table.querySelector('#ip-tbody');
-        messages.forEach(msg => {
-            const tr = document.createElement('tr');
+        var tbody = table.querySelector('#ip-tbody');
+        messages.forEach(function(msg) {
+            var tr = document.createElement('tr');
             tr.dataset.id = msg.id;
-            tr.innerHTML = `
-                <td class="ip-col-check">
-                    <input type="checkbox" class="emby-checkbox ip-row-check" data-id="${escHtml(msg.id)}"/>
-                </td>
-                <td class="ip-col-title">${escHtml(msg.title)}</td>
-                <td class="ip-col-date">${escHtml(formatDate(msg.publishedAt))}</td>`;
+            tr.innerHTML =
+                '<td class="ip-col-check">' +
+                '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + escHtml(msg.id) + '"/>' +
+                '</td>' +
+                '<td class="ip-col-title">' + escHtml(msg.title) + '</td>' +
+                '<td class="ip-col-date">' + escHtml(formatDate(msg.publishedAt)) + '</td>';
 
-            tr.querySelector('.ip-row-check').addEventListener('change', e => {
-                e.target.checked ? selectedIds.add(msg.id) : selectedIds.delete(msg.id);
-                updateSelectionUI();
+            tr.querySelector('.ip-row-check').addEventListener('change', function(e) {
+                if (e.target.checked) selectedIds.add(msg.id);
+                else selectedIds.delete(msg.id);
+                updateSelectionUI(page, selectedIds);
             });
             tbody.appendChild(tr);
         });
@@ -237,90 +254,122 @@
 
     // ── Chargement ───────────────────────────────────────────────────────────
 
-    async function loadMessages() {
-        try {
-            renderMessages(await (await apiFetch('/InfoPopup/messages')).json());
-        } catch (err) {
-            showToast(`Erreur de chargement : ${err.message}`, true);
-        }
+    function loadMessages(page, selectedIds) {
+        return apiFetch('/InfoPopup/messages')
+            .then(function(res) { return res.json(); })
+            .then(function(msgs) { renderMessages(page, msgs, selectedIds); })
+            .catch(function(err) { showToast(page, 'Erreur de chargement\u00a0: ' + err.message, true); });
     }
 
     // ── Publication ──────────────────────────────────────────────────────────
 
-    async function publishMessage() {
-        const titleEl  = document.getElementById('ip-title');
-        const bodyEl   = document.getElementById('ip-body');
-        const titleErr = document.getElementById('ip-title-err');
-        const bodyErr  = document.getElementById('ip-body-err');
+    function publishMessage(page, selectedIds) {
+        var titleEl  = page.querySelector('#ip-title');
+        var bodyEl   = page.querySelector('#ip-body');
+        var titleErr = page.querySelector('#ip-title-err');
+        var bodyErr  = page.querySelector('#ip-body-err');
         titleErr.style.display = 'none';
         bodyErr.style.display  = 'none';
 
-        const title = titleEl.value.trim();
-        const body  = bodyEl.value;
-        let valid   = true;
+        var title = titleEl.value.trim();
+        var body  = bodyEl.value;
+        var valid = true;
 
-        if (!title) { titleErr.textContent = 'Le titre est obligatoire.'; titleErr.style.display = 'block'; valid = false; }
-        if (!body.trim()) { bodyErr.textContent = 'Le message est obligatoire.';  bodyErr.style.display = 'block'; valid = false; }
+        if (!title) {
+            titleErr.textContent = 'Le titre est obligatoire.';
+            titleErr.style.display = 'block';
+            valid = false;
+        }
+        if (!body.trim()) {
+            bodyErr.textContent = 'Le message est obligatoire.';
+            bodyErr.style.display = 'block';
+            valid = false;
+        }
         if (!valid) return;
 
-        const btn = document.getElementById('ip-publish-btn');
+        var btn = page.querySelector('#ip-publish-btn');
         btn.disabled = true;
-        try {
-            await apiFetch('/InfoPopup/messages', { method: 'POST', body: JSON.stringify({ title, body }) });
+
+        apiFetch('/InfoPopup/messages', {
+            method: 'POST',
+            body: JSON.stringify({ title: title, body: body })
+        })
+        .then(function() {
             titleEl.value = '';
             bodyEl.value  = '';
-            showToast('✓ Message publié avec succès !');
-            await loadMessages();
-        } catch (err) {
-            showToast(`Erreur de publication : ${err.message}`, true);
-        } finally {
+            showToast(page, '\u2713 Message publi\u00e9 avec succ\u00e8s\u00a0!');
+            return loadMessages(page, selectedIds);
+        })
+        .catch(function(err) {
+            showToast(page, 'Erreur de publication\u00a0: ' + err.message, true);
+        })
+        .finally(function() {
             btn.disabled = false;
-        }
+        });
     }
 
     // ── Suppression ──────────────────────────────────────────────────────────
 
-    async function deleteSelected() {
+    function deleteSelected(page, selectedIds) {
         if (!selectedIds.size) return;
-        const count = selectedIds.size;
-        const confirmed = await showConfirm(
-            `Supprimer ${count} message${count > 1 ? 's' : ''} ?\n\n` +
-            `Cette action est irréversible. Le${count > 1 ? 's' : ''} message${count > 1 ? 's' : ''} ` +
-            `disparaîtra${count > 1 ? 'ont' : ''} définitivement pour tous les utilisateurs.`
-        );
-        if (!confirmed) return;
+        var count = selectedIds.size;
+        var confirmMsg = 'Supprimer ' + count + ' message' + (count > 1 ? 's' : '') + ' ?\n\n' +
+            'Cette action est irr\u00e9versible. Le' + (count > 1 ? 's' : '') +
+            ' message' + (count > 1 ? 's' : '') + ' dispara\u00eetra' + (count > 1 ? 'ont' : '') +
+            ' d\u00e9finitivement pour tous les utilisateurs.';
 
-        const btn = document.getElementById('ip-delete-btn');
-        btn.disabled = true;
-        try {
-            await apiFetch('/InfoPopup/messages', { method: 'DELETE', body: JSON.stringify({ ids: [...selectedIds] }) });
-            showToast(`✓ ${count} message${count > 1 ? 's' : ''} supprimé${count > 1 ? 's' : ''}.`);
-            selectedIds.clear();
-            await loadMessages();
-        } catch (err) {
-            showToast(`Erreur de suppression : ${err.message}`, true);
-            btn.disabled = false;
-        }
+        showConfirm(confirmMsg).then(function(confirmed) {
+            if (!confirmed) return;
+
+            var btn = page.querySelector('#ip-delete-btn');
+            btn.disabled = true;
+            var ids = Array.from(selectedIds);
+
+            apiFetch('/InfoPopup/messages', {
+                method: 'DELETE',
+                body: JSON.stringify({ ids: ids })
+            })
+            .then(function() {
+                showToast(page, '\u2713 ' + count + ' message' + (count > 1 ? 's' : '') + ' supprim\u00e9' + (count > 1 ? 's' : '') + '.');
+                selectedIds.clear();
+                return loadMessages(page, selectedIds);
+            })
+            .catch(function(err) {
+                showToast(page, 'Erreur de suppression\u00a0: ' + err.message, true);
+                btn.disabled = false;
+            });
+        });
     }
 
     // ── Init ─────────────────────────────────────────────────────────────────
+    // Jellyfin est une SPA : DOMContentLoaded ne refire pas lors des navigations.
+    // Il faut écouter l'event "pageshow" sur l'élément de page — c'est le
+    // pattern standard pour les pages de configuration de plugins Jellyfin.
 
-    function init() {
-        document.getElementById('ip-publish-btn')?.addEventListener('click', publishMessage);
-        document.getElementById('ip-delete-btn')?.addEventListener('click', deleteSelected);
-        document.getElementById('ip-select-all')?.addEventListener('change', e => {
-            document.querySelectorAll('.ip-row-check').forEach(cb => {
-                cb.checked = e.target.checked;
-                e.target.checked ? selectedIds.add(cb.dataset.id) : selectedIds.delete(cb.dataset.id);
-            });
-            updateSelectionUI();
+    var page = document.querySelector('#infoPopupConfigPage');
+
+    page.addEventListener('pageshow', function() {
+        var selectedIds = new Set();
+
+        page.querySelector('#ip-publish-btn').addEventListener('click', function() {
+            publishMessage(page, selectedIds);
         });
-        loadMessages();
-    }
 
-    document.readyState === 'loading'
-        ? document.addEventListener('DOMContentLoaded', init)
-        : init();
+        page.querySelector('#ip-delete-btn').addEventListener('click', function() {
+            deleteSelected(page, selectedIds);
+        });
+
+        page.querySelector('#ip-select-all').addEventListener('change', function(e) {
+            page.querySelectorAll('.ip-row-check').forEach(function(cb) {
+                cb.checked = e.target.checked;
+                if (e.target.checked) selectedIds.add(cb.dataset.id);
+                else selectedIds.delete(cb.dataset.id);
+            });
+            updateSelectionUI(page, selectedIds);
+        });
+
+        loadMessages(page, selectedIds);
+    });
 
 })();
 </script>
