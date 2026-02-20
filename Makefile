@@ -286,13 +286,19 @@ gh-release: ## Crée la GitHub Release et upload le ZIP (échoue si la release e
 	@printf "%b\n" "$(GREEN)✓ GitHub Release v$(VERSION) créée avec le ZIP$(RESET)"
 
 .PHONY: gh-release-upload
-gh-release-upload: ## Re-upload le ZIP sur une GitHub Release existante (--clobber)
+gh-release-upload: ## Re-upload le ZIP sur une GitHub Release existante (supprime l'asset pour invalider le cache CDN)
 	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH)$(RESET)"; exit 1; }
 	@printf "%b\n" "$(BOLD)Re-upload du ZIP sur la release v$(VERSION)...$(RESET)"
+	@printf "%b\n" "  Suppression de l'ancien asset (invalide le cache CDN GitHub)..."
+	@gh release delete-asset "v$(VERSION)" "$(ZIP_NAME)" \
+		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
+		--yes 2>/dev/null && \
+		printf "%b\n" "  $(GREEN)✓ Ancien asset supprimé$(RESET)" || \
+		printf "%b\n" "  $(YELL)⚠ Aucun asset existant à supprimer (premier upload)$(RESET)"
+	@printf "%b\n" "  Upload du nouveau ZIP..."
 	gh release upload "v$(VERSION)" \
 		"$(ZIP_PATH)#$(ZIP_NAME)" \
-		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
-		--clobber
+		--repo "$(GITHUB_USER)/$(GITHUB_REPO)"
 	@printf "%b\n" "$(GREEN)✓ ZIP re-uploadé sur la release v$(VERSION)$(RESET)"
 
 # =============================================================================
