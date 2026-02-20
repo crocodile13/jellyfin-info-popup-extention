@@ -1,15 +1,29 @@
-name: Release — Build, Pack & Publish
+name: Release — Build, Pack & Publish (Manuel)
 
-# Déclenché automatiquement par `make tag` (push d'un tag v*)
-# Ou manuellement depuis l'onglet Actions GitHub
+# =============================================================================
+#  CE WORKFLOW EST MANUEL UNIQUEMENT (workflow_dispatch).
+#
+#  POURQUOI pas de déclenchement automatique sur les tags :
+#    Le workflow `make release-*` pousse un tag, crée la GitHub Release et
+#    uploade le ZIP local en local. Si ce workflow se déclenche sur le même
+#    tag, il recompile le plugin dans un environnement différent (ubuntu-latest
+#    runner ≠ machine locale) et écrase le ZIP avec un binaire différent.
+#    Résultat : le checksum dans manifest.json ne correspond plus au ZIP servi
+#    par GitHub → Jellyfin refuse l'installation.
+#
+#  QUAND utiliser ce workflow :
+#    - En dernier recours si la release locale a échoué
+#    - Pour vérifier que le code compile correctement en CI
+#    - JAMAIS en même temps qu'un `make release-*` local sur le même tag
+#
+#  FLOW NORMAL : utiliser `make release-patch / release-minor / release-major`
+# =============================================================================
+
 on:
-  push:
-    tags:
-      - 'v*.*.*.*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag de version (ex: v1.2.3.0)'
+        description: 'Tag de version existant (ex: v1.2.3.0) — le tag doit déjà exister'
         required: true
 
 jobs:
@@ -17,22 +31,19 @@ jobs:
     name: Package & Publish
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # nécessaire pour créer la Release GitHub
+      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # récupère tout l'historique pour les tags
+          ref: ${{ github.event.inputs.tag }}
+          fetch-depth: 0
 
       - name: Déterminer la version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
+          TAG="${{ github.event.inputs.tag }}"
           VERSION="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -89,11 +100,19 @@ jobs:
             echo "ENDOFNOTES"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Créer la GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.changelog.outputs.notes }}
-          files: ${{ steps.zip.outputs.zip_path }}
-          fail_on_unmatched_files: true
+      - name: Uploader le ZIP sur la release existante
+        # Note : utilise --clobber pour remplacer le ZIP si la release existe déjà.
+        # Après cet upload, relancer `make manifest-update` localement pour
+        # recalculer le MD5 depuis GitHub et mettre à jour manifest.json.
+        run: |
+          gh release upload "${{ steps.version.outputs.tag }}" \
+            "${{ steps.zip.outputs.zip_path }}#${{ steps.version.outputs.zip_name }}" \
+            --repo "${{ github.repository }}" \
+            --clobber
+          echo "✓ ZIP uploadé. MD5 CI : ${{ steps.zip.outputs.checksum }}"
+          echo ""
+          echo "⚠ IMPORTANT : si vous utilisez ce workflow manuellement,"
+          echo "  relancez ensuite 'make manifest-update && make push' en local"
+          echo "  pour mettre à jour le checksum dans manifest.json."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
