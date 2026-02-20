@@ -75,21 +75,41 @@ help: ## Affiche cette aide
 	@printf "%b\n" "Version courante : $(BOLD)$(CYAN)$(VERSION)$(RESET)  |  targetAbi : $(TARGET_ABI)"
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)── Développement ───────────────────────────────────────────$(RESET)"
-	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; /^[a-z]/ {printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2}' | \
-		grep -v "release\|bump\|push\|tag\|manifest" || true
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "help"          "Affiche cette aide"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "check"         "Vérifie que tous les outils requis sont installés"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "version"       "Affiche la version courante et les URLs associées"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "verify"        "Vérifie que le ZIP GitHub == checksum manifest (détecte la désync)"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "restore"       "Restaure les packages NuGet"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "build"         "Compile en mode Debug"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "build-release" "Compile en mode Release (sans ZIP)"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "pack"          "Compile Release + crée le ZIP dans dist/"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "clean"         "Supprime les artefacts de build et les ZIPs dans dist/"
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)── Versioning ──────────────────────────────────────────────$(RESET)"
-	@grep -hE '^(bump|tag)[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELL)%-22s$(RESET) %s\n", $$1, $$2}'
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "bump-patch"    "Incrémente le patch : 1.0.0 → 1.0.1"
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "bump-minor"    "Incrémente le mineur : 1.0.0 → 1.1.0  (remet patch à 0)"
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "bump-major"    "Incrémente le majeur : 1.0.0 → 2.0.0  (remet minor+patch à 0)"
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)── Publication ─────────────────────────────────────────────$(RESET)"
-	@grep -hE '^(manifest|push|release)[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-22s$(RESET) %s\n", $$1, $$2}'
+	@printf "%b\n" "$(BOLD)── Git & GitHub (low-level) ────────────────────────────────$(RESET)"
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "push"               "Commit tout + push sur origin/$(BRANCH)"
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "tag"                "Crée et push le tag git v\$$(VERSION)  (échoue si déjà existant)"
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "gh-release"         "Crée la GitHub Release + upload le ZIP  (nouvelle release)"
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "gh-release-upload"  "Re-upload le ZIP sur une release existante  (--clobber)"
+	@printf "  $(YELL)%-22s$(RESET) %s\n" "manifest-update"    "Recalcule le MD5 du ZIP local et met à jour manifest.json"
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)── Config repo GitHub ──────────────────────────────────────$(RESET)"
-	@printf "%b\n" "  URL du dépôt à ajouter dans Jellyfin :"
-	@printf "%b\n" "  $(BOLD)https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/$(BRANCH)/manifest.json$(RESET)"
+	@printf "%b\n" "$(BOLD)── Workflows complets ──────────────────────────────────────$(RESET)"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-patch"  "🚀 bump patch  → pack → push → tag → upload ZIP → manifest → push"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-minor"  "🚀 bump minor  → pack → push → tag → upload ZIP → manifest → push"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-major"  "🚀 bump major  → pack → push → tag → upload ZIP → manifest → push"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-hotfix" "🔧 recompile   → re-upload ZIP (--clobber) → manifest → push  (même version)"
+	@printf "%b\n" ""
+	@printf "%b\n" "$(BOLD)── Dépôt Jellyfin ──────────────────────────────────────────$(RESET)"
+	@printf "%b\n" "  Ajouter cette URL dans Jellyfin → Extensions → Catalogues :"
+	@printf "%b\n" "  $(BOLD)$(CYAN)https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/$(BRANCH)/manifest.json$(RESET)"
+	@printf "%b\n" ""
+	@printf "%b\n" "$(BOLD)── En cas de désynchronisation checksum ────────────────────$(RESET)"
+	@printf "%b\n" "  1. $(CYAN)make verify$(RESET)          — diagnostique (compare GitHub ↔ manifest)"
+	@printf "%b\n" "  2. $(GREEN)make release-hotfix$(RESET)  — corrige (recompile + re-upload + manifest)"
 	@printf "%b\n" ""
 
 # =============================================================================
