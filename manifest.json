@@ -1,0 +1,12 @@
+[
+  {
+    "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Info Popup",
+    "description": "Permet aux administrateurs de diffuser des messages popup aux utilisateurs lors de leur connexion.",
+    "overview": "Messages popup admin pour Jellyfin",
+    "owner": "VOTRE_COMPTE_GITHUB",
+    "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/VOTRE_COMPTE_GITHUB/jellyfin-info-popup-extention/main/assets/icon.png",
+    "versions": []
+  }
+]

@@ -1,0 +1,63 @@
+name: Build & Package — jellyfin-info-popup-extention
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build Info Popup Plugin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish
+        run: |
+          dotnet publish \
+            Jellyfin.Plugin.InfoPopup/Jellyfin.Plugin.InfoPopup.csproj \
+            --configuration Release \
+            --output ./publish \
+            --no-build
+
+      - name: Create ZIP (release only)
+        if: github.event_name == 'release'
+        run: |
+          mkdir -p ./dist
+          cp publish/Jellyfin.Plugin.InfoPopup.dll ./dist/
+          cd dist
+          zip -r ../infopopup_${{ github.event.release.tag_name }}.zip .
+
+      - name: Upload Release Asset
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./infopopup_${{ github.event.release.tag_name }}.zip
+          asset_name: infopopup_${{ github.event.release.tag_name }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload artifact (non-release)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfoPopup-Plugin
+          path: ./publish/Jellyfin.Plugin.InfoPopup.dll

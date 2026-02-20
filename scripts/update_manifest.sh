@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# =============================================================================
+# update_manifest.sh — Ajoute une nouvelle entrée dans manifest.json
+#
+# Usage :
+#   bash update_manifest.sh VERSION TARGET_ABI RELEASE_URL TIMESTAMP ZIP_PATH GITHUB_USER GITHUB_REPO
+#
+# Le checksum MD5 est calculé depuis le ZIP local.
+# La nouvelle version est PREPEND dans le tableau versions[].
+# Les versions précédentes sont conservées (historique complet).
+# =============================================================================
+set -euo pipefail
+
+VERSION="$1"
+TARGET_ABI="$2"
+RELEASE_URL="$3"
+TIMESTAMP="$4"
+ZIP_PATH="$5"
+GITHUB_USER="$6"
+GITHUB_REPO="$7"
+
+MANIFEST_FILE="manifest.json"
+CHANGELOG_FILE="CHANGELOG.md"
+
+# ---------------------------------------------------------------------------
+# Calcul du checksum MD5
+# ---------------------------------------------------------------------------
+if command -v md5sum >/dev/null 2>&1; then
+    CHECKSUM=$(md5sum "$ZIP_PATH" | awk '{print $1}')
+elif command -v md5 >/dev/null 2>&1; then
+    CHECKSUM=$(md5 -q "$ZIP_PATH")
+else
+    echo "ERREUR : md5sum ou md5 introuvable" >&2
+    exit 1
+fi
+
+echo "  Checksum MD5 : $CHECKSUM"
+
+# ---------------------------------------------------------------------------
+# Extraction du changelog pour cette version (optionnel)
+# ---------------------------------------------------------------------------
+CHANGELOG_ENTRY=""
+if [ -f "$CHANGELOG_FILE" ]; then
+    # Extrait la section ## [VERSION] jusqu'à la prochaine section ##
+    CHANGELOG_ENTRY=$(awk \
+        "/^## \[${VERSION}\]|^## v${VERSION}/"',/^## /{if(found) exit; found=1; next} found{print}' \
+        "$CHANGELOG_FILE" | head -20 | tr '\n' '\\n' | sed 's/\\n$//')
+fi
+if [ -z "$CHANGELOG_ENTRY" ]; then
+    CHANGELOG_ENTRY="Release v${VERSION}"
+fi
+
+# ---------------------------------------------------------------------------
+# Construction de la nouvelle entrée version
+# ---------------------------------------------------------------------------
+NEW_VERSION_ENTRY=$(jq -n \
+    --arg version    "$VERSION" \
+    --arg changelog  "$CHANGELOG_ENTRY" \
+    --arg targetAbi  "$TARGET_ABI" \
+    --arg sourceUrl  "$RELEASE_URL" \
+    --arg checksum   "$CHECKSUM" \
+    --arg timestamp  "$TIMESTAMP" \
+    '{
+        version:   $version,
+        changelog: $changelog,
+        targetAbi: $targetAbi,
+        sourceUrl: $sourceUrl,
+        checksum:  $checksum,
+        timestamp: $timestamp
+    }')
+
+# ---------------------------------------------------------------------------
+# Lecture ou création du manifest
+# ---------------------------------------------------------------------------
+if [ ! -f "$MANIFEST_FILE" ] || [ ! -s "$MANIFEST_FILE" ]; then
+    echo "  Création d'un nouveau manifest.json"
+    echo "[]" > "$MANIFEST_FILE"
+fi
+
+MANIFEST=$(cat "$MANIFEST_FILE")
+
+# Vérifie si l'entrée plugin existe déjà (par GUID)
+PLUGIN_GUID=$(jq -r '.[0].guid // empty' <<< "$MANIFEST" 2>/dev/null || echo "")
+
+if [ -z "$PLUGIN_GUID" ]; then
+    # Premier build : créer la structure complète
+    PLUGIN_GUID=$(jq -r '.guid // "a1b2c3d4-e5f6-7890-abcd-ef1234567890"' version.json 2>/dev/null \
+        || echo "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+    jq -n \
+        --arg guid        "$PLUGIN_GUID" \
+        --arg name        "Info Popup" \
+        --arg description "Permet aux administrateurs de diffuser des messages popup aux utilisateurs lors de leur connexion." \
+        --arg overview    "Messages popup pour les utilisateurs Jellyfin" \
+        --arg owner       "$GITHUB_USER" \
+        --arg imageUrl    "https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/main/assets/icon.png" \
+        --argjson entry   "$NEW_VERSION_ENTRY" \
+        '[{
+            guid:        $guid,
+            name:        $name,
+            description: $description,
+            overview:    $overview,
+            owner:       $owner,
+            category:    "General",
+            imageUrl:    $imageUrl,
+            versions:    [$entry]
+        }]' > "${MANIFEST_FILE}.tmp"
+else
+    # Ajouter la nouvelle version en tête du tableau versions[]
+    # Si la version existe déjà, on la remplace (idempotent)
+    jq \
+        --argjson entry "$NEW_VERSION_ENTRY" \
+        '.[0].versions = ([$entry] + (.[0].versions | map(select(.version != $entry.version))))' \
+        "$MANIFEST_FILE" > "${MANIFEST_FILE}.tmp"
+fi
+
+mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"
+
+echo "  Version $VERSION ajoutée au manifest"
+echo "  Total versions dans le manifest : $(jq '.[0].versions | length' "$MANIFEST_FILE")"

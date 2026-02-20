@@ -1,0 +1,43 @@
+name: CI — Build & Check
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'manifest.json'
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'assets/**'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build .NET 8
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore Jellyfin.Plugin.InfoPopup.sln
+
+      - name: Build Debug
+        run: dotnet build Jellyfin.Plugin.InfoPopup.sln --configuration Debug --no-restore
+
+      - name: Build Release (vérification)
+        run: dotnet build Jellyfin.Plugin.InfoPopup.sln --configuration Release --no-restore
+
+      - name: Upload DLL (artifact CI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfoPopup-CI-${{ github.sha }}
+          path: Jellyfin.Plugin.InfoPopup/bin/Release/net8.0/Jellyfin.Plugin.InfoPopup.dll
+          retention-days: 7

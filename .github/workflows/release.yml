@@ -1,0 +1,99 @@
+name: Release — Build, Pack & Publish
+
+# Déclenché automatiquement par `make tag` (push d'un tag v*)
+# Ou manuellement depuis l'onglet Actions GitHub
+on:
+  push:
+    tags:
+      - 'v*.*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag de version (ex: v1.2.3.0)'
+        required: true
+
+jobs:
+  release:
+    name: Package & Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # nécessaire pour créer la Release GitHub
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # récupère tout l'historique pour les tags
+
+      - name: Déterminer la version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "zip_name=infopopup_${VERSION}.zip" >> "$GITHUB_OUTPUT"
+          echo "Version : $VERSION"
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore Jellyfin.Plugin.InfoPopup.sln
+
+      - name: Build Release
+        run: dotnet build Jellyfin.Plugin.InfoPopup.sln --configuration Release --no-restore
+
+      - name: Publish
+        run: |
+          dotnet publish \
+            Jellyfin.Plugin.InfoPopup/Jellyfin.Plugin.InfoPopup.csproj \
+            --configuration Release \
+            --output ./publish \
+            --no-build
+
+      - name: Créer le ZIP
+        id: zip
+        run: |
+          mkdir -p dist
+          cd publish
+          zip -j ../dist/${{ steps.version.outputs.zip_name }} Jellyfin.Plugin.InfoPopup.dll
+          cd ..
+          CHECKSUM=$(md5sum dist/${{ steps.version.outputs.zip_name }} | awk '{print $1}')
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+          echo "zip_path=dist/${{ steps.version.outputs.zip_name }}" >> "$GITHUB_OUTPUT"
+          echo "Checksum MD5 : $CHECKSUM"
+
+      - name: Extraire le changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NOTES=$(awk \
+            "BEGIN{found=0}
+             /^## \[?v?${VERSION//./\\.}\]?/{ found=1; next }
+             /^## / && found { exit }
+             found { print }" \
+            CHANGELOG.md | sed '/^[[:space:]]*$/d' | head -30)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release v${VERSION}"
+          fi
+          {
+            echo "notes<<ENDOFNOTES"
+            echo "$NOTES"
+            echo "ENDOFNOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Créer la GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: v${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.notes }}
+          files: ${{ steps.zip.outputs.zip_path }}
+          fail_on_unmatched_files: true

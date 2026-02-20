@@ -1,0 +1,44 @@
+# =============================================================================
+# .gitignore — jellyfin-info-popup-extention
+# =============================================================================
+
+# ── Build .NET ────────────────────────────────────────────────────────────────
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+.vscode/
+*.DotSettings.user
+
+# ── Packages NuGet ────────────────────────────────────────────────────────────
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ── Publication intermédiaire ─────────────────────────────────────────────────
+dist/_publish/
+
+# Les ZIPs packagés sont dans dist/ et committé UNIQUEMENT par les scripts
+# de release (ils sont référencés dans manifest.json via GitHub Releases).
+# En développement local ils restent ignorés.
+dist/*.zip
+
+# ── Environnement local ───────────────────────────────────────────────────────
+.env.make          # contient GITHUB_USER — ne pas committer
+.env
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── JetBrains / Rider ────────────────────────────────────────────────────────
+.idea/
+*.iml
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
