@@ -6,12 +6,18 @@
 #  PRÉREQUIS : dotnet (SDK 8+), git, jq, md5sum (ou md5 sur macOS), gh (GitHub CLI)
 #
 #  UTILISATION RAPIDE :
-#    make                  → affiche cette aide
-#    make build            → compile en Debug
-#    make pack             → compile Release + ZIP dans dist/
-#    make release-patch    → bump patch, pack, manifest, push, tag, GitHub Release
-#    make release-minor    → bump minor, pack, manifest, push, tag, GitHub Release
-#    make release-major    → bump major, pack, manifest, push, tag, GitHub Release
+#    make                   → affiche cette aide
+#    make build             → compile en Debug
+#    make pack              → compile Release + ZIP dans dist/
+#    make verify            → vérifie que le ZIP GitHub correspond au manifest
+#    make release-hotfix    → re-upload le ZIP actuel sans changer de version
+#    make release-patch     → bump patch + release complète
+#    make release-minor     → bump minor + release complète
+#    make release-major     → bump major + release complète
+#
+#  ORDRE GARANTI DANS UNE RELEASE :
+#    pack → push code → tag → gh-release (ZIP uploadé) → manifest → push manifest
+#    Le manifest n'est jamais pushé avant que le ZIP soit sur GitHub.
 #
 # =============================================================================
 
@@ -45,8 +51,8 @@ ZIP_PATH      := $(DIST_DIR)/$(ZIP_NAME)
 RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/v$(VERSION)/$(ZIP_NAME)
 TIMESTAMP     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Détection MD5 (Linux: md5sum, macOS: md5)
-MD5_CMD       := $(shell command -v md5sum 2>/dev/null && echo "md5sum" || echo "md5 -q")
+# Détection MD5 (Linux: md5sum, macOS: md5 -q)
+MD5_CMD       := $(shell command -v md5sum >/dev/null 2>&1 && echo "md5sum" || echo "md5 -q")
 
 # Couleurs terminal
 BOLD  := \033[1m
@@ -68,7 +74,7 @@ help: ## Affiche cette aide
 	@printf "%b\n" "$(BOLD)jellyfin-info-popup-extention$(RESET) — Plugin Jellyfin"
 	@printf "%b\n" "Version courante : $(BOLD)$(CYAN)$(VERSION)$(RESET)  |  targetAbi : $(TARGET_ABI)"
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)── Développement ──────────────────────────────────────────$(RESET)"
+	@printf "%b\n" "$(BOLD)── Développement ───────────────────────────────────────────$(RESET)"
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; /^[a-z]/ {printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2}' | \
 		grep -v "release\|bump\|push\|tag\|manifest" || true
@@ -94,10 +100,11 @@ help: ## Affiche cette aide
 check: ## Vérifie que tous les outils requis sont installés
 	@printf "%b\n" "$(BOLD)Vérification des prérequis...$(RESET)"
 	@command -v dotnet >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ dotnet SDK introuvable$(RESET)"; exit 1; }
-	@dotnet --version | grep -qE '^([89]|[1-9][0-9])\.' || { printf "%b\n" "$(RED)✗ dotnet SDK 8+ requis (installé : $$(dotnet --version))$(RESET)"; exit 1; }
-	@command -v git    >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ git introuvable$(RESET)"; exit 1; }
-	@command -v jq     >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ jq introuvable (brew install jq / apt install jq)$(RESET)"; exit 1; }
-	@command -v gh     >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ gh CLI introuvable (https://cli.github.com/)$(RESET)"; exit 1; }
+	@dotnet --version | grep -qE '^([89]|[1-9][0-9])\.' || \
+		{ printf "%b\n" "$(RED)✗ dotnet SDK 8+ requis (installé : $$(dotnet --version))$(RESET)"; exit 1; }
+	@command -v git >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ git introuvable$(RESET)"; exit 1; }
+	@command -v jq  >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ jq introuvable (brew install jq / apt install jq)$(RESET)"; exit 1; }
+	@command -v gh  >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ gh CLI introuvable (https://cli.github.com/)$(RESET)"; exit 1; }
 	@gh auth status >/dev/null 2>&1 || { printf "%b\n" "$(RED)✗ gh non authentifié — lancez: gh auth login$(RESET)"; exit 1; }
 	@printf "%b\n" "$(GREEN)✓ dotnet  $(shell dotnet --version)$(RESET)"
 	@printf "%b\n" "$(GREEN)✓ git     $(shell git --version | head -1)$(RESET)"
@@ -111,6 +118,29 @@ version: ## Affiche la version courante
 	@printf "%b\n" "$(BOLD)targetAbi :$(RESET) $(TARGET_ABI)"
 	@printf "%b\n" "$(BOLD)ZIP :$(RESET) $(ZIP_NAME)"
 	@printf "%b\n" "$(BOLD)Release URL :$(RESET) $(RELEASE_URL)"
+
+.PHONY: verify
+verify: ## Vérifie que le ZIP sur GitHub correspond au checksum dans manifest.json
+	@printf "%b\n" "$(BOLD)Vérification de cohérence release ↔ manifest...$(RESET)"
+	@MANIFEST_MD5=$$(jq -r '.[] | .versions[] | select(.version == "$(VERSION)") | .checksum' manifest.json); \
+	if [ -z "$$MANIFEST_MD5" ]; then \
+		printf "%b\n" "$(RED)✗ Version $(VERSION) introuvable dans manifest.json$(RESET)"; exit 1; \
+	fi; \
+	printf "%b\n" "  Checksum manifest : $$MANIFEST_MD5"; \
+	TMP_ZIP=$$(mktemp /tmp/verify_XXXXXX.zip); \
+	printf "%b\n" "  Téléchargement de $(RELEASE_URL) ..."; \
+	if ! curl -fsSL "$(RELEASE_URL)" -o "$$TMP_ZIP" 2>/dev/null; then \
+		printf "%b\n" "$(RED)✗ Impossible de télécharger le ZIP depuis GitHub$(RESET)"; \
+		rm -f "$$TMP_ZIP"; exit 1; \
+	fi; \
+	REMOTE_MD5=$$($(MD5_CMD) "$$TMP_ZIP" | awk '{print $$1}'); \
+	rm -f "$$TMP_ZIP"; \
+	printf "%b\n" "  Checksum GitHub   : $$REMOTE_MD5"; \
+	if [ "$$(echo $$MANIFEST_MD5 | tr '[:upper:]' '[:lower:]')" = "$$(echo $$REMOTE_MD5 | tr '[:upper:]' '[:lower:]')" ]; then \
+		printf "%b\n" "$(GREEN)✓ Checksums identiques — Jellyfin pourra installer le plugin$(RESET)"; \
+	else \
+		printf "%b\n" "$(RED)✗ DÉSYNCHRONISÉ — lancez 'make release-hotfix' pour corriger$(RESET)"; exit 1; \
+	fi
 
 # =============================================================================
 # BUILD
@@ -156,8 +186,9 @@ pack: build-release ## Compile Release + crée le ZIP dans dist/
 		--no-build
 	@cd $(DIST_DIR)/_publish && zip -j ../$(ZIP_NAME) $(PLUGIN_NAME).dll
 	@rm -rf $(DIST_DIR)/_publish
-	@printf "%b\n" "$(GREEN)✓ ZIP créé : $(ZIP_PATH)$(RESET)"
-	@printf "%b\n" "   MD5 : $$($(MD5_CMD) $(ZIP_PATH) | awk '{print $$1}')"
+	@LOCAL_MD5=$$($(MD5_CMD) $(ZIP_PATH) | awk '{print $$1}'); \
+	printf "%b\n" "$(GREEN)✓ ZIP créé : $(ZIP_PATH)$(RESET)"; \
+	printf "%b\n" "   MD5 : $$LOCAL_MD5"
 
 # =============================================================================
 # VERSIONING
@@ -183,8 +214,9 @@ bump-major: ## Incrémente le majeur (1.0.0 → 2.0.0) — remet minor et patch 
 # =============================================================================
 
 .PHONY: manifest-update
-manifest-update: ## Régénère manifest.json avec la nouvelle version (requiert dist/ prêt)
-	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH) — lancez 'make pack' d'abord$(RESET)"; exit 1; }
+manifest-update: ## Régénère manifest.json depuis le ZIP local (requiert dist/ prêt)
+	@[ -f "$(ZIP_PATH)" ] || \
+		{ printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH) — lancez 'make pack' d'abord$(RESET)"; exit 1; }
 	@printf "%b\n" "$(BOLD)Mise à jour du manifest Jellyfin...$(RESET)"
 	@bash $(SCRIPTS_DIR)/update_manifest.sh \
 		"$(VERSION)" \
@@ -204,21 +236,26 @@ manifest-update: ## Régénère manifest.json avec la nouvelle version (requiert
 push: ## Commit les changements locaux et push sur origin/main
 	@printf "%b\n" "$(BOLD)Push vers origin/$(BRANCH)...$(RESET)"
 	git add -A
-	git diff --cached --quiet && printf "%b\n" "$(YELL)Rien à committer$(RESET)" || \
+	git diff --cached --quiet && \
+		printf "%b\n" "$(YELL)Rien à committer$(RESET)" || \
 		git commit -m "chore: version $(VERSION)"
 	git push origin $(BRANCH)
 	@printf "%b\n" "$(GREEN)✓ Push effectué$(RESET)"
 
 .PHONY: tag
-tag: ## Crée et push le tag git v$(VERSION)
+tag: ## Crée et push le tag git v$(VERSION) (échoue si le tag existe déjà)
+	@if git ls-remote --tags origin | grep -q "refs/tags/v$(VERSION)$$"; then \
+		printf "%b\n" "$(RED)✗ Le tag v$(VERSION) existe déjà sur origin$(RESET)"; \
+		printf "%b\n" "  → Pour mettre à jour une release existante : make release-hotfix"; exit 1; \
+	fi
 	@printf "%b\n" "$(BOLD)Création du tag v$(VERSION)...$(RESET)"
 	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
 	git push origin "v$(VERSION)"
 	@printf "%b\n" "$(GREEN)✓ Tag v$(VERSION) créé et poussé$(RESET)"
 
 .PHONY: gh-release
-gh-release: ## Crée la GitHub Release et upload le ZIP (requiert gh CLI + tag)
-	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable$(RESET)"; exit 1; }
+gh-release: ## Crée la GitHub Release et upload le ZIP (échoue si la release existe)
+	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH)$(RESET)"; exit 1; }
 	@printf "%b\n" "$(BOLD)Création de la GitHub Release v$(VERSION)...$(RESET)"
 	@NOTES=$$(bash $(SCRIPTS_DIR)/extract_changelog.sh "$(VERSION)" 2>/dev/null || echo "Release v$(VERSION)"); \
 	gh release create "v$(VERSION)" \
@@ -226,42 +263,76 @@ gh-release: ## Crée la GitHub Release et upload le ZIP (requiert gh CLI + tag)
 		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
 		--title "v$(VERSION)" \
 		--notes "$$NOTES"
-	@printf "%b\n" "$(GREEN)✓ GitHub Release v$(VERSION) créée$(RESET)"
+	@printf "%b\n" "$(GREEN)✓ GitHub Release v$(VERSION) créée avec le ZIP$(RESET)"
+
+.PHONY: gh-release-upload
+gh-release-upload: ## Re-upload le ZIP sur une GitHub Release existante (--clobber)
+	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH)$(RESET)"; exit 1; }
+	@printf "%b\n" "$(BOLD)Re-upload du ZIP sur la release v$(VERSION)...$(RESET)"
+	gh release upload "v$(VERSION)" \
+		"$(ZIP_PATH)#$(ZIP_NAME)" \
+		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
+		--clobber
+	@printf "%b\n" "$(GREEN)✓ ZIP re-uploadé sur la release v$(VERSION)$(RESET)"
 
 # =============================================================================
 # WORKFLOWS COMPLETS DE RELEASE
 # =============================================================================
-# Séquence complète :
-#   1. bump version.json
-#   2. pack (build Release + ZIP)
-#   3. manifest-update (mise à jour manifest.json)
-#   4. push (commit + push)
-#   5. tag (crée + push le tag git)
-#   6. gh-release (crée la Release GitHub + upload ZIP)
+#
+#  ORDRE CRITIQUE (garantit que manifest ↔ GitHub Release sont toujours sync) :
+#    1. pack           → compile + crée le ZIP local
+#    2. push code      → pousse version.json + sources (sans manifest)
+#    3. tag            → crée le tag git
+#    4. gh-release     → UPLOAD le ZIP sur GitHub en premier
+#    5. manifest-update → calcule le MD5 du ZIP local (= celui uploadé)
+#    6. push manifest  → manifest avec le bon checksum pushé en dernier
+#
+#  Pourquoi cet ordre ?
+#    Si le manifest est pushé avant le ZIP GitHub, Jellyfin peut lire le
+#    nouveau checksum mais télécharger l'ancien binaire → erreur de checksum.
+#
 # =============================================================================
 
 .PHONY: release-patch
-release-patch: check ## 🚀 Release patch complète (bump + pack + manifest + push + tag + GitHub Release)
+release-patch: check ## 🚀 Release patch complète (bump + pack + upload + manifest)
 	@printf "%b\n" "$(BOLD)$(GREEN)═══ RELEASE PATCH ═══$(RESET)"
 	$(MAKE) bump-patch
 	$(MAKE) _do-release
 
 .PHONY: release-minor
-release-minor: check ## 🚀 Release mineure complète (bump + pack + manifest + push + tag + GitHub Release)
+release-minor: check ## 🚀 Release mineure complète (bump + pack + upload + manifest)
 	@printf "%b\n" "$(BOLD)$(GREEN)═══ RELEASE MINEURE ═══$(RESET)"
 	$(MAKE) bump-minor
 	$(MAKE) _do-release
 
 .PHONY: release-major
-release-major: check ## 🚀 Release majeure complète (bump + pack + manifest + push + tag + GitHub Release)
+release-major: check ## 🚀 Release majeure complète (bump + pack + upload + manifest)
 	@printf "%b\n" "$(BOLD)$(YELL)═══ RELEASE MAJEURE ═══$(RESET)"
 	$(MAKE) bump-major
 	$(MAKE) _do-release
 
-# Cible interne — ne pas appeler directement
-.PHONY: _do-release
-_do-release:
-	@# Recharger la version depuis version.json (après bump)
+.PHONY: release-hotfix
+release-hotfix: check ## 🔧 Recompile + re-upload le ZIP sans changer de version
+	@printf "%b\n" "$(BOLD)$(YELL)═══ RELEASE HOTFIX v$(VERSION) ═══$(RESET)"
+	@printf "%b\n" "  Recompile et remplace le ZIP sur la release existante."
+	$(MAKE) _reload-version
+	$(MAKE) pack \
+		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
+	$(MAKE) gh-release-upload \
+		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
+	$(MAKE) manifest-update \
+		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
+		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP) \
+		ZIP_PATH=$(ZIP_PATH)
+	$(MAKE) push
+	@printf "%b\n" ""
+	@printf "%b\n" "$(BOLD)$(GREEN)✓ Hotfix v$(VERSION) appliqué$(RESET)"
+	@printf "%b\n" "  Manifest et ZIP GitHub sont maintenant synchronisés."
+	@printf "%b\n" "  Rafraîchissez le dépôt dans Jellyfin puis réinstallez."
+
+# Cible interne — recharge les variables depuis version.json après un bump
+.PHONY: _reload-version
+_reload-version:
 	$(eval VERSION       := $(shell jq -r '"\(.major).\(.minor).\(.patch).0"' version.json))
 	$(eval VERSION_MAJOR := $(shell jq -r '.major' version.json))
 	$(eval VERSION_MINOR := $(shell jq -r '.minor' version.json))
@@ -271,17 +342,24 @@ _do-release:
 	$(eval ZIP_PATH      := $(DIST_DIR)/$(ZIP_NAME))
 	$(eval RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/v$(VERSION)/$(ZIP_NAME))
 	$(eval TIMESTAMP     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ"))
+
+# Cible interne — ne pas appeler directement
+.PHONY: _do-release
+_do-release: _reload-version
 	@printf "%b\n" "$(BOLD)Version cible : $(CYAN)$(VERSION)$(RESET)"
 	$(MAKE) pack \
+		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
+	$(MAKE) push
+	$(MAKE) tag \
+		VERSION=$(VERSION)
+	$(MAKE) gh-release \
 		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
 	$(MAKE) manifest-update \
 		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
 		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP) \
 		ZIP_PATH=$(ZIP_PATH)
 	$(MAKE) push
-	$(MAKE) tag VERSION=$(VERSION)
-	$(MAKE) gh-release VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)$(GREEN)✓ Release v$(VERSION) publiée avec succès !$(RESET)"
-	@printf "%b\n" "  GitHub : https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/tag/v$(VERSION)"
-	@printf "%b\n" "  Repo Jellyfin : https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/$(BRANCH)/manifest.json"
+	@printf "%b\n" "  GitHub  : https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/tag/v$(VERSION)"
+	@printf "%b\n" "  Jellyfin: https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/$(BRANCH)/manifest.json"
