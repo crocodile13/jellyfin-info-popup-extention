@@ -1,8 +1,3 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><title>Info Popup</title></head>
-<body>
-
 <div id="infoPopupConfigPage" data-role="page" class="page libraryPage">
 <div class="padded-left padded-right padded-bottom-page">
 
@@ -23,352 +18,692 @@
 
         <div class="inputContainer">
             <label class="inputLabel inputLabelUnfocused" for="ip-title">Titre *</label>
-            <input id="ip-title" type="text" class="emby-input" maxlength="200"
-                   placeholder="Saisir le titre du message..." autocomplete="off"/>
-            <div id="ip-title-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
+            <input id="ip-title"
+                   type="text"
+                   class="emby-input"
+                   maxlength="200"
+                   placeholder="Saisir le titre du message..."
+                   autocomplete="off"/>
+
+            <div id="ip-title-err"
+                 class="fieldDescription"
+                 style="color:#cf6679;display:none;">
+            </div>
         </div>
 
         <div class="inputContainer" style="margin-top:16px;">
             <label class="inputLabel inputLabelUnfocused" for="ip-body">Message *</label>
-            <textarea id="ip-body" class="emby-textarea" maxlength="10000" rows="6"
+
+            <textarea id="ip-body"
+                      class="emby-textarea"
+                      maxlength="10000"
+                      rows="6"
                       placeholder="Saisir le contenu en texte brut..."
-                      style="resize:vertical;width:100%;box-sizing:border-box;"></textarea>
-            <div id="ip-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
+                      style="resize:vertical;width:100%;box-sizing:border-box;">
+            </textarea>
+
+            <div id="ip-body-err"
+                 class="fieldDescription"
+                 style="color:#cf6679;display:none;">
+            </div>
         </div>
 
         <div style="margin-top:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-            <button id="ip-publish-btn" class="raised button-submit emby-button" type="button">
-                <span class="material-icons" style="vertical-align:middle;margin-right:6px;font-size:1.1em;">send</span>
+
+            <button id="ip-publish-btn"
+                    class="raised button-submit emby-button"
+                    type="button">
+
+                <span class="material-icons"
+                      style="vertical-align:middle;margin-right:6px;font-size:1.1em;">
+                    send
+                </span>
+
                 Publier le message
             </button>
-            <div id="ip-toast" style="display:none;padding:8px 14px;border-radius:4px;font-size:.9rem;"></div>
+
+            <div id="ip-toast"
+                 style="display:none;padding:8px 14px;border-radius:4px;font-size:.9rem;">
+            </div>
+
         </div>
     </div>
 
     <!-- Historique -->
     <div class="detailSection" style="margin-top:32px;">
+
         <h3 class="sectionTitle">Historique des messages</h3>
 
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
-                <input id="ip-select-all" type="checkbox" class="emby-checkbox"/>
+                <input id="ip-select-all"
+                       type="checkbox"
+                       class="emby-checkbox"/>
                 <span>Tout sélectionner</span>
             </label>
-            <button id="ip-delete-btn" class="raised emby-button button-delete" type="button" disabled
-                    style="display:flex;align-items:center;gap:6px;">
+
+            <button id="ip-delete-btn"
+                    class="raised emby-button button-delete"
+                    type="button"
+                    disabled>
+
                 <span class="material-icons" style="font-size:1em;">delete</span>
                 Supprimer la sélection
             </button>
-            <span id="ip-sel-count" style="opacity:.6;font-size:.88rem;"></span>
+
+            <span id="ip-sel-count"
+                  style="opacity:.6;font-size:.88rem;">
+            </span>
+
         </div>
 
         <div id="ip-msg-container">
-            <p id="ip-empty" style="opacity:.55;">Aucun message publié pour le moment.</p>
+            <p id="ip-empty" style="opacity:.55;">
+                Aucun message publié pour le moment.
+            </p>
         </div>
+
     </div>
 
 </div>
 </div>
 
 <style>
-.ip-table { width:100%; border-collapse:collapse; font-size:.92rem; }
-.ip-table thead th { text-align:left; padding:10px 12px; border-bottom:2px solid rgba(255,255,255,.15); font-weight:600; opacity:.8; }
-.ip-table tbody tr { border-bottom:1px solid rgba(255,255,255,.07); transition:background .12s; }
-.ip-table tbody tr:hover { background:rgba(255,255,255,.04); }
-.ip-table td { padding:10px 12px; vertical-align:middle; }
-.ip-col-check { width:40px; }
-.ip-col-date  { width:170px; opacity:.65; white-space:nowrap; }
-.ip-col-title { font-weight:500; overflow-wrap:break-word; word-break:break-word; }
 
-.ip-toast-ok  { background:rgba(0,180,100,.2); border:1px solid rgba(0,180,100,.5); color:#6ee09f; }
-.ip-toast-err { background:rgba(207,102,121,.2); border:1px solid rgba(207,102,121,.5); color:#cf6679; }
+/* Tableau */
+
+.ip-table {
+    width:100%;
+    border-collapse:collapse;
+    font-size:.92rem;
+}
+
+.ip-table thead th {
+    text-align:left;
+    padding:10px 12px;
+    border-bottom:2px solid rgba(255,255,255,.15);
+    font-weight:600;
+    opacity:.8;
+}
+
+.ip-table tbody tr {
+    border-bottom:1px solid rgba(255,255,255,.07);
+    transition:background .12s;
+}
+
+.ip-table tbody tr:hover {
+    background:rgba(255,255,255,.04);
+}
+
+.ip-table td {
+    padding:10px 12px;
+    vertical-align:middle;
+}
+
+.ip-col-check {
+    width:40px;
+}
+
+.ip-col-date {
+    width:170px;
+    opacity:.65;
+    white-space:nowrap;
+}
+
+.ip-col-title {
+    font-weight:500;
+    overflow-wrap:break-word;
+    word-break:break-word;
+}
+
+
+/* Toast */
+
+.ip-toast-ok {
+    background:rgba(0,180,100,.2);
+    border:1px solid rgba(0,180,100,.5);
+    color:#6ee09f;
+}
+
+.ip-toast-err {
+    background:rgba(207,102,121,.2);
+    border:1px solid rgba(207,102,121,.5);
+    color:#cf6679;
+}
+
+
+/* Confirmation */
 
 .ip-confirm-backdrop {
-    position:fixed; inset:0; background:rgba(0,0,0,.6);
-    z-index:99999; display:flex; align-items:center; justify-content:center;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.6);
+    z-index:99999;
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
+
 .ip-confirm-box {
-    background:var(--theme-body-background-color,#202020); color:var(--theme-text-color,#e5e5e5);
-    border:1px solid rgba(255,255,255,.15); border-radius:8px;
-    padding:28px 28px 22px; max-width:420px; width:calc(100% - 32px);
+    background:var(--theme-body-background-color,#202020);
+    color:var(--theme-text-color,#e5e5e5);
+    border:1px solid rgba(255,255,255,.15);
+    border-radius:8px;
+    padding:28px 28px 22px;
+    max-width:420px;
+    width:calc(100% - 32px);
     box-shadow:0 8px 32px rgba(0,0,0,.6);
 }
-.ip-confirm-box h4 { margin:0 0 10px; font-size:1.05rem; }
-.ip-confirm-box p  { margin:0 0 22px; opacity:.8; font-size:.93rem; line-height:1.5; }
-.ip-confirm-actions { display:flex; justify-content:flex-end; gap:12px; }
+
+.ip-confirm-box h4 {
+    margin:0 0 10px;
+    font-size:1.05rem;
+}
+
+.ip-confirm-box p {
+    margin:0 0 22px;
+    opacity:.8;
+    font-size:.93rem;
+    line-height:1.5;
+}
+
+.ip-confirm-actions {
+    display:flex;
+    justify-content:flex-end;
+    gap:12px;
+}
+
 </style>
 
 <script>
+
 (function () {
-    'use strict';
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+'use strict';
 
-    function getToken() {
-        try {
-            var client = window.ApiClient;
-            if (!client) return null;
-            // accessToken est une méthode dans jellyfin-apiclient
-            if (typeof client.accessToken === 'function') return client.accessToken();
-            // fallback : propriété directe
-            if (typeof client.accessToken === 'string') return client.accessToken;
-            return null;
-        } catch (e) { return null; }
+
+/* ================= Helpers ================= */
+
+function getToken() {
+    try {
+        var client = window.ApiClient;
+
+        if (!client) return null;
+
+        if (typeof client.accessToken === 'function')
+            return client.accessToken();
+
+        if (typeof client.accessToken === 'string')
+            return client.accessToken();
+
+        return null;
+
+    } catch (e) {
+        return null;
+    }
+}
+
+
+function apiFetch(path, opts) {
+
+    opts = opts || {};
+
+    var token = getToken();
+
+    var headers = {
+        'Content-Type': 'application/json'
+    };
+
+    if (token) {
+        headers['Authorization'] =
+            'MediaBrowser Token="' + token + '"';
     }
 
-    function apiFetch(path, opts) {
-        opts = opts || {};
-        var token = getToken();
-        var headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = 'MediaBrowser Token="' + token + '"';
-        if (opts.headers) {
-            Object.keys(opts.headers).forEach(function(k) { headers[k] = opts.headers[k]; });
-        }
-        return fetch(path, Object.assign({}, opts, { headers: headers }))
-            .then(function(res) {
-                if (!res.ok) {
-                    return res.text().catch(function() { return ''; }).then(function(body) {
-                        throw new Error('HTTP ' + res.status + ' \u2014 ' + body);
-                    });
-                }
-                return res;
-            });
-    }
-
-    function escHtml(str) {
-        var d = document.createElement('div');
-        d.textContent = String(str);
-        return d.innerHTML;
-    }
-
-    function formatDate(iso) {
-        var d = new Date(iso);
-        return d.getUTCFullYear() + '-' +
-               String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-               String(d.getUTCDate()).padStart(2, '0') + ' ' +
-               String(d.getUTCHours()).padStart(2, '0') + ':' +
-               String(d.getUTCMinutes()).padStart(2, '0') + ' UTC';
-    }
-
-    // ── Toast ────────────────────────────────────────────────────────────────
-
-    var toastTimer = null;
-
-    function showToast(page, msg, isErr) {
-        var el = page.querySelector('#ip-toast');
-        if (!el) return;
-        el.textContent = msg;
-        el.className = isErr ? 'ip-toast-err' : 'ip-toast-ok';
-        el.style.display = 'block';
-        if (toastTimer) clearTimeout(toastTimer);
-        toastTimer = setTimeout(function() { el.style.display = 'none'; }, 4000);
-    }
-
-    // ── Confirmation ─────────────────────────────────────────────────────────
-
-    function showConfirm(msg) {
-        return new Promise(function(resolve) {
-            var backdrop = document.createElement('div');
-            backdrop.className = 'ip-confirm-backdrop';
-            var box = document.createElement('div');
-            box.className = 'ip-confirm-box';
-            box.innerHTML = '<h4>Confirmation</h4>' +
-                '<p>' + escHtml(msg) + '</p>' +
-                '<div class="ip-confirm-actions">' +
-                '<button class="emby-button" id="ip-c-cancel">Annuler</button>' +
-                '<button class="raised button-delete emby-button" id="ip-c-ok">Supprimer</button>' +
-                '</div>';
-            backdrop.appendChild(box);
-            document.body.appendChild(backdrop);
-            box.querySelector('#ip-c-ok').addEventListener('click', function() { backdrop.remove(); resolve(true); });
-            box.querySelector('#ip-c-cancel').addEventListener('click', function() { backdrop.remove(); resolve(false); });
+    if (opts.headers) {
+        Object.keys(opts.headers).forEach(function (k) {
+            headers[k] = opts.headers[k];
         });
     }
 
-    // ── Sélection ────────────────────────────────────────────────────────────
+    return fetch(
+        path,
+        Object.assign({}, opts, { headers: headers })
+    )
+    .then(function (res) {
 
-    function updateSelectionUI(page, selectedIds) {
-        var deleteBtn = page.querySelector('#ip-delete-btn');
-        var countEl   = page.querySelector('#ip-sel-count');
-        var selAll    = page.querySelector('#ip-select-all');
-        var boxes     = page.querySelectorAll('.ip-row-check');
-        var count     = selectedIds.size;
-
-        deleteBtn.disabled = count === 0;
-        countEl.textContent = count === 0 ? '' :
-            count + ' message' + (count > 1 ? 's' : '') + ' s\u00e9lectionn\u00e9' + (count > 1 ? 's' : '');
-
-        if (!boxes.length || count === 0) { selAll.checked = false; selAll.indeterminate = false; }
-        else if (count === boxes.length)  { selAll.checked = true;  selAll.indeterminate = false; }
-        else                              { selAll.checked = false;  selAll.indeterminate = true;  }
-    }
-
-    // ── Rendu tableau ────────────────────────────────────────────────────────
-
-    function renderMessages(page, messages, selectedIds) {
-        var container = page.querySelector('#ip-msg-container');
-        var empty     = page.querySelector('#ip-empty');
-        selectedIds.clear();
-        updateSelectionUI(page, selectedIds);
-
-        if (!messages || !messages.length) {
-            container.innerHTML = '';
-            container.appendChild(empty);
-            empty.style.display = 'block';
-            return;
+        if (!res.ok) {
+            return res.text()
+                .catch(function () { return ''; })
+                .then(function (body) {
+                    throw new Error(
+                        'HTTP ' + res.status + ' — ' + body
+                    );
+                });
         }
-        empty.style.display = 'none';
 
-        var table = document.createElement('table');
-        table.className = 'ip-table';
-        table.innerHTML =
-            '<thead><tr>' +
-            '<th class="ip-col-check"></th>' +
-            '<th>Titre</th>' +
-            '<th class="ip-col-date">Publi\u00e9 le</th>' +
-            '</tr></thead>' +
-            '<tbody id="ip-tbody"></tbody>';
+        return res;
+    });
+}
 
-        var tbody = table.querySelector('#ip-tbody');
-        messages.forEach(function(msg) {
-            var tr = document.createElement('tr');
-            tr.dataset.id = msg.id;
-            tr.innerHTML =
-                '<td class="ip-col-check">' +
-                '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + escHtml(msg.id) + '"/>' +
-                '</td>' +
-                '<td class="ip-col-title">' + escHtml(msg.title) + '</td>' +
-                '<td class="ip-col-date">' + escHtml(formatDate(msg.publishedAt)) + '</td>';
 
-            tr.querySelector('.ip-row-check').addEventListener('change', function(e) {
-                if (e.target.checked) selectedIds.add(msg.id);
-                else selectedIds.delete(msg.id);
-                updateSelectionUI(page, selectedIds);
+/* ================= Utils ================= */
+
+function escHtml(str) {
+    var d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+}
+
+
+function formatDate(iso) {
+
+    var d = new Date(iso);
+
+    return d.getUTCFullYear() + '-' +
+        String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getUTCDate()).padStart(2, '0') + ' ' +
+        String(d.getUTCHours()).padStart(2, '0') + ':' +
+        String(d.getUTCMinutes()).padStart(2, '0') +
+        ' UTC';
+}
+
+
+/* ================= Toast ================= */
+
+var toastTimer = null;
+
+
+function showToast(page, msg, isErr) {
+
+    var el = page.querySelector('#ip-toast');
+
+    if (!el) return;
+
+    el.textContent = msg;
+
+    el.className = isErr ?
+        'ip-toast-err' :
+        'ip-toast-ok';
+
+    el.style.display = 'block';
+
+    if (toastTimer)
+        clearTimeout(toastTimer);
+
+    toastTimer = setTimeout(function () {
+        el.style.display = 'none';
+    }, 4000);
+}
+
+
+/* ================= Confirm ================= */
+
+function showConfirm(msg) {
+
+    return new Promise(function (resolve) {
+
+        var backdrop = document.createElement('div');
+        backdrop.className = 'ip-confirm-backdrop';
+
+        var box = document.createElement('div');
+        box.className = 'ip-confirm-box';
+
+        box.innerHTML =
+            '<h4>Confirmation</h4>' +
+            '<p>' + escHtml(msg) + '</p>' +
+            '<div class="ip-confirm-actions">' +
+            '<button class="emby-button" id="ip-c-cancel">Annuler</button>' +
+            '<button class="raised button-delete emby-button" id="ip-c-ok">Supprimer</button>' +
+            '</div>';
+
+        backdrop.appendChild(box);
+        document.body.appendChild(backdrop);
+
+        box.querySelector('#ip-c-ok')
+            .addEventListener('click', function () {
+                backdrop.remove();
+                resolve(true);
             });
-            tbody.appendChild(tr);
-        });
+
+        box.querySelector('#ip-c-cancel')
+            .addEventListener('click', function () {
+                backdrop.remove();
+                resolve(false);
+            });
+
+    });
+}
+
+
+/* ================= Selection ================= */
+
+function updateSelectionUI(page, selectedIds) {
+
+    var deleteBtn = page.querySelector('#ip-delete-btn');
+    var countEl   = page.querySelector('#ip-sel-count');
+    var selAll    = page.querySelector('#ip-select-all');
+    var boxes     = page.querySelectorAll('.ip-row-check');
+
+    var count = selectedIds.size;
+
+
+    deleteBtn.disabled = count === 0;
+
+    countEl.textContent =
+        count === 0 ? '' :
+        count + ' message' + (count > 1 ? 's' : '') +
+        ' sélectionné' + (count > 1 ? 's' : '');
+
+
+    if (!boxes.length || count === 0) {
+        selAll.checked = false;
+        selAll.indeterminate = false;
+    }
+    else if (count === boxes.length) {
+        selAll.checked = true;
+        selAll.indeterminate = false;
+    }
+    else {
+        selAll.checked = false;
+        selAll.indeterminate = true;
+    }
+}
+
+
+/* ================= Render ================= */
+
+function renderMessages(page, messages, selectedIds) {
+
+    var container = page.querySelector('#ip-msg-container');
+    var empty     = page.querySelector('#ip-empty');
+
+    selectedIds.clear();
+
+    updateSelectionUI(page, selectedIds);
+
+
+    if (!messages || !messages.length) {
 
         container.innerHTML = '';
-        container.appendChild(table);
+        container.appendChild(empty);
+
+        empty.style.display = 'block';
+        return;
     }
 
-    // ── Chargement ───────────────────────────────────────────────────────────
+    empty.style.display = 'none';
 
-    function loadMessages(page, selectedIds) {
-        return apiFetch('/InfoPopup/messages')
-            .then(function(res) { return res.json(); })
-            .then(function(msgs) { renderMessages(page, msgs, selectedIds); })
-            .catch(function(err) { showToast(page, 'Erreur de chargement\u00a0: ' + err.message, true); });
+
+    var table = document.createElement('table');
+    table.className = 'ip-table';
+
+    table.innerHTML =
+        '<thead><tr>' +
+        '<th class="ip-col-check"></th>' +
+        '<th>Titre</th>' +
+        '<th class="ip-col-date">Publié le</th>' +
+        '</tr></thead>' +
+        '<tbody id="ip-tbody"></tbody>';
+
+
+    var tbody = table.querySelector('#ip-tbody');
+
+
+    messages.forEach(function (msg) {
+
+        var tr = document.createElement('tr');
+        tr.dataset.id = msg.id;
+
+        tr.innerHTML =
+            '<td class="ip-col-check">' +
+            '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' +
+            escHtml(msg.id) +
+            '"/>' +
+            '</td>' +
+            '<td class="ip-col-title">' +
+            escHtml(msg.title) +
+            '</td>' +
+            '<td class="ip-col-date">' +
+            escHtml(formatDate(msg.publishedAt)) +
+            '</td>';
+
+
+        tr.querySelector('.ip-row-check')
+            .addEventListener('change', function (e) {
+
+                if (e.target.checked)
+                    selectedIds.add(msg.id);
+                else
+                    selectedIds.delete(msg.id);
+
+                updateSelectionUI(page, selectedIds);
+            });
+
+
+        tbody.appendChild(tr);
+
+    });
+
+
+    container.innerHTML = '';
+    container.appendChild(table);
+}
+
+
+/* ================= Load ================= */
+
+function loadMessages(page, selectedIds) {
+
+    return apiFetch('/InfoPopup/messages')
+
+        .then(function (res) {
+            return res.json();
+        })
+
+        .then(function (msgs) {
+            renderMessages(page, msgs, selectedIds);
+        })
+
+        .catch(function (err) {
+            showToast(
+                page,
+                'Erreur de chargement : ' + err.message,
+                true
+            );
+        });
+}
+
+
+/* ================= Publish ================= */
+
+function publishMessage(page, selectedIds) {
+
+    var titleEl  = page.querySelector('#ip-title');
+    var bodyEl   = page.querySelector('#ip-body');
+
+    var titleErr = page.querySelector('#ip-title-err');
+    var bodyErr  = page.querySelector('#ip-body-err');
+
+
+    titleErr.style.display = 'none';
+    bodyErr.style.display  = 'none';
+
+
+    var title = titleEl.value.trim();
+    var body  = bodyEl.value;
+
+
+    var valid = true;
+
+
+    if (!title) {
+
+        titleErr.textContent = 'Le titre est obligatoire.';
+        titleErr.style.display = 'block';
+
+        valid = false;
     }
 
-    // ── Publication ──────────────────────────────────────────────────────────
 
-    function publishMessage(page, selectedIds) {
-        var titleEl  = page.querySelector('#ip-title');
-        var bodyEl   = page.querySelector('#ip-body');
-        var titleErr = page.querySelector('#ip-title-err');
-        var bodyErr  = page.querySelector('#ip-body-err');
-        titleErr.style.display = 'none';
-        bodyErr.style.display  = 'none';
+    if (!body.trim()) {
 
-        var title = titleEl.value.trim();
-        var body  = bodyEl.value;
-        var valid = true;
+        bodyErr.textContent = 'Le message est obligatoire.';
+        bodyErr.style.display = 'block';
 
-        if (!title) {
-            titleErr.textContent = 'Le titre est obligatoire.';
-            titleErr.style.display = 'block';
-            valid = false;
-        }
-        if (!body.trim()) {
-            bodyErr.textContent = 'Le message est obligatoire.';
-            bodyErr.style.display = 'block';
-            valid = false;
-        }
-        if (!valid) return;
+        valid = false;
+    }
 
-        var btn = page.querySelector('#ip-publish-btn');
+
+    if (!valid) return;
+
+
+    var btn = page.querySelector('#ip-publish-btn');
+
+    btn.disabled = true;
+
+
+    apiFetch('/InfoPopup/messages', {
+        method: 'POST',
+        body: JSON.stringify({
+            title: title,
+            body: body
+        })
+    })
+
+    .then(function () {
+
+        titleEl.value = '';
+        bodyEl.value  = '';
+
+        showToast(
+            page,
+            '✓ Message publié avec succès !'
+        );
+
+        return loadMessages(page, selectedIds);
+    })
+
+    .catch(function (err) {
+
+        showToast(
+            page,
+            'Erreur de publication : ' + err.message,
+            true
+        );
+    })
+
+    .finally(function () {
+        btn.disabled = false;
+    });
+}
+
+
+/* ================= Delete ================= */
+
+function deleteSelected(page, selectedIds) {
+
+    if (!selectedIds.size) return;
+
+
+    var count = selectedIds.size;
+
+
+    var confirmMsg =
+        'Supprimer ' + count +
+        ' message' + (count > 1 ? 's' : '') + ' ?\n\n' +
+        'Cette action est irréversible.';
+
+
+    showConfirm(confirmMsg)
+
+    .then(function (confirmed) {
+
+        if (!confirmed) return;
+
+
+        var btn = page.querySelector('#ip-delete-btn');
+
         btn.disabled = true;
 
+
+        var ids = Array.from(selectedIds);
+
+
         apiFetch('/InfoPopup/messages', {
-            method: 'POST',
-            body: JSON.stringify({ title: title, body: body })
+            method: 'DELETE',
+            body: JSON.stringify({ ids: ids })
         })
-        .then(function() {
-            titleEl.value = '';
-            bodyEl.value  = '';
-            showToast(page, '\u2713 Message publi\u00e9 avec succ\u00e8s\u00a0!');
+
+        .then(function () {
+
+            showToast(
+                page,
+                '✓ ' + count + ' message' +
+                (count > 1 ? 's' : '') +
+                ' supprimé' +
+                (count > 1 ? 's' : '') + '.'
+            );
+
+            selectedIds.clear();
+
             return loadMessages(page, selectedIds);
         })
-        .catch(function(err) {
-            showToast(page, 'Erreur de publication\u00a0: ' + err.message, true);
-        })
-        .finally(function() {
+
+        .catch(function (err) {
+
+            showToast(
+                page,
+                'Erreur de suppression : ' + err.message,
+                true
+            );
+
             btn.disabled = false;
         });
-    }
 
-    // ── Suppression ──────────────────────────────────────────────────────────
+    });
+}
 
-    function deleteSelected(page, selectedIds) {
-        if (!selectedIds.size) return;
-        var count = selectedIds.size;
-        var confirmMsg = 'Supprimer ' + count + ' message' + (count > 1 ? 's' : '') + ' ?\n\n' +
-            'Cette action est irr\u00e9versible. Le' + (count > 1 ? 's' : '') +
-            ' message' + (count > 1 ? 's' : '') + ' dispara\u00eetra' + (count > 1 ? 'ont' : '') +
-            ' d\u00e9finitivement pour tous les utilisateurs.';
 
-        showConfirm(confirmMsg).then(function(confirmed) {
-            if (!confirmed) return;
+/* ================= Init ================= */
 
-            var btn = page.querySelector('#ip-delete-btn');
-            btn.disabled = true;
-            var ids = Array.from(selectedIds);
+var page = document.querySelector('#infoPopupConfigPage');
 
-            apiFetch('/InfoPopup/messages', {
-                method: 'DELETE',
-                body: JSON.stringify({ ids: ids })
-            })
-            .then(function() {
-                showToast(page, '\u2713 ' + count + ' message' + (count > 1 ? 's' : '') + ' supprim\u00e9' + (count > 1 ? 's' : '') + '.');
-                selectedIds.clear();
-                return loadMessages(page, selectedIds);
-            })
-            .catch(function(err) {
-                showToast(page, 'Erreur de suppression\u00a0: ' + err.message, true);
-                btn.disabled = false;
+var selectedIds = new Set();
+
+
+page.querySelector('#ip-publish-btn')
+    .addEventListener('click', function () {
+        publishMessage(page, selectedIds);
+    });
+
+
+page.querySelector('#ip-delete-btn')
+    .addEventListener('click', function () {
+        deleteSelected(page, selectedIds);
+    });
+
+
+page.querySelector('#ip-select-all')
+    .addEventListener('change', function (e) {
+
+        page.querySelectorAll('.ip-row-check')
+            .forEach(function (cb) {
+
+                cb.checked = e.target.checked;
+
+                if (e.target.checked)
+                    selectedIds.add(cb.dataset.id);
+                else
+                    selectedIds.delete(cb.dataset.id);
             });
-        });
-    }
 
-    // ── Init ─────────────────────────────────────────────────────────────────
-    // Jellyfin est une SPA : DOMContentLoaded ne refire pas lors des navigations.
-    // Il faut écouter l'event "pageshow" sur l'élément de page — c'est le
-    // pattern standard pour les pages de configuration de plugins Jellyfin.
+        updateSelectionUI(page, selectedIds);
+    });
 
-	var page = document.querySelector('#infoPopupConfigPage');
-	var selectedIds = new Set();
 
-	page.querySelector('#ip-publish-btn').addEventListener('click', function() {
-	    publishMessage(page, selectedIds);
-	});
+loadMessages(page, selectedIds);
 
-	page.querySelector('#ip-delete-btn').addEventListener('click', function() {
-	    deleteSelected(page, selectedIds);
-	});
-
-	page.querySelector('#ip-select-all').addEventListener('change', function(e) {
-	    page.querySelectorAll('.ip-row-check').forEach(function(cb) {
-	        cb.checked = e.target.checked;
-	        if (e.target.checked) selectedIds.add(cb.dataset.id);
-	        else selectedIds.delete(cb.dataset.id);
-	    });
-	    updateSelectionUI(page, selectedIds);
-	});
-
-	loadMessages(page, selectedIds);
 
 })();
 </script>
-</body>
-</html>
