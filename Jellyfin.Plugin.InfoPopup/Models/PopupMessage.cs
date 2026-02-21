@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Jellyfin.Plugin.InfoPopup.Models;
 
@@ -22,4 +23,10 @@ public class PopupMessage
 
     /// <summary>ID Jellyfin de l'admin ayant publié.</summary>
     public string PublishedBy { get; set; } = string.Empty;
+
+    /// <summary>
+    /// IDs Jellyfin des utilisateurs ciblés.
+    /// Liste vide = tous les utilisateurs (comportement par défaut).
+    /// </summary>
+    public List<string> TargetUserIds { get; set; } = new();
 }

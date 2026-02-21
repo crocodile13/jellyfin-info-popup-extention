@@ -43,8 +43,12 @@ public class MessageStore
     /// <summary>
     /// Crée et persiste un nouveau message.
     /// </summary>
+    /// <param name="title">Titre du message.</param>
+    /// <param name="body">Corps texte brut.</param>
+    /// <param name="publishedBy">ID Jellyfin de l'admin.</param>
+    /// <param name="targetUserIds">IDs ciblés. Null ou vide = tous les utilisateurs.</param>
     /// <exception cref="ArgumentException">Si titre/corps vide ou trop long.</exception>
-    public PopupMessage Create(string title, string body, string publishedBy)
+    public PopupMessage Create(string title, string body, string publishedBy, List<string>? targetUserIds = null)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Le titre ne peut pas être vide.", nameof(title));
@@ -61,7 +65,8 @@ public class MessageStore
             Title = title.Trim(),
             Body = body,
             PublishedAt = DateTime.UtcNow,
-            PublishedBy = publishedBy
+            PublishedBy = publishedBy,
+            TargetUserIds = targetUserIds?.Count > 0 ? new List<string>(targetUserIds) : new List<string>()
         };
 
         _lock.EnterWriteLock();
@@ -69,7 +74,10 @@ public class MessageStore
         {
             Config.Messages.Add(message);
             SaveConfig();
-            _logger.LogInformation("InfoPopup: message publié '{Title}' par {UserId}", message.Title, publishedBy);
+            var targetInfo = message.TargetUserIds.Count > 0
+                ? $"{message.TargetUserIds.Count} utilisateur(s) ciblé(s)"
+                : "tous les utilisateurs";
+            _logger.LogInformation("InfoPopup: message publié '{Title}' par {UserId} → {Target}", message.Title, publishedBy, targetInfo);
         }
         finally { _lock.ExitWriteLock(); }
 

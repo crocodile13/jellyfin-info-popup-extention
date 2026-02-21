@@ -121,7 +121,15 @@
         }
     }
 
-    function renderMessages(page, messages, selectedIds) {
+    function resolveUserNames(ids) {
+        if (!usersCache || !ids || !ids.length) return ids.join(', ');
+        return ids.map(function (id) {
+            var u = usersCache.filter(function (x) { return x.id === id; })[0];
+            return u ? u.name : id.slice(0, 8) + '...';
+        }).join(', ');
+    }
+
+        function renderMessages(page, messages, selectedIds) {
         var container = page.querySelector('#ip-msg-container');
         var empty     = page.querySelector('#ip-empty');
         selectedIds.clear();
@@ -138,6 +146,7 @@
             '<thead><tr>' +
             '<th class="ip-col-check"></th>' +
             '<th>Titre</th>' +
+            '<th class="ip-col-target">Destinataires</th>' +
             '<th class="ip-col-date">Publi\u00e9 le</th>' +
             '</tr></thead>' +
             '<tbody id="ip-tbody"></tbody>';
@@ -146,14 +155,20 @@
             // Jellyfin peut sérialiser en PascalCase ou camelCase selon la version
             var id          = msg.id          || msg.Id          || '';
             var title       = msg.title       || msg.Title       || '';
-            var publishedAt = msg.publishedAt || msg.PublishedAt || '';
+            var publishedAt  = msg.publishedAt  || msg.PublishedAt  || '';
+            var targetUserIds = msg.targetUserIds || msg.TargetUserIds || [];
             var tr = document.createElement('tr');
             tr.dataset.id = id;
+            var targetBadge = targetUserIds.length === 0
+                ? '<span class="ip-badge ip-badge-all">Tous</span>'
+                : '<span class="ip-badge ip-badge-partial" title="' + escHtml(resolveUserNames(targetUserIds)) + '">' +
+                  targetUserIds.length + '\u00a0utilisateur' + (targetUserIds.length > 1 ? 's' : '') + '</span>';
             tr.innerHTML =
                 '<td class="ip-col-check">' +
                 '<input type="checkbox" class="ip-row-check" data-id="' + escHtml(id) + '" style="width:16px;height:16px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);"/>' +
                 '</td>' +
                 '<td class="ip-col-title">' + escHtml(title) + '</td>' +
+                '<td class="ip-col-target">' + targetBadge + '</td>' +
                 '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>';
             tr.querySelector('.ip-row-check').addEventListener('change', function (e) {
                 if (e.target.checked) selectedIds.add(id);
@@ -200,13 +215,16 @@
         var btn = page.querySelector('#ip-publish-btn');
         if (btn) btn.disabled = true;
 
+        var targetIds = getSelectedTargetIds(page);
+
         apiFetch('/InfoPopup/messages', {
             method: 'POST',
-            body: JSON.stringify({ title: title, body: body })
+            body: JSON.stringify({ title: title, body: body, targetUserIds: targetIds })
         })
         .then(function () {
             if (titleEl) titleEl.value = '';
             if (bodyEl)  bodyEl.value  = '';
+            resetTargetPicker(page);
             showToast(page, '\u2713 Message publi\u00e9 avec succ\u00e8s\u00a0!');
             return loadMessages(page, selectedIds);
         })
@@ -249,7 +267,123 @@
         });
     }
 
-    function initConfigPage(page) {
+    // ── Gestion des utilisateurs et ciblage ─────────────────────────────────
+
+    function fetchUsers() {
+        if (usersCache !== null) return Promise.resolve(usersCache);
+        return apiFetch('/Users')
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                // L'API Jellyfin retourne soit un tableau direct, soit { Items: [...] }
+                var list = Array.isArray(data) ? data : (data.Items || []);
+                usersCache = list.map(function (u) {
+                    return { id: u.Id || u.id || '', name: u.Name || u.name || '(sans nom)' };
+                }).filter(function (u) { return u.id; });
+                return usersCache;
+            })
+            .catch(function () {
+                usersCache = [];
+                return usersCache;
+            });
+    }
+
+    function renderTargetPicker(page, users) {
+        var container = page.querySelector('#ip-target-picker');
+        if (!container) return;
+
+        var allChecked = true; // état initial : tous cochés
+
+        var box = document.createElement('div');
+        box.className = 'ip-target-box';
+
+        // ── Ligne "Tous les utilisateurs" ──────────────────────────────
+        var allRow = document.createElement('div');
+        allRow.className = 'ip-target-all-row';
+
+        var allLabel = document.createElement('label');
+        var allChk = document.createElement('input');
+        allChk.type = 'checkbox';
+        allChk.id = 'ip-target-all';
+        allChk.checked = true;
+        allChk.style.cssText = 'width:15px;height:15px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);flex-shrink:0;';
+        var allSpan = document.createElement('span');
+        allSpan.textContent = 'Tous les utilisateurs';
+        allLabel.appendChild(allChk);
+        allLabel.appendChild(allSpan);
+        allRow.appendChild(allLabel);
+
+        if (users.length === 0) {
+            var noUsersNote = document.createElement('span');
+            noUsersNote.textContent = '(aucun utilisateur trouvé — vérifiez les droits admin)';
+            noUsersNote.style.cssText = 'opacity:.45;font-size:.8rem;margin-left:auto;';
+            allRow.appendChild(noUsersNote);
+        }
+
+        box.appendChild(allRow);
+
+        // ── Liste individuelle (masquée par défaut) ────────────────────
+        var userList = document.createElement('div');
+        userList.className = 'ip-target-user-list';
+        userList.style.display = 'none';
+
+        var userCheckboxes = [];
+        users.forEach(function (u) {
+            var label = document.createElement('label');
+            var chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.dataset.userId = u.id;
+            chk.checked = true;
+            chk.style.cssText = 'width:14px;height:14px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);flex-shrink:0;';
+            var span = document.createElement('span');
+            span.textContent = u.name;
+            label.appendChild(chk);
+            label.appendChild(span);
+            userList.appendChild(label);
+            userCheckboxes.push(chk);
+        });
+
+        box.appendChild(userList);
+        container.innerHTML = '';
+        container.appendChild(box);
+
+        // ── Toggle : quand on décoche "Tous", on affiche la liste ─────
+        allChk.addEventListener('change', function () {
+            if (allChk.checked) {
+                userList.style.display = 'none';
+                userCheckboxes.forEach(function (c) { c.checked = true; });
+            } else {
+                if (users.length > 0) {
+                    userList.style.display = 'block';
+                } else {
+                    // Aucun user dispo, forcer retour à "tous"
+                    allChk.checked = true;
+                }
+            }
+        });
+    }
+
+    function getSelectedTargetIds(page) {
+        var allChk = page.querySelector('#ip-target-all');
+        if (!allChk || allChk.checked) return []; // vide = tous
+        var ids = [];
+        var picker = page.querySelector('#ip-target-picker');
+        if (picker) {
+            picker.querySelectorAll('input[type="checkbox"][data-user-id]').forEach(function (c) {
+                if (c.checked) ids.push(c.dataset.userId);
+            });
+        }
+        return ids;
+    }
+
+    function resetTargetPicker(page) {
+        var allChk = page.querySelector('#ip-target-all');
+        if (allChk) {
+            allChk.checked = true;
+            allChk.dispatchEvent(new Event('change'));
+        }
+    }
+
+        function initConfigPage(page) {
         if (page._ipInitDone) return;
         page._ipInitDone = true;
         console.log('InfoPopup: config page init OK');
@@ -281,7 +415,11 @@
             });
         }
 
-        loadMessages(page, selectedIds);
+        // Charger les utilisateurs d'abord, puis initialiser le picker et le tableau
+        fetchUsers().then(function (users) {
+            renderTargetPicker(page, users);
+            return loadMessages(page, selectedIds);
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -291,6 +429,9 @@
     var popupActive     = false;
     var lastCheckedPath = null;
     var checkScheduled  = false;
+
+    // Cache des utilisateurs Jellyfin (chargé une fois par session de page admin)
+    var usersCache = null; // null = pas encore chargé, [] = chargé mais vide
 
     function injectStyles() {
         if (document.getElementById('infopopup-styles')) return;

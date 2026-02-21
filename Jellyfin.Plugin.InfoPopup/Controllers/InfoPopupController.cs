@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.InfoPopup.Controllers;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
+// ── DTOs ───────────────────────────────────────────────────────────────────────────
 
 /// <summary>Requête de création d'un message.</summary>
 public class CreateMessageRequest
@@ -22,6 +22,11 @@ public class CreateMessageRequest
     [Required][MaxLength(200)] public string Title { get; set; } = string.Empty;
     /// <summary>Corps texte brut (max 10 000 car.).</summary>
     [Required][MaxLength(10_000)] public string Body { get; set; } = string.Empty;
+    /// <summary>
+    /// IDs Jellyfin des utilisateurs cibles.
+    /// Liste vide ou absente = tous les utilisateurs.
+    /// </summary>
+    public List<string> TargetUserIds { get; set; } = new();
 }
 
 /// <summary>Requête de suppression groupée.</summary>
@@ -47,6 +52,11 @@ public class MessageSummary
     public string Title { get; set; } = string.Empty;
     /// <summary>Date de publication UTC.</summary>
     public DateTime PublishedAt { get; set; }
+    /// <summary>
+    /// IDs Jellyfin des utilisateurs cibles.
+    /// Liste vide = tous les utilisateurs.
+    /// </summary>
+    public List<string> TargetUserIds { get; set; } = new();
 }
 
 /// <summary>Vue complète d'un message (avec body).</summary>
@@ -62,7 +72,7 @@ public class MessageDetail
     public DateTime PublishedAt { get; set; }
 }
 
-// ── Controller ───────────────────────────────────────────────────────────────
+// ── Controller ──────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
 /// Contrôleur REST du plugin jellyfin-info-popup-extention.
@@ -84,16 +94,22 @@ public class InfoPopupController : ControllerBase
         _logger = logger;
     }
 
-    // GET /InfoPopup/messages ─────────────────────────────────────────────────
+    // GET /InfoPopup/messages ─────────────────────────────────────────────────────
 
     /// <summary>Liste résumée de tous les messages, du plus récent au plus ancien.</summary>
     [HttpGet("messages")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<MessageSummary>> GetMessages() =>
-        Ok(_store.GetAll().Select(m => new MessageSummary { Id = m.Id, Title = m.Title, PublishedAt = m.PublishedAt }));
+        Ok(_store.GetAll().Select(m => new MessageSummary
+        {
+            Id = m.Id,
+            Title = m.Title,
+            PublishedAt = m.PublishedAt,
+            TargetUserIds = m.TargetUserIds
+        }));
 
-    // GET /InfoPopup/messages/{id} ────────────────────────────────────────────
+    // GET /InfoPopup/messages/{id} ───────────────────────────────────────────────
 
     /// <summary>Détail complet d'un message (avec body).</summary>
     [HttpGet("messages/{id}")]
@@ -107,7 +123,7 @@ public class InfoPopupController : ControllerBase
         return Ok(new MessageDetail { Id = msg.Id, Title = msg.Title, Body = msg.Body, PublishedAt = msg.PublishedAt });
     }
 
-    // POST /InfoPopup/messages ─── ADMIN ONLY ─────────────────────────────────
+    // POST /InfoPopup/messages ─── ADMIN ONLY ─────────────────────────────────────────────
 
     /// <summary>Publie un nouveau message popup. Réservé aux administrateurs.</summary>
     [HttpPost("messages")]
@@ -120,14 +136,14 @@ public class InfoPopupController : ControllerBase
         var userId = HttpContext.User.FindFirst("Jellyfin-UserId")?.Value ?? string.Empty;
         try
         {
-            var msg = _store.Create(request.Title, request.Body, userId);
+            var msg = _store.Create(request.Title, request.Body, userId, request.TargetUserIds);
             var detail = new MessageDetail { Id = msg.Id, Title = msg.Title, Body = msg.Body, PublishedAt = msg.PublishedAt };
             return CreatedAtAction(nameof(GetMessage), new { id = msg.Id }, detail);
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
-    // DELETE /InfoPopup/messages ── ADMIN ONLY ────────────────────────────────
+    // DELETE /InfoPopup/messages ── ADMIN ONLY ─────────────────────────────────────────────
 
     /// <summary>
     /// Supprime définitivement des messages. Réservé aux administrateurs.
@@ -145,9 +161,9 @@ public class InfoPopupController : ControllerBase
         return Ok(new { deleted });
     }
 
-    // GET /InfoPopup/unseen ───────────────────────────────────────────────────
+    // GET /InfoPopup/unseen ───────────────────────────────────────────────────────────────────────
 
-    /// <summary>Messages non encore vus par l'utilisateur connecté.</summary>
+    /// <summary>Messages non encore vus par l'utilisateur connecté, filtrés par ciblage.</summary>
     [HttpGet("unseen")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -155,12 +171,26 @@ public class InfoPopupController : ControllerBase
     {
         var userId = HttpContext.User.FindFirst("Jellyfin-UserId")?.Value ?? string.Empty;
         var all = _store.GetAll();
-        var unseenIds = new HashSet<string>(_seen.GetUnseenIds(userId, all.Select(m => m.Id)));
-        return Ok(all.Where(m => unseenIds.Contains(m.Id))
-                     .Select(m => new MessageSummary { Id = m.Id, Title = m.Title, PublishedAt = m.PublishedAt }));
+
+        // Filtrer : ne garder que les messages ciblant cet utilisateur
+        // (TargetUserIds vide = tous les utilisateurs)
+        var targeted = all
+            .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
+            .ToList();
+
+        var unseenIds = new HashSet<string>(_seen.GetUnseenIds(userId, targeted.Select(m => m.Id)));
+        return Ok(targeted
+            .Where(m => unseenIds.Contains(m.Id))
+            .Select(m => new MessageSummary
+            {
+                Id = m.Id,
+                Title = m.Title,
+                PublishedAt = m.PublishedAt,
+                TargetUserIds = m.TargetUserIds
+            }));
     }
 
-    // POST /InfoPopup/seen ────────────────────────────────────────────────────
+    // POST /InfoPopup/seen ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Marque des messages comme vus (batch). Appelé à la fermeture de la popup.</summary>
     [HttpPost("seen")]
@@ -176,7 +206,7 @@ public class InfoPopupController : ControllerBase
         return NoContent();
     }
 
-    // GET /InfoPopup/client.js ────────────────────────────────────────────────
+    // GET /InfoPopup/client.js ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Sert le script JavaScript client (public, injecté dans index.html).</summary>
     [HttpGet("client.js")]
