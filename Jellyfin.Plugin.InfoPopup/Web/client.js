@@ -78,6 +78,7 @@
     }
 
     function showConfirm(msg) {
+        injectStyles();
         return new Promise(function (resolve) {
             var backdrop = document.createElement('div');
             backdrop.className = 'ip-confirm-backdrop';
@@ -150,10 +151,7 @@
             tr.dataset.id = id;
             tr.innerHTML =
                 '<td class="ip-col-check">' +
-                '<label style="display:flex;align-items:center;cursor:pointer;">' +
-                '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + escHtml(id) + '"/>' +
-                '<span></span>' +
-                '</label>' +
+                '<input type="checkbox" class="ip-row-check" data-id="' + escHtml(id) + '" style="width:16px;height:16px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);"/>' +
                 '</td>' +
                 '<td class="ip-col-title">' + escHtml(title) + '</td>' +
                 '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>';
@@ -328,7 +326,13 @@
             '.ip-history-item.open .ip-item-body{display:block}',
             '#infopopup-footer{display:flex;justify-content:flex-end;padding:12px 20px 18px;border-top:1px solid rgba(255,255,255,.08)}',
             '.ip-btn-close{background:var(--theme-accent-color,#00a4dc);color:#fff;border:none;border-radius:4px;padding:9px 22px;font-size:.95rem;font-weight:500;cursor:pointer;transition:filter .15s}',
-            '.ip-btn-close:hover{filter:brightness(1.15)}'
+            '.ip-btn-close:hover{filter:brightness(1.15)}',
+            /* ── Confirm dialog — styles en <head> pour survivre aux transitions SPA ── */
+            '.ip-confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center}',
+            '.ip-confirm-box{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:28px 28px 22px;max-width:420px;width:calc(100% - 32px);box-shadow:0 8px 32px rgba(0,0,0,.6)}',
+            '.ip-confirm-box h4{margin:0 0 10px;font-size:1.05rem}',
+            '.ip-confirm-box p{margin:0 0 22px;opacity:.8;font-size:.93rem;line-height:1.5}',
+            '.ip-confirm-actions{display:flex;justify-content:flex-end;gap:12px}'
         ].join('\n');
         document.head.appendChild(s);
     }

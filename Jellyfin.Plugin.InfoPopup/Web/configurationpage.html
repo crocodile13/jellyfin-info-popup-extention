@@ -84,20 +84,6 @@
 
 .ip-toast-ok  { background:rgba(0,180,100,.2); border:1px solid rgba(0,180,100,.5); color:#6ee09f; }
 .ip-toast-err { background:rgba(207,102,121,.2); border:1px solid rgba(207,102,121,.5); color:#cf6679; }
-
-.ip-confirm-backdrop {
-    position:fixed; inset:0; background:rgba(0,0,0,.6);
-    z-index:99999; display:flex; align-items:center; justify-content:center;
-}
-.ip-confirm-box {
-    background:var(--theme-body-background-color,#202020); color:var(--theme-text-color,#e5e5e5);
-    border:1px solid rgba(255,255,255,.15); border-radius:8px;
-    padding:28px 28px 22px; max-width:420px; width:calc(100% - 32px);
-    box-shadow:0 8px 32px rgba(0,0,0,.6);
-}
-.ip-confirm-box h4 { margin:0 0 10px; font-size:1.05rem; }
-.ip-confirm-box p  { margin:0 0 22px; opacity:.8; font-size:.93rem; line-height:1.5; }
-.ip-confirm-actions { display:flex; justify-content:flex-end; gap:12px; }
 </style>
 
 <!-- Fallback : charge client.js si Jellyfin ne l'a pas encore injecté via le plugin manager -->
