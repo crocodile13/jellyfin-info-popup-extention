@@ -41,7 +41,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
         return new[]
         {
-            // Page de configuration admin
             new PluginPageInfo
             {
                 Name = "InfoPopupConfigPage",
@@ -49,14 +48,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 DisplayName = "Info Popup",
                 MenuSection = "server",
                 MenuIcon = "notifications"
-            },
-            // Script client injecté globalement dans la SPA Jellyfin.
-            // Jellyfin détecte les PluginPageInfo dont le nom finit en .js
-            // et les charge automatiquement dans la SPA via son plugin manager.
-            new PluginPageInfo
-            {
-                Name = "infopopup.js",
-                EmbeddedResourcePath = $"{GetType().Namespace}.Web.client.js"
             }
         };
     }

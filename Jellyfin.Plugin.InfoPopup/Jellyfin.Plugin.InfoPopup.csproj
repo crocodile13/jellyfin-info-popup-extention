@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
-    <Version>0.1.1.0</Version>
+    <Version>0.1.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +19,12 @@
     <PackageReference Include="Jellyfin.Model" Version="10.10.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <!-- Donne accès à IStartupFilter, IApplicationBuilder, HttpContext, etc. -->
+  <!-- PrivateAssets=All : la référence est compile-only, le framework est fourni par Jellyfin au runtime -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <!-- Ressources web embarquées dans l'assembly -->
