@@ -13,59 +13,11 @@
         "changelog": "Release v0.0.8.0",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.8.0/infopopup_0.0.8.0.zip",
-        "checksum": "a9baad7c1b78896e21f128f359254daa",
-        "timestamp": "2026-02-20T20:38:46Z"
+        "checksum": "908b80c4f1276d0e636c41f56382e31d",
+        "timestamp": "2026-02-21T15:44:56Z"
       },
       {
-        "version": "0.0.7.0",
-        "changelog": "Release v0.0.7.0",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.7.0/infopopup_0.0.7.0.zip",
-        "checksum": "7b2d71027c6fc3372d9d5989af5d69ae",
-        "timestamp": "2026-02-20T20:19:16Z"
-      },
-      {
-        "version": "0.0.6.0",
-        "changelog": "Release v0.0.6.0",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.6.0/infopopup_0.0.6.0.zip",
-        "checksum": "ebb0ace035a4e8db8988bf16347a6a2d",
-        "timestamp": "2026-02-20T20:16:58Z"
-      },
-      {
-        "version": "0.0.5.0",
-        "changelog": "Release v0.0.5.0",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.5.0/infopopup_0.0.5.0.zip",
-        "checksum": "304e4504720461f5bcb8d64afb2eb79a",
-        "timestamp": "2026-02-20T19:42:20Z"
-      },
-      {
-        "version": "0.0.4.0",
-        "changelog": "Release v0.0.4.0",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.4.0/infopopup_0.0.4.0.zip",
-        "checksum": "8307b4d61ccb58226c8d4b884028730f",
-        "timestamp": "2026-02-20T19:36:05Z"
-      },
-      {
-        "version": "0.0.3.0",
-        "changelog": "Release v0.0.3.0",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.3.0/infopopup_0.0.3.0.zip",
-        "checksum": "720d7a5e018f4e7b0db94f1baa559f40",
-        "timestamp": "2026-02-20T19:35:04Z"
-      },
-      {
-        "version": "0.0.2.0",
-        "changelog": "Release v0.0.2.0",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.2.0/infopopup_0.0.2.0.zip",
-        "checksum": "aa89b5a404e3c54e72dddec1b746f980",
-        "timestamp": "2026-02-20T19:19:58Z"
-      },
-      {
-        "version": "0.0.1.0",
+        "version": "0.0.0.0",
         "changelog": "Release v0.0.1.0",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.0.1.0/infopopup_0.0.1.0.zip",

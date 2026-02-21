@@ -39,8 +39,7 @@
                       maxlength="10000"
                       rows="6"
                       placeholder="Saisir le contenu en texte brut..."
-                      style="resize:vertical;width:100%;box-sizing:border-box;">
-            </textarea>
+                      style="resize:vertical;width:100%;box-sizing:border-box;"></textarea>
 
             <div id="ip-body-err"
                  class="fieldDescription"
@@ -220,22 +219,254 @@
 (function () {
     'use strict';
 
-    function waitForPage() {
-        var page = document.querySelector('#infoPopupConfigPage');
-        if (!page) {
-            setTimeout(waitForPage, 200);
-            return;
-        }
-        if (page._ipInitDone) return;
-        page._ipInitDone = true;
-        console.log('InfoPopup init OK');
-        init(page);
+    // ── Token helper (avec try/catch — repris du .bak) ───────────────────────
+
+    function getToken() {
+        try {
+            var client = window.ApiClient;
+            if (!client) return null;
+            if (typeof client.accessToken === 'function') return client.accessToken();
+            if (typeof client.accessToken === 'string')   return client.accessToken;
+            return null;
+        } catch (e) { return null; }
     }
 
+    // ── API helper ────────────────────────────────────────────────────────────
+
+    function apiFetch(path, opts) {
+        opts = opts || {};
+        var token = getToken();
+        var headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'MediaBrowser Token="' + token + '"';
+        if (opts.headers) {
+            Object.keys(opts.headers).forEach(function (k) { headers[k] = opts.headers[k]; });
+        }
+        return fetch(path, Object.assign({}, opts, { headers: headers }))
+            .then(function (res) {
+                if (!res.ok) {
+                    return res.text().catch(function () { return ''; }).then(function (body) {
+                        throw new Error('HTTP ' + res.status + ' \u2014 ' + body);
+                    });
+                }
+                return res;
+            });
+    }
+
+    // ── Échappement HTML ──────────────────────────────────────────────────────
+
+    function escHtml(str) {
+        var d = document.createElement('div');
+        d.textContent = String(str == null ? '' : str);
+        return d.innerHTML;
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+
+    var toastTimer = null;
+
+    function showToast(page, msg, isErr) {
+        var el = page.querySelector('#ip-toast');
+        if (!el) return;
+        el.textContent = msg;
+        el.className = isErr ? 'ip-toast-err' : 'ip-toast-ok';
+        el.style.display = 'block';
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { el.style.display = 'none'; }, 4000);
+    }
+
+    // ── Sélection ─────────────────────────────────────────────────────────────
+
+    function updateSelectionUI(page, selectedIds) {
+        var deleteBtn = page.querySelector('#ip-delete-btn');
+        var countEl   = page.querySelector('#ip-sel-count');
+        var selAll    = page.querySelector('#ip-select-all');
+        var boxes     = page.querySelectorAll('.ip-row-check');
+        var count     = selectedIds.size;
+        if (deleteBtn) deleteBtn.disabled = count === 0;
+        if (countEl) countEl.textContent = count === 0 ? '' :
+            count + ' message' + (count > 1 ? 's' : '') +
+            ' s\u00e9lectionn\u00e9' + (count > 1 ? 's' : '');
+        if (!boxes.length || count === 0) {
+            if (selAll) { selAll.checked = false; selAll.indeterminate = false; }
+        } else if (count === boxes.length) {
+            if (selAll) { selAll.checked = true;  selAll.indeterminate = false; }
+        } else {
+            if (selAll) { selAll.checked = false; selAll.indeterminate = true; }
+        }
+    }
+
+    // ── Rendu tableau ─────────────────────────────────────────────────────────
+
+    function renderMessages(page, messages, selectedIds) {
+        var container = page.querySelector('#ip-msg-container');
+        var empty     = page.querySelector('#ip-empty');
+        selectedIds.clear();
+        updateSelectionUI(page, selectedIds);
+        if (!messages || !messages.length) {
+            container.innerHTML = '';
+            container.appendChild(empty);
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        var table = document.createElement('table');
+        table.className = 'ip-table';
+        table.innerHTML =
+            '<thead><tr>' +
+            '<th class="ip-col-check"></th>' +
+            '<th>Titre</th>' +
+            '<th class="ip-col-date">Publi\u00e9 le</th>' +
+            '</tr></thead>' +
+            '<tbody id="ip-tbody"></tbody>';
+        var tbody = table.querySelector('#ip-tbody');
+        messages.forEach(function (msg) {
+            var tr = document.createElement('tr');
+            tr.dataset.id = msg.id;
+            // escHtml() sur id et title — sécurité XSS
+            tr.innerHTML =
+                '<td class="ip-col-check">' +
+                '<input type="checkbox" class="emby-checkbox ip-row-check"' +
+                ' data-id="' + escHtml(msg.id) + '"/>' +
+                '</td>' +
+                '<td class="ip-col-title">' + escHtml(msg.title) + '</td>' +
+                '<td class="ip-col-date">' +
+                escHtml(new Date(msg.publishedAt || Date.now()).toISOString()) +
+                '</td>';
+            tr.querySelector('.ip-row-check').addEventListener('change', function (e) {
+                if (e.target.checked) selectedIds.add(msg.id);
+                else selectedIds.delete(msg.id);
+                updateSelectionUI(page, selectedIds);
+            });
+            tbody.appendChild(tr);
+        });
+        container.innerHTML = '';
+        container.appendChild(table);
+    }
+
+    // ── Chargement liste ──────────────────────────────────────────────────────
+
+    function loadMessages(page, selectedIds) {
+        return apiFetch('/InfoPopup/messages')
+            .then(function (res) { return res.json(); })
+            .then(function (msgs) { renderMessages(page, msgs, selectedIds); })
+            .catch(function (err) {
+                showToast(page, 'Erreur de chargement\u00a0: ' + err.message, true);
+            });
+    }
+
+    // ── Publication ───────────────────────────────────────────────────────────
+
+    function publishMessage(page, selectedIds) {
+        var titleEl  = page.querySelector('#ip-title');
+        var bodyEl   = page.querySelector('#ip-body');
+        var titleErr = page.querySelector('#ip-title-err');
+        var bodyErr  = page.querySelector('#ip-body-err');
+        if (titleErr) titleErr.style.display = 'none';
+        if (bodyErr)  bodyErr.style.display  = 'none';
+
+        var title = titleEl ? titleEl.value.trim() : '';
+        var body  = bodyEl  ? bodyEl.value         : '';  // ne pas trimmer : préserve les sauts de ligne intentionnels
+        var valid = true;
+
+        if (!title) {
+            if (titleErr) { titleErr.textContent = 'Le titre est obligatoire.'; titleErr.style.display = 'block'; }
+            valid = false;
+        }
+        if (!body.trim()) {
+            if (bodyErr)  { bodyErr.textContent = 'Le message est obligatoire.'; bodyErr.style.display = 'block'; }
+            valid = false;
+        }
+        if (!valid) return;
+
+        var btn = page.querySelector('#ip-publish-btn');
+        if (btn) btn.disabled = true;
+
+        apiFetch('/InfoPopup/messages', {
+            method: 'POST',
+            body: JSON.stringify({ title: title, body: body })
+        })
+        .then(function () {
+            if (titleEl) titleEl.value = '';
+            if (bodyEl)  bodyEl.value  = '';
+            showToast(page, '\u2713 Message publi\u00e9 avec succ\u00e8s\u00a0!');
+            return loadMessages(page, selectedIds);
+        })
+        .catch(function (err) {
+            showToast(page, 'Erreur de publication\u00a0: ' + err.message, true);
+        })
+        .finally(function () {
+            if (btn) btn.disabled = false;
+        });
+    }
+
+    // ── Suppression ───────────────────────────────────────────────────────────
+
+    function deleteSelected(page, selectedIds) {
+        if (!selectedIds.size) return;
+        var count = selectedIds.size;
+        showConfirm(
+            'Supprimer ' + count + ' message' + (count > 1 ? 's' : '') + '\u00a0?\n\n' +
+            'Cette action est irr\u00e9versible.'
+        ).then(function (confirmed) {
+            if (!confirmed) return;
+            var btn = page.querySelector('#ip-delete-btn');
+            if (btn) btn.disabled = true;
+            var ids = Array.from(selectedIds);
+            apiFetch('/InfoPopup/messages', {
+                method: 'DELETE',
+                body: JSON.stringify({ ids: ids })
+            })
+            .then(function () {
+                showToast(
+                    page,
+                    '\u2713 ' + count + ' message' + (count > 1 ? 's' : '') +
+                    ' supprim\u00e9' + (count > 1 ? 's' : '') + '.'
+                );
+                selectedIds.clear();
+                return loadMessages(page, selectedIds);
+            })
+            .catch(function (err) {
+                showToast(page, 'Erreur de suppression\u00a0: ' + err.message, true);
+                if (btn) btn.disabled = false;
+            });
+        });
+    }
+
+    // ── Dialogue de confirmation ───────────────────────────────────────────────
+
+    function showConfirm(msg) {
+        return new Promise(function (resolve) {
+            var backdrop = document.createElement('div');
+            backdrop.className = 'ip-confirm-backdrop';
+            var box = document.createElement('div');
+            box.className = 'ip-confirm-box';
+            box.innerHTML =
+                '<h4>Confirmation</h4>' +
+                '<p>' + escHtml(msg).replace(/\n/g, '<br/>') + '</p>' +
+                '<div class="ip-confirm-actions">' +
+                '<button class="emby-button" id="ip-c-cancel">Annuler</button>' +
+                '<button class="raised button-delete emby-button" id="ip-c-ok">Supprimer</button>' +
+                '</div>';
+            backdrop.appendChild(box);
+            document.body.appendChild(backdrop);
+            box.querySelector('#ip-c-ok').addEventListener('click', function () {
+                backdrop.remove(); resolve(true);
+            });
+            box.querySelector('#ip-c-cancel').addEventListener('click', function () {
+                backdrop.remove(); resolve(false);
+            });
+        });
+    }
+
+    // ── Initialisation de la page ─────────────────────────────────────────────
+
     function init(page) {
+        if (page._ipInitDone) return;
+        page._ipInitDone = true;
+        console.log('InfoPopup: init OK');
+
         var selectedIds = new Set();
 
-        // Attach handlers
         var publishBtn = page.querySelector('#ip-publish-btn');
         var deleteBtn  = page.querySelector('#ip-delete-btn');
         var selectAll  = page.querySelector('#ip-select-all');
@@ -245,7 +476,7 @@
                 publishMessage(page, selectedIds);
             });
         } else {
-            console.error('InfoPopup: publishBtn introuvable');
+            console.error('InfoPopup: #ip-publish-btn introuvable');
         }
 
         if (deleteBtn) {
@@ -265,146 +496,23 @@
             });
         }
 
-        // Load existing messages after init
         loadMessages(page, selectedIds);
     }
 
-    /* ---------- helper functions (réduites - utilisent ton code existant) ---------- */
+    // ── Stratégie de démarrage ────────────────────────────────────────────────
+    //
+    // Jellyfin 10.9+ est une SPA React. Le viewContainer re-fetch et
+    // ré-exécute le script inline à chaque navigation vers la page.
+    // Le polling 200 ms gère le cas où le script s'exécute avant
+    // l'injection du DOM (race condition).
 
-    function showToast(page, msg, isErr) {
-        var el = page.querySelector('#ip-toast');
-        if (!el) return;
-        el.textContent = msg;
-        el.className = isErr ? 'ip-toast-err' : 'ip-toast-ok';
-        el.style.display = 'block';
-        setTimeout(function () { el.style.display = 'none'; }, 4000);
+    function tryInit() {
+        var page = document.querySelector('#infoPopupConfigPage');
+        if (!page) { setTimeout(tryInit, 200); return; }
+        init(page);
     }
+    tryInit();
 
-    function apiFetch(path, opts) {
-        opts = opts || {};
-        var token = (window.ApiClient && typeof window.ApiClient.accessToken === 'function')
-            ? window.ApiClient.accessToken()
-            : (window.ApiClient && typeof window.ApiClient.accessToken === 'string' ? window.ApiClient.accessToken : null);
-        var headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = 'MediaBrowser Token="' + token + '"';
-        if (opts.headers) Object.keys(opts.headers).forEach(function (k) { headers[k] = opts.headers[k]; });
-        return fetch(path, Object.assign({}, opts, { headers: headers }))
-            .then(function (res) {
-                if (!res.ok) {
-                    return res.text().catch(function () { return ''; }).then(function (body) {
-                        throw new Error('HTTP ' + res.status + ' — ' + body);
-                    });
-                }
-                return res;
-            });
-    }
-
-    function updateSelectionUI(page, selectedIds) {
-        var deleteBtn = page.querySelector('#ip-delete-btn');
-        var countEl   = page.querySelector('#ip-sel-count');
-        var selAll    = page.querySelector('#ip-select-all');
-        var boxes     = page.querySelectorAll('.ip-row-check');
-        var count     = selectedIds.size;
-        if (deleteBtn) deleteBtn.disabled = count === 0;
-        if (countEl) countEl.textContent = count === 0 ? '' : count + ' message' + (count > 1 ? 's' : '') + ' sélectionné' + (count > 1 ? 's' : '');
-        if (!boxes.length || count === 0) { if (selAll) { selAll.checked = false; selAll.indeterminate = false; } }
-        else if (count === boxes.length)  { if (selAll) { selAll.checked = true; selAll.indeterminate = false; } }
-        else                                { if (selAll) { selAll.checked = false; selAll.indeterminate = true; } }
-    }
-
-    function renderMessages(page, messages, selectedIds) {
-        var container = page.querySelector('#ip-msg-container');
-        var empty     = page.querySelector('#ip-empty');
-        selectedIds.clear();
-        updateSelectionUI(page, selectedIds);
-        if (!messages || !messages.length) {
-            container.innerHTML = '';
-            container.appendChild(empty);
-            empty.style.display = 'block';
-            return;
-        }
-        empty.style.display = 'none';
-        var table = document.createElement('table');
-        table.className = 'ip-table';
-        table.innerHTML = '<thead><tr><th class="ip-col-check"></th><th>Titre</th><th class="ip-col-date">Publié le</th></tr></thead><tbody id="ip-tbody"></tbody>';
-        var tbody = table.querySelector('#ip-tbody');
-        messages.forEach(function (msg) {
-            var tr = document.createElement('tr');
-            tr.dataset.id = msg.id;
-            tr.innerHTML =
-                '<td class="ip-col-check"><input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + msg.id + '"/></td>' +
-                '<td class="ip-col-title">' + (msg.title || '') + '</td>' +
-                '<td class="ip-col-date">' + (new Date(msg.publishedAt || Date.now()).toISOString()) + '</td>';
-            tr.querySelector('.ip-row-check').addEventListener('change', function (e) {
-                if (e.target.checked) selectedIds.add(msg.id);
-                else selectedIds.delete(msg.id);
-                updateSelectionUI(page, selectedIds);
-            });
-            tbody.appendChild(tr);
-        });
-        container.innerHTML = '';
-        container.appendChild(table);
-    }
-
-    function loadMessages(page, selectedIds) {
-        return apiFetch('/InfoPopup/messages')
-            .then(function (res) { return res.json(); })
-            .then(function (msgs) { renderMessages(page, msgs, selectedIds); })
-            .catch(function (err) { showToast(page, 'Erreur de chargement : ' + err.message, true); });
-    }
-
-    function publishMessage(page, selectedIds) {
-        var titleEl  = page.querySelector('#ip-title');
-        var bodyEl   = page.querySelector('#ip-body');
-        var titleErr = page.querySelector('#ip-title-err');
-        var bodyErr  = page.querySelector('#ip-body-err');
-        if (titleErr) titleErr.style.display = 'none';
-        if (bodyErr) bodyErr.style.display  = 'none';
-        var title = titleEl ? titleEl.value.trim() : '';
-        var body  = bodyEl ? bodyEl.value.trim() : '';
-        var valid = true;
-        if (!title) { if (titleErr) { titleErr.textContent = 'Le titre est obligatoire.'; titleErr.style.display = 'block'; } valid = false; }
-        if (!body)  { if (bodyErr)  { bodyErr.textContent = 'Le message est obligatoire.'; bodyErr.style.display = 'block'; } valid = false; }
-        if (!valid) return;
-        var btn = page.querySelector('#ip-publish-btn'); if (btn) btn.disabled = true;
-        apiFetch('/InfoPopup/messages', { method: 'POST', body: JSON.stringify({ title: title, body: body }) })
-            .then(function () {
-                if (titleEl) titleEl.value = '';
-                if (bodyEl) bodyEl.value = '';
-                showToast(page, '✓ Message publié avec succès !');
-                return loadMessages(page, selectedIds);
-            })
-            .catch(function (err) { showToast(page, 'Erreur de publication : ' + err.message, true); })
-            .finally(function () { if (btn) btn.disabled = false; });
-    }
-
-    function deleteSelected(page, selectedIds) {
-        if (!selectedIds.size) return;
-        var count = selectedIds.size;
-        showConfirm('Supprimer ' + count + ' message' + (count > 1 ? 's' : '') + ' ?\n\nCette action est irréversible.')
-            .then(function (confirmed) {
-                if (!confirmed) return;
-                var btn = page.querySelector('#ip-delete-btn'); if (btn) btn.disabled = true;
-                var ids = Array.from(selectedIds);
-                apiFetch('/InfoPopup/messages', { method: 'DELETE', body: JSON.stringify({ ids: ids }) })
-                    .then(function () { showToast(page, '✓ ' + count + ' message' + (count > 1 ? 's' : '') + ' supprimé' + (count > 1 ? 's' : '') + '.'); selectedIds.clear(); return loadMessages(page, selectedIds); })
-                    .catch(function (err) { showToast(page, 'Erreur de suppression : ' + err.message, true); if (btn) btn.disabled = false; });
-            });
-    }
-
-    function showConfirm(msg) {
-        return new Promise(function (resolve) {
-            var backdrop = document.createElement('div'); backdrop.className = 'ip-confirm-backdrop';
-            var box = document.createElement('div'); box.className = 'ip-confirm-box';
-            box.innerHTML = '<h4>Confirmation</h4><p>' + (msg && msg.replace ? msg.replace(/\n/g,'<br/>') : msg) + '</p><div class="ip-confirm-actions"><button class="emby-button" id="ip-c-cancel">Annuler</button><button class="raised button-delete emby-button" id="ip-c-ok">Supprimer</button></div>';
-            backdrop.appendChild(box); document.body.appendChild(backdrop);
-            box.querySelector('#ip-c-ok').addEventListener('click', function () { backdrop.remove(); resolve(true); });
-            box.querySelector('#ip-c-cancel').addEventListener('click', function () { backdrop.remove(); resolve(false); });
-        });
-    }
-
-    // start
-    waitForPage();
 
 })();
 </script>
