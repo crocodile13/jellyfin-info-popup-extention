@@ -150,7 +150,9 @@
             tr.dataset.id = id;
             tr.innerHTML =
                 '<td class="ip-col-check">' +
+                '<label style="display:flex;align-items:center;cursor:pointer;">' +
                 '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + escHtml(id) + '"/>' +
+                '</label>' +
                 '</td>' +
                 '<td class="ip-col-title">' + escHtml(title) + '</td>' +
                 '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>';
@@ -408,7 +410,7 @@
 
         var body = document.createElement('div');
         body.id = 'infopopup-body';
-        body.textContent = newestMsg.body;
+        body.textContent = newestMsg.body || newestMsg.Body || '';
 
         dialog.appendChild(header);
         dialog.appendChild(body);
@@ -484,6 +486,8 @@
         setTimeout(function () {
             checkScheduled = false;
             if (!getToken()) return;
+            // Ne pas déclencher le popup si la page de config admin est active
+            if (document.querySelector('#infoPopupConfigPage')) return;
             var path = window.location.hash || window.location.pathname;
             if (path === lastCheckedPath) return;
             lastCheckedPath = path;
