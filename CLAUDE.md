@@ -61,6 +61,7 @@ jellyfin-info-popup-extention/
     ├── Models/{PopupMessage,SeenRecord}.cs
     ├── Services/{MessageStore,SeenTrackerService}.cs
     ├── Controllers/InfoPopupController.cs
+    ├── Middleware/{ScriptInjectionMiddleware,ScriptInjectionStartupFilter}.cs
     └── Web/{client.js,configurationpage.html}
 ```
 
@@ -72,9 +73,9 @@ jellyfin-info-popup-extention/
 
 ```json
 {
-  "major": 1,
-  "minor": 0,
-  "patch": 0,
+  "major": 0,
+  "minor": 1,
+  "patch": 4,
   "targetAbi": "10.10.0.0"
 }
 ```
@@ -103,9 +104,9 @@ make clean        # Supprime bin/, obj/, dist/*.zip
 ### Versioning
 
 ```bash
-make bump-patch   # 1.0.0.0 → 1.0.1.0 (correctif)
-make bump-minor   # 1.0.0.0 → 1.1.0.0 (nouvelle fonctionnalité)
-make bump-major   # 1.0.0.0 → 2.0.0.0 (rupture de compatibilité)
+make bump-patch   # 0.1.4.0 → 0.1.5.0 (correctif)
+make bump-minor   # 0.1.4.0 → 0.2.0.0 (nouvelle fonctionnalité)
+make bump-major   # 0.1.4.0 → 1.0.0.0 (rupture de compatibilité)
 ```
 
 ### Publication complète (séquence automatique)
@@ -177,7 +178,7 @@ Chaque version ajoutée par `make manifest-update` suit ce format :
 Format [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) :
 
 ```markdown
-## [1.2.3.0] — 2026-03-15
+## [0.1.5.0] — 2026-03-15
 
 ### Ajouté
 - Nouvelle fonctionnalité X
@@ -195,14 +196,28 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) :
 ### Dual-layer SPA obligatoire
 Jellyfin-Web est une SPA. Toute UI client passe par `Web/client.js` injecté dans `index.html`. Aucun rendu HTML côté serveur.
 
+### Injection automatique via middleware
+`ScriptInjectionMiddleware` intercepte les réponses HTML pour `/`, `/web`, `/web/`, `/web/index.html` et y injecte `<script src="/InfoPopup/client.js"></script>` avant `</body>`. **Aucune modification manuelle de `index.html` n'est requise.**
+`configurationpage.html` contient un `<script src="/InfoPopup/client.js"></script>` en fallback uniquement.
+
 ### Détection connexion : MutationObserver uniquement
-`document.body` observé avec `{ childList: true, subtree: true }` + listener `hashchange`. Les variables `lastCheckedPath`, `checkScheduled` et le `setTimeout(800ms)` déduplication les appels — **ne pas les supprimer**.
+`document.body` observé avec `{ childList: true, subtree: true }` + listeners `hashchange` et `popstate`. Les variables `lastCheckedPath`, `checkScheduled` et le `setTimeout(800ms)` dédupliquent les appels — **ne pas les supprimer**.
+**Guard obligatoire** : `schedulePopupCheck` retourne immédiatement si `#infoPopupConfigPage` est dans le DOM — sans quoi la popup se déclenche en arrière-plan pendant l'administration.
 
 ### Suivi des vues : 100% serveur
 `infopopup_seen.json` via `SeenTrackerService`. Jamais `localStorage` / `sessionStorage` / cookie.
 
 ### XSS impossible par construction
 `body` stocké en texte brut → affiché via `element.textContent` exclusivement. `white-space: pre-wrap` gère les sauts de ligne. Jamais `innerHTML` avec données utilisateur.
+
+### Styles SPA-persistants
+Tous les styles utilisés dans des éléments ajoutés au `<body>` (popup, confirm dialog) doivent être dans `injectStyles()`, injecté dans `<head>`. Les styles dans le `<style>` de `configurationpage.html` disparaissent lors des transitions de page SPA — ils ne doivent contenir que les styles de la page de config elle-même (tableau, toast).
+
+### Sérialisation JSON Jellyfin
+Jellyfin peut sérialiser en camelCase ou PascalCase selon la version. Toujours utiliser le pattern `msg.field || msg.Field || ''` pour tous les champs lus depuis l'API.
+
+### Checkboxes dans le tableau admin
+Ne pas utiliser `emby-checkbox` pour les checkboxes générés dynamiquement. Cette classe masque l'input natif et attend un `<span>` non-vide adjacent comme zone cliquable — un `<span></span>` vide a une hauteur nulle, rendant la case invisible et non cliquable. Utiliser un `<input type="checkbox">` natif avec `accent-color: var(--theme-accent-color, #00a4dc)` inline.
 
 ---
 
@@ -244,7 +259,12 @@ Jellyfin-Web est une SPA. Toute UI client passe par `Web/client.js` injecté dan
 - `client.js` doit être déclaré `<EmbeddedResource>` dans le `.csproj` sinon 404 sur `/InfoPopup/client.js`
 - Le nom de ressource dans l'assembly est exactement `Jellyfin.Plugin.InfoPopup.Web.client.js`
 - `HttpContext.User.GetUserId()` (extension Jellyfin) ≠ `User.Identity.Name` (ASP.NET standard)
-- Policy admin : `"RequiresElevation"` dans Jellyfin 10.10
+- Policy admin : `"RequiresElevation"` dans Jellyfin 10.10+
 - `make release-*` recharge les variables `$(VERSION)` après le bump — c'est pour ça que `_do-release` utilise `$(eval ...)`
 - Sur macOS, `md5sum` n'existe pas → le script utilise `md5 -q` automatiquement
 - `dist/*.zip` est dans `.gitignore` — le ZIP n'est pas commité dans git, il est uploadé sur GitHub Releases
+- **`emby-checkbox` dynamique** : cette classe cache l'input natif et utilise `input + span` via CSS. Un `<span></span>` vide = 0px de hauteur = zone de clic nulle. Pour les checkboxes générés en JS, utiliser `<input type="checkbox">` natif avec `accent-color` inline — ne jamais utiliser `emby-checkbox` dans du HTML généré dynamiquement.
+- **Styles SPA** : les `<style>` dans `configurationpage.html` sont retirés du DOM lors des transitions de page. Tout CSS pour des overlays/dialogs ajoutés au `<body>` doit être dans `injectStyles()` (persistant dans `<head>`). `showConfirm()` appelle `injectStyles()` avant de créer le backdrop.
+- **Guard config page** : sans le `if (document.querySelector('#infoPopupConfigPage')) return;` dans `schedulePopupCheck`, la popup se déclenche en arrière-plan quand l'admin navigue sur la page de configuration.
+- **Fallback PascalCase** : Jellyfin 10.11 peut sérialiser les réponses JSON en PascalCase. Toujours `msg.body || msg.Body || ''` — ne jamais lire un seul casing.
+- **Jellyfin 10.11** : utilise React Router + MUI dashboard. Les sélecteurs legacy (`#indexPage`, `.homePage`) n'existent plus. Le MutationObserver sur `document.body` sans restriction de sélecteur est la seule approche fiable.

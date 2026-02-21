@@ -8,11 +8,12 @@ Chaque message s'affiche **une seule fois** par utilisateur. Un message supprim�
 
 ## Fonctionnalités
 
-- **Popup à la connexion** : détection post-login via MutationObserver (SPA-compatible)
+- **Popup à la connexion** : détection post-login via MutationObserver (SPA-compatible, testé Jellyfin 10.10–10.11)
 - **Affichage unique** : suivi côté serveur — pas de localStorage, fonctionne sur tous les appareils
 - **Historique déroulant** : tous les messages passés dans un accordéon replié par défaut
 - **Page admin** : publication, sélection multiple, suppression confirmée
 - **Suppression totale** : un message supprimé disparaît immédiatement, partout, pour tout le monde
+- **Injection automatique** : `client.js` injecté dans `index.html` par le `ScriptInjectionMiddleware` — aucune modification manuelle requise
 - **Intégration thème Jellyfin** : variables CSS natives, classes dashboard standard
 - **Sécurité XSS** : texte brut exclusivement (`textContent`, jamais `innerHTML`)
 
@@ -27,20 +28,12 @@ URL : https://raw.githubusercontent.com/VOTRE_COMPTE/jellyfin-info-popup-extenti
 
 Puis installer **Info Popup** depuis le catalogue et redémarrer Jellyfin.
 
-### Injection du script client (obligatoire)
+Le script client (`client.js`) est injecté automatiquement dans `index.html` par le `ScriptInjectionMiddleware` au démarrage de Jellyfin. **Aucune modification manuelle de `index.html` n'est nécessaire.**
 
-Ajouter avant `</body>` dans `index.html` de Jellyfin-Web :
-
-```html
-<script src="/InfoPopup/client.js"></script>
-```
-
-**Docker** — monter `index.html` en volume :
-
-```yaml
-volumes:
-  - /chemin/vers/mon/index.html:/usr/share/jellyfin/web/index.html
-```
+> **Fallback Docker** : si un volume monte un `index.html` personnalisé qui écrase celui de Jellyfin-Web, ajoutez manuellement avant `</body>` :
+> ```html
+> <script src="/InfoPopup/client.js"></script>
+> ```
 
 ---
 
@@ -50,7 +43,7 @@ volumes:
 2. Extraire `Jellyfin.Plugin.InfoPopup.dll` dans :
    - Linux : `~/.local/share/jellyfin/plugins/InfoPopup/`
    - Docker : `/config/plugins/InfoPopup/`
-3. Redémarrer Jellyfin + injecter le script client (voir ci-dessus)
+3. Redémarrer Jellyfin — `client.js` est injecté automatiquement par le middleware
 
 ---
 
@@ -61,9 +54,9 @@ volumes:
 | Outil | Version |
 |-------|---------|
 | [.NET SDK](https://dotnet.microsoft.com) | 8.x |
-| [git](https://git-scm.com) | ≥ 2.x |
-| [jq](https://stedolan.github.io/jq/) | ≥ 1.6 |
-| [GitHub CLI](https://cli.github.com) | ≥ 2.x |
+| [git](https://git-scm.com) | >= 2.x |
+| [jq](https://stedolan.github.io/jq/) | >= 1.6 |
+| [GitHub CLI](https://cli.github.com) | >= 2.x |
 
 ### Setup initial
 
@@ -73,31 +66,31 @@ cd jellyfin-info-popup-extention
 
 # Configurer votre GitHub user
 cp .env.make.example .env.make
-# Éditer .env.make : GITHUB_USER = votre-login
+# Editer .env.make : GITHUB_USER = votre-login
 
-# Vérifier les prérequis
+# Verifier les prerequis
 make check
 ```
 
 ### Commandes disponibles
 
 ```bash
-make              # Aide + URL du dépôt Jellyfin
+make              # Aide + URL du depot Jellyfin
 
-# Développement
+# Developpement
 make build        # Compile en Debug
-make pack         # Compile Release + crée le ZIP dans dist/
+make pack         # Compile Release + cree le ZIP dans dist/
 make clean        # Nettoie bin/, obj/, dist/*.zip
 
 # Versioning
-make bump-patch   # 1.0.0.0 → 1.0.1.0
-make bump-minor   # 1.0.0.0 → 1.1.0.0
-make bump-major   # 1.0.0.0 → 2.0.0.0
+make bump-patch   # 0.1.4.0 -> 0.1.5.0
+make bump-minor   # 0.1.4.0 -> 0.2.0.0
+make bump-major   # 0.1.4.0 -> 1.0.0.0
 
-# Release complète (recommandé)
+# Release complete (recommande)
 make release-patch   # Correctif : bump + build + manifest + push + tag + GitHub Release
 make release-minor   # Nouvelle feature : idem
-make release-major   # Rupture de compatibilité : idem
+make release-major   # Rupture de compatibilite : idem
 ```
 
 ### Workflow de release
@@ -108,44 +101,37 @@ make release-major   # Rupture de compatibilité : idem
 make release-patch   # ou release-minor / release-major
 ```
 
-La commande effectue automatiquement :
-1. Incrémentation de `version.json` et du `.csproj`
-2. Build Release + création du ZIP dans `dist/`
-3. Calcul du MD5 + mise à jour de `manifest.json`
-4. `git commit && git push`
-5. Création du tag `vX.Y.Z.0` + push
-6. Création de la GitHub Release avec le ZIP uploadé
-
 ---
 
 ## Architecture
 
 ```
-API REST (/InfoPopup/*)          Client JS (injecté dans index.html)
-┌─────────────────────────┐      ┌──────────────────────────────────┐
-│ GET  /messages           │      │ MutationObserver → page home ?   │
-│ GET  /messages/{id}      │◄─────│ GET /InfoPopup/unseen            │
-│ POST /messages [ADMIN]   │      │ showPopup() → textContent        │
-│ DELETE /messages [ADMIN] │      │ fermeture → POST /InfoPopup/seen │
-│ GET  /unseen             │      └──────────────────────────────────┘
-│ POST /seen               │
-│ GET  /client.js          │      Page Admin (dashboard Jellyfin)
-└─────────────────────────┘      ┌──────────────────────────────────┐
-                                  │ POST /messages → publier         │
-Persistance                       │ GET  /messages → tableau         │
-┌─────────────────────────┐      │ DELETE /messages → supprimer     │
-│ XML : messages           │      └──────────────────────────────────┘
-│ JSON: infopopup_seen.json│
+API REST (/InfoPopup/*)          Client JS (injecte automatiquement dans index.html)
+┌─────────────────────────┐      ┌──────────────────────────────────────────────┐
+│ GET  /messages           │      │ ScriptInjectionMiddleware -> index.html      │
+│ GET  /messages/{id}      │◄─────│ MutationObserver -> toute navigation SPA     │
+│ POST /messages [ADMIN]   │      │ Guard : skip si #infoPopupConfigPage present │
+│ DELETE /messages [ADMIN] │      │ GET /InfoPopup/unseen                        │
+│ GET  /unseen             │      │ showPopup() -> textContent                   │
+│ POST /seen               │      │ fermeture -> POST /InfoPopup/seen            │
+│ GET  /client.js          │      └──────────────────────────────────────────────┘
 └─────────────────────────┘
+                                  Page Admin (dashboard Jellyfin)
+Persistance                       ┌──────────────────────────────────────────────┐
+┌─────────────────────────┐      │ POST /messages -> publier                    │
+│ XML : messages           │      │ GET  /messages -> tableau (checkboxes natifs)│
+│ JSON: infopopup_seen.json│      │ DELETE /messages -> confirm modal persistant │
+└─────────────────────────┘      └──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Compatibilité
+## Compatibilite
 
 | Jellyfin | .NET | Statut |
 |----------|------|--------|
-| 10.10.x  | 8.0  | ✅ Supporté |
+| 10.10.x  | 8.0  | Supporte |
+| 10.11.x  | 8.0  | Teste (dashboard React/MUI) |
 
 ---
 

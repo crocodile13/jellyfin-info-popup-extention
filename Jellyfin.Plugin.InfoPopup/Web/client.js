@@ -88,7 +88,7 @@
                 '<h4>Confirmation</h4>' +
                 '<p>' + escHtml(msg).replace(/\n/g, '<br/>') + '</p>' +
                 '<div class="ip-confirm-actions">' +
-                '<button class="emby-button" id="ip-c-cancel">Annuler</button>' +
+                '<button class="ip-btn-cancel" id="ip-c-cancel">Annuler</button>' +
                 '<button class="raised button-delete emby-button" id="ip-c-ok">Supprimer</button>' +
                 '</div>';
             backdrop.appendChild(box);
@@ -332,7 +332,9 @@
             '.ip-confirm-box{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:28px 28px 22px;max-width:420px;width:calc(100% - 32px);box-shadow:0 8px 32px rgba(0,0,0,.6)}',
             '.ip-confirm-box h4{margin:0 0 10px;font-size:1.05rem}',
             '.ip-confirm-box p{margin:0 0 22px;opacity:.8;font-size:.93rem;line-height:1.5}',
-            '.ip-confirm-actions{display:flex;justify-content:flex-end;gap:12px}'
+            '.ip-confirm-actions{display:flex;justify-content:flex-end;gap:12px}',
+            '.ip-confirm-actions .ip-btn-cancel{background:rgba(255,255,255,.1);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:9px 22px;font-size:.95rem;font-weight:500;cursor:pointer;transition:background .15s}',
+            '.ip-confirm-actions .ip-btn-cancel:hover{background:rgba(255,255,255,.18)}'
         ].join('\n');
         document.head.appendChild(s);
     }
