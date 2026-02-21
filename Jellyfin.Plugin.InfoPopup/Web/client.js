@@ -152,6 +152,7 @@
                 '<td class="ip-col-check">' +
                 '<label style="display:flex;align-items:center;cursor:pointer;">' +
                 '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + escHtml(id) + '"/>' +
+                '<span></span>' +
                 '</label>' +
                 '</td>' +
                 '<td class="ip-col-title">' + escHtml(title) + '</td>' +
