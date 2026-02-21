@@ -9,20 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
-        "version": "0.1.7.0",
-        "changelog": "Release v0.1.7.0",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.1.7.0/infopopup_0.1.7.0.zip",
-        "checksum": "665d9a384ab4d1aebe977e4988183cbb",
-        "timestamp": "2026-02-21T17:59:41Z"
-      },
-      {
         "version": "0.1.0.0",
         "changelog": "Release v0.1.0.0",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.1.0.0/infopopup_0.1.0.0.zip",
-        "checksum": "44ef2e63543b2672eb8e0c1167411923",
-        "timestamp": "2026-02-21T17:22:16Z"
+        "checksum": "02977270ffe596e660fd1132cbe2ce3b",
+        "timestamp": "2026-02-21T18:02:53Z"
       }
     ]
   }
