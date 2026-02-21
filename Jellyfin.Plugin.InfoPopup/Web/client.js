@@ -127,11 +127,10 @@
         updateSelectionUI(page, selectedIds);
         if (!messages || !messages.length) {
             container.innerHTML = '';
-            container.appendChild(empty);
-            empty.style.display = 'block';
+            if (empty) { container.appendChild(empty); empty.style.display = 'block'; }
             return;
         }
-        empty.style.display = 'none';
+        if (empty) empty.style.display = 'none';
         var table = document.createElement('table');
         table.className = 'ip-table';
         table.innerHTML =
@@ -143,17 +142,21 @@
             '<tbody id="ip-tbody"></tbody>';
         var tbody = table.querySelector('#ip-tbody');
         messages.forEach(function (msg) {
+            // Jellyfin peut sérialiser en PascalCase ou camelCase selon la version
+            var id          = msg.id          || msg.Id          || '';
+            var title       = msg.title       || msg.Title       || '';
+            var publishedAt = msg.publishedAt || msg.PublishedAt || '';
             var tr = document.createElement('tr');
-            tr.dataset.id = msg.id;
+            tr.dataset.id = id;
             tr.innerHTML =
                 '<td class="ip-col-check">' +
-                '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + escHtml(msg.id) + '"/>' +
+                '<input type="checkbox" class="emby-checkbox ip-row-check" data-id="' + escHtml(id) + '"/>' +
                 '</td>' +
-                '<td class="ip-col-title">' + escHtml(msg.title) + '</td>' +
-                '<td class="ip-col-date">' + escHtml(formatDate(msg.publishedAt)) + '</td>';
+                '<td class="ip-col-title">' + escHtml(title) + '</td>' +
+                '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>';
             tr.querySelector('.ip-row-check').addEventListener('change', function (e) {
-                if (e.target.checked) selectedIds.add(msg.id);
-                else selectedIds.delete(msg.id);
+                if (e.target.checked) selectedIds.add(id);
+                else selectedIds.delete(id);
                 updateSelectionUI(page, selectedIds);
             });
             tbody.appendChild(tr);
@@ -342,6 +345,9 @@
         var list = document.createElement('div');
         list.className = 'ip-history-list';
         messages.forEach(function (msg) {
+            var id          = msg.id          || msg.Id          || '';
+            var title       = msg.title       || msg.Title       || '';
+            var publishedAt = msg.publishedAt || msg.PublishedAt || '';
             var item = document.createElement('div');
             item.className = 'ip-history-item';
             var hdr = document.createElement('div');
@@ -349,8 +355,8 @@
             hdr.setAttribute('role', 'button');
             hdr.setAttribute('tabindex', '0');
             hdr.innerHTML =
-                '<span class="ip-item-title">' + escHtml(msg.title) + '</span>' +
-                '<span class="ip-item-date">' + escHtml(formatDate(msg.publishedAt)) + '</span>' +
+                '<span class="ip-item-title">' + escHtml(title) + '</span>' +
+                '<span class="ip-item-date">' + escHtml(formatDate(publishedAt)) + '</span>' +
                 '<span class="ip-item-chev">\u25bc</span>';
             var itemBody = document.createElement('div');
             itemBody.className = 'ip-item-body';
@@ -358,7 +364,7 @@
             var load = function () {
                 if (loaded) return;
                 loaded = true;
-                apiFetch('/InfoPopup/messages/' + encodeURIComponent(msg.id))
+                apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
                     .then(function (res) { return res.json(); })
                     .then(function (data) { itemBody.textContent = data.body; })
                     .catch(function () { itemBody.textContent = '(Erreur lors du chargement)'; });
@@ -452,11 +458,12 @@
                     .then(function (res) { return res.json(); })
                     .then(function (allMessages) {
                         var newest = unseenList[0];
-                        return apiFetch('/InfoPopup/messages/' + encodeURIComponent(newest.id))
+                        var newestId = newest.id || newest.Id || '';
+                        return apiFetch('/InfoPopup/messages/' + encodeURIComponent(newestId))
                             .then(function (res) { return res.json(); })
                             .then(function (newestFull) {
-                                var older = allMessages.filter(function (m) { return m.id !== newest.id; });
-                                var allUnseenIds = unseenList.map(function (m) { return m.id; });
+                                var older = allMessages.filter(function (m) { return (m.id || m.Id) !== newestId; });
+                                var allUnseenIds = unseenList.map(function (m) { return m.id || m.Id || ''; });
                                 showPopup(newestFull, older, allUnseenIds);
                             });
                     });
@@ -491,15 +498,17 @@
 
     function initObserver() {
         new MutationObserver(function () {
-            // Popup : page home détectée
-            if (document.querySelector('#indexPage, .homePage, [data-page="home"]')) {
-                schedulePopupCheck();
-            }
+            // Déclenche le check popup à chaque mutation DOM significative.
+            // lastCheckedPath + popupActive empêchent les doublons.
+            // On ne restreint plus à la home page car Jellyfin 10.11 (React Router)
+            // n'utilise plus #indexPage / .homePage comme sélecteurs.
+            schedulePopupCheck();
             // Config page : boutons à initialiser
             checkConfigPage();
         }).observe(document.body, { childList: true, subtree: true });
 
         window.addEventListener('hashchange', schedulePopupCheck);
+        window.addEventListener('popstate',   schedulePopupCheck);
 
         // Tentative immédiate au cas où la page est déjà présente
         schedulePopupCheck();
