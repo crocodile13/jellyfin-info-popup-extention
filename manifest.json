@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "0.1.7.0",
+        "changelog": "Release v0.1.7.0",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.1.7.0/infopopup_0.1.7.0.zip",
+        "checksum": "a32e451495d57bfad67132209d708f8a",
+        "timestamp": "2026-02-21T17:36:17Z"
+      },
+      {
         "version": "0.1.6.0",
         "changelog": "Release v0.1.6.0",
         "targetAbi": "10.10.0.0",
