@@ -1,8 +1,8 @@
 # jellyfin-info-popup-extention
 
-Plugin Jellyfin permettant aux administrateurs de diffuser des **messages popup** aux utilisateurs lors de leur connexion.
+Plugin Jellyfin permettant aux administrateurs d’afficher des messages popup aux utilisateurs lors de leur connexion.
 
-Cette extention a ete quasi integralement vibe codée par Claude. C'est assumé, j'avais juste besoin d'une telle extension, et je ne voulais pas me lancer dans un projet de dev de 10 jours.
+Cette extension a été quasi intégralement vibe codée par Claude. C’est assumé : j’avais simplement besoin d’une telle extension et je ne voulais pas me lancer dans un projet de développement de dix jours.
 
 ---
 
