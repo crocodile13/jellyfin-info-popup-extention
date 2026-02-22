@@ -1,8 +1,8 @@
 # jellyfin-info-popup-extention
 
-Plugin Jellyfin permettant aux administrateurs de diffuser des **messages popup** à tous les utilisateurs lors de leur connexion.
+Plugin Jellyfin permettant aux administrateurs de diffuser des **messages popup** aux utilisateurs lors de leur connexion.
 
-Chaque message s'affiche **une seule fois** par utilisateur. Un message supprimé disparaît **définitivement et partout**, pour tous les utilisateurs, sans exception.
+Cette extention a ete quasi integralement vibe codée par Claude. C'est assumé, j'avais juste besoin d'une telle extension, et je ne voulais pas me lancer dans un projet de dev de 10 jours.
 
 ---
 
@@ -23,7 +23,7 @@ Chaque message s'affiche **une seule fois** par utilisateur. Un message supprim�
 
 ```
 Tableau de bord → Plugins → Catalogues → Ajouter
-URL : https://raw.githubusercontent.com/VOTRE_COMPTE/jellyfin-info-popup-extention/main/manifest.json
+URL : https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/manifest.json
 ```
 
 Puis installer **Info Popup** depuis le catalogue et redémarrer Jellyfin.
@@ -136,5 +136,7 @@ Persistance                       ┌──────────────�
 ---
 
 ## Licence
-
 GPL3
+
+## Contrib
+Si vous modifiez le code, si vous rajouter des features ou resolvez des bugs, partagez votre travail !
