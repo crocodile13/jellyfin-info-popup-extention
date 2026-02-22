@@ -6,6 +6,12 @@ Cette extension a été quasi intégralement vibe codée par Claude. C’est ass
 
 ---
 
+## 📸 Aperçu
+
+![Aperçu 1](images/image1.png)
+![Aperçu 2](images/image2.png)
+
+---
 ## Fonctionnalités
 
 - **Popup à la connexion** : détection post-login via MutationObserver (SPA-compatible, testé Jellyfin 10.10–10.11)
