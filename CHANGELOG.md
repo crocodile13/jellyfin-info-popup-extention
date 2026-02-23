@@ -1,32 +1,18 @@
 # Changelog
 
-## [0.5.1.0] — 2026-02-23
-
-### Ajouté
-
-- **Aperçu live dans l'éditeur admin** — un panneau "Aperçu" s'affiche sous le textarea et se met à jour en temps réel à la frappe. Le rendu interprète `**gras**`, `_italique_`, etc. sans quitter le mode édition. Un toggle switch "Raw" permet de masquer le panneau pour travailler en texte brut.
-- **Détection de contexte dans la toolbar** — les boutons B/I/U/S sont désormais "enfoncés" (état actif visuel) quand le curseur se trouve à l'intérieur d'une paire de marqueurs, qu'il y ait une sélection ou non. Compatible Jellyfin 10.10–10.11.
-- **Retrait intelligent du formatage** — cliquer un bouton actif retire les marqueurs encadrant le curseur, même sans sélection préalable. L'ancien comportement ajoutait des marqueurs en doublon.
-
-### Modifié
-
-- `applyFormat()` — refactorisée via `getFormatBoundsAroundCursor()` : retrait propre des marqueurs autour du curseur, fin de l'accumulation de `****`.
-- `initConfigPage()` — listeners `selectionchange` / `keyup` / `mouseup` / `touchend` sur le textarea pour maintenir l'état de la toolbar à jour en continu.
-- Toolbar : dispatch de `input` après chaque action de formatage pour synchroniser l'aperçu live immédiatement.
-
----
-
 Toutes les modifications notables de ce projet sont documentées dans ce fichier.
 
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
-## [0.6.0.0] — 2026-02-23
+## [0.5.1.0] — 2026-02-23
 
 ### Ajouté
 
-- **Aperçu formaté en temps réel dans la zone de saisie** — le champ « Message » affiche désormais le rendu formaté par défaut (`**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, listes). Un toggle switch `Aperçu / Brut` dans la barre de formatage permet de basculer vers la saisie du markup brut. Cliquer sur l'aperçu bascule directement en mode brut. Les boutons de formatage (B, I, U, S, Liste) basculent automatiquement en mode brut avant d'appliquer le formatage. Après publication ou annulation, le formulaire repasse en mode aperçu.
+- **Aperçu formaté en temps réel dans la zone de saisie** — le champ « Message » affiche désormais le rendu formaté par défaut (`**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, listes). Un toggle switch `Raw` dans la barre de formatage permet de basculer vers la saisie du markup brut. Cliquer sur l'aperçu bascule directement en mode brut. Les boutons de formatage (B, I, U, S, Liste) basculent automatiquement en mode brut avant d'appliquer le formatage. Après publication ou annulation, le formulaire repasse en mode aperçu.
+- **Détection de contexte dans la toolbar** — les boutons B/I/U/S sont désormais « enfoncés » (état actif visuel) quand le curseur se trouve à l'intérieur d'une paire de marqueurs, qu'il y ait une sélection ou non. Compatible Jellyfin 10.10–10.11.
+- **Retrait intelligent du formatage** — cliquer un bouton actif retire les marqueurs encadrant le curseur, même sans sélection préalable. L'ancien comportement ajoutait des marqueurs en doublon.
 
 ### Corrigé
 
@@ -37,9 +23,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ### Modifié
 
-- `MessageStore.Update()` — retourne `PopupMessage?` (snapshot dans le lock) au lieu de `bool`.
+- `MessageStore.Update()` — retourne `PopupMessage?` (snapshot capturé dans le lock) au lieu de `bool`.
 - `InfoPopupController.UpdateMessage()` — utilise le snapshot retourné par `Update()`, supprime le second appel `GetById()`.
-- `client.js` — ajout de `updatePreview(page)`, `setPreviewMode(page, on)` ; `enterEditMode` bascule en brut, `exitEditMode` repasse en aperçu, `publishMessage` (POST) repasse en aperçu après succès.
+- `applyFormat()` — refactorisée via `getFormatBoundsAroundCursor()` : retrait propre des marqueurs autour du curseur, fin de l'accumulation de `****`.
+- `initConfigPage()` — listeners `selectionchange` / `keyup` / `mouseup` / `touchend` sur le textarea pour maintenir l'état de la toolbar à jour en continu.
+- `client.js` — ajout de `updatePreview(page)` et `setPreviewMode(page, on)` ; `enterEditMode` bascule en brut, `exitEditMode` repasse en aperçu, `publishMessage` (POST) repasse en aperçu après succès. Dispatch de `input` après chaque action de formatage pour synchroniser l'aperçu immédiatement.
 - `configurationpage.html` — suppression du bloc `<style>` (migré dans `injectStyles()`), ajout du toggle switch et du div aperçu, case « Tout sélectionner » en checkbox native.
 
 ---
