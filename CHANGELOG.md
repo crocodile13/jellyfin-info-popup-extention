@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [Unreleased] — 1.4.0.0
+
+### Added
+
+- **Sélecteur de destinataires : aucun utilisateur pré-sélectionné par défaut** — avant cette version, décocher « Tous les utilisateurs » affichait la liste avec tous les utilisateurs cochés. Désormais, aucun utilisateur n'est coché quand la liste apparaît : l'administrateur compose sa sélection explicitement.
+- **Barre « Tout sélectionner / Tout désélectionner »** — quand la liste individuelle des utilisateurs est visible, une barre s'affiche juste au-dessus avec deux boutons : « Tout sélectionner » et « Tout désélectionner ». La barre se masque automatiquement quand « Tous les utilisateurs » est recoché.
+- **Nouvelles clés i18n** : `target_select_all` (FR : « Tout sélectionner », EN : « Select all ») et `target_deselect_all` (FR : « Tout désélectionner », EN : « Deselect all »).
+
 ## [0.8.3.0] — 2026-02-23
 
 ### Fixed

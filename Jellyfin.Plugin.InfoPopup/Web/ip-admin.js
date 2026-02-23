@@ -383,6 +383,28 @@
 
         box.appendChild(allRow);
 
+        // ── Barre « Tout sélectionner / Tout désélectionner » ───────────────────────────
+        // Visible uniquement quand la liste individuelle est affichée.
+        var selectControls = document.createElement('div');
+        selectControls.className = 'ip-target-select-controls';
+
+        var selectAllBtn = document.createElement('button');
+        selectAllBtn.type = 'button';
+        selectAllBtn.textContent = t('target_select_all');
+
+        var sep = document.createElement('span');
+        sep.className = 'ip-sel-sep';
+        sep.textContent = '·';
+
+        var deselectAllBtn = document.createElement('button');
+        deselectAllBtn.type = 'button';
+        deselectAllBtn.textContent = t('target_deselect_all');
+
+        selectControls.appendChild(selectAllBtn);
+        selectControls.appendChild(sep);
+        selectControls.appendChild(deselectAllBtn);
+        box.appendChild(selectControls);
+
         var userList = document.createElement('div');
         userList.className = 'ip-target-user-list';
         userList.style.display = 'none';
@@ -393,7 +415,8 @@
             var chk   = document.createElement('input');
             chk.type  = 'checkbox';
             chk.dataset.userId = u.id;
-            chk.checked = true;
+            // Par défaut : aucun utilisateur pré-sélectionné quand la liste apparaît.
+            chk.checked = false;
             chk.style.cssText = 'width:14px;height:14px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);flex-shrink:0;';
             var span = document.createElement('span');
             span.textContent = u.name;
@@ -407,13 +430,28 @@
         container.innerHTML = '';
         container.appendChild(box);
 
+        // ── Événements ───────────────────────────────────────────────────────
+
+        selectAllBtn.addEventListener('click', function () {
+            userCheckboxes.forEach(function (c) { c.checked = true; });
+        });
+
+        deselectAllBtn.addEventListener('click', function () {
+            userCheckboxes.forEach(function (c) { c.checked = false; });
+        });
+
         allChk.addEventListener('change', function () {
             if (allChk.checked) {
                 userList.style.display = 'none';
+                selectControls.style.display = 'none';
                 userCheckboxes.forEach(function (c) { c.checked = true; });
             } else {
-                if (users.length > 0) userList.style.display = 'block';
-                else allChk.checked = true;
+                if (users.length > 0) {
+                    userList.style.display = 'block';
+                    selectControls.style.display = 'flex';
+                } else {
+                    allChk.checked = true;
+                }
             }
         });
     }

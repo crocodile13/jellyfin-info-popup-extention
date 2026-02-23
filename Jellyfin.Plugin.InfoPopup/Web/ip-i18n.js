@@ -63,6 +63,8 @@
             target_all:          'Tous les utilisateurs',
             target_no_users:     '(aucun utilisateur trouvé \u2014 vérifiez les droits admin)',
             target_unknown:      '...',
+            target_select_all:   'Tout sélectionner',
+            target_deselect_all: 'Tout désélectionner',
 
             // ── Sélection ────────────────────────────────────────────────────
             sel_count_singular:  '{0} message sélectionné',
@@ -150,6 +152,8 @@
             target_all:          'All users',
             target_no_users:     '(no users found \u2014 check admin rights)',
             target_unknown:      '...',
+            target_select_all:   'Select all',
+            target_deselect_all: 'Deselect all',
 
             // ── Selection ────────────────────────────────────────────────────
             sel_count_singular:  '{0} message selected',
