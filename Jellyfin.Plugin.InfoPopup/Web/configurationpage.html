@@ -14,7 +14,7 @@
 
     <!-- Nouveau message -->
     <div class="detailSection">
-        <h3 class="sectionTitle">Nouveau message</h3>
+        <h3 class="sectionTitle" id="ip-form-section-title">Nouveau message</h3>
 
         <div class="inputContainer">
             <label class="inputLabel inputLabelUnfocused" for="ip-title">Titre *</label>
@@ -29,11 +29,19 @@
 
         <div class="inputContainer" style="margin-top:16px;">
             <label class="inputLabel inputLabelUnfocused" for="ip-body">Message *</label>
+            <!-- Toolbar de formatage -->
+            <div id="ip-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+                <button type="button" class="ip-fmt-btn" data-action="bold"      title="Gras (Ctrl+B)"><strong>B</strong></button>
+                <button type="button" class="ip-fmt-btn" data-action="italic"    title="Italique"><em>I</em></button>
+                <button type="button" class="ip-fmt-btn" data-action="underline" title="Souligné"><u>U</u></button>
+                <button type="button" class="ip-fmt-btn" data-action="strike"    title="Barré"><s>S</s></button>
+                <button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list" title="Liste à puces">&#8226; Liste</button>
+            </div>
             <textarea id="ip-body"
                       class="emby-textarea"
                       maxlength="10000"
                       rows="6"
-                      placeholder="Saisir le contenu en texte brut..."
+                      placeholder="Saisir le contenu... Utilisez la barre ci-dessus pour formater (**gras**, _italique_, ~~barré~~, __souligné__, - liste)"
                       style="resize:vertical;width:100%;box-sizing:border-box;"></textarea>
             <div id="ip-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
         </div>
@@ -45,10 +53,13 @@
             </div>
         </div>
 
-        <div style="margin-top:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="margin-top:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <button id="ip-publish-btn" class="raised button-submit emby-button" type="button">
-                <span class="material-icons" style="vertical-align:middle;margin-right:6px;font-size:1.1em;">send</span>
                 Publier le message
+            </button>
+            <button id="ip-cancel-edit-btn" class="raised emby-button" type="button"
+                    style="display:none;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);">
+                Annuler la modification
             </button>
             <div id="ip-toast" style="display:none;padding:8px 14px;border-radius:4px;font-size:.9rem;"></div>
         </div>
@@ -103,6 +114,23 @@
 .ip-target-user-list { border-top:1px solid rgba(255,255,255,.1); max-height:200px; overflow-y:auto; padding:8px 0; }
 .ip-target-user-list label { display:flex; align-items:center; gap:8px; padding:5px 14px; cursor:pointer; font-size:.88rem; transition:background .1s; user-select:none; }
 .ip-target-user-list label:hover { background:rgba(255,255,255,.04); }
+
+/* ── Toolbar de formatage ── */
+.ip-fmt-btn {
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 4px;
+    color: var(--theme-text-color, #e5e5e5);
+    cursor: pointer;
+    font-size: .88rem;
+    min-width: 32px;
+    padding: 4px 10px;
+    transition: background .15s, border-color .15s;
+    line-height: 1.4;
+}
+.ip-fmt-btn:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.3); }
+.ip-fmt-btn:active { background: rgba(255,255,255,.2); }
+.ip-fmt-btn-sep { margin-left: 6px; border-left: 1px solid rgba(255,255,255,.2); }
 </style>
 
 <!-- Fallback : charge client.js si Jellyfin ne l'a pas encore injecté via le plugin manager -->

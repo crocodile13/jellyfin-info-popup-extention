@@ -13,8 +13,9 @@ public class PopupMessage
     public string Title { get; set; } = string.Empty;
 
     /// <summary>
-    /// Corps du message en texte brut (max 10 000 car.).
-    /// Jamais de HTML ni Markdown — rendu par CSS white-space:pre-wrap.
+    /// Corps du message (max 10 000 car.).
+    /// Supporte le markup IP : **gras**, _italique_, ~~barré~~, __souligné__, - liste.
+    /// Rendu côté client par <c>renderBody()</c> en HTML sécurisé (whitelist).
     /// </summary>
     public string Body { get; set; } = string.Empty;
 

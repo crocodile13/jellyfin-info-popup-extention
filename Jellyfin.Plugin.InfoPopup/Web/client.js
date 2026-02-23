@@ -52,6 +52,39 @@
         return d.innerHTML;
     }
 
+    // ── Rendu du markup IP → HTML sécurisé ──────────────────────────────────
+    // Syntaxe supportée : **gras**, _italique_, ~~barré~~, __souligné__, - liste
+    // Sécurité : escHtml() appliqué AVANT les remplacements → jamais de XSS.
+
+    function formatInline(escaped) {
+        // Ordre important : ** avant _, __ avant _
+        return escaped
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/~~(.*?)~~/g, '<s>$1</s>')
+            .replace(/__(.*?)__/g, '<u>$1</u>')
+            .replace(/_(.*?)_/g, '<em>$1</em>');
+    }
+
+    function renderBody(raw) {
+        if (!raw) return '';
+        var lines = raw.split('\n');
+        var html = '';
+        var inList = false;
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            if (/^- /.test(line)) {
+                if (!inList) { html += '<ul class="ip-list">'; inList = true; }
+                html += '<li>' + formatInline(escHtml(line.slice(2))) + '</li>';
+            } else {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += formatInline(escHtml(line));
+                if (i < lines.length - 1) html += '<br>';
+            }
+        }
+        if (inList) html += '</ul>';
+        return html;
+    }
+
     function formatDate(iso) {
         var d = new Date(iso);
         return d.getUTCFullYear() + '-' +
@@ -129,7 +162,7 @@
         }).join(', ');
     }
 
-        function renderMessages(page, messages, selectedIds) {
+        function renderMessages(page, messages, selectedIds, onEdit) {
         var container = page.querySelector('#ip-msg-container');
         var empty     = page.querySelector('#ip-empty');
         selectedIds.clear();
@@ -148,6 +181,7 @@
             '<th>Titre <span style="opacity:.45;font-size:.8rem;font-weight:400">(cliquer pour d\u00e9velopper)</span></th>' +
             '<th class="ip-col-target">Destinataires</th>' +
             '<th class="ip-col-date">Publi\u00e9 le</th>' +
+            '<th class="ip-col-actions"></th>' +
             '</tr></thead>' +
             '<tbody id="ip-tbody"></tbody>';
         var tbody = table.querySelector('#ip-tbody');
@@ -172,19 +206,24 @@
                 '<span class="ip-row-chev">\u25b6</span>' +
                 '</td>' +
                 '<td class="ip-col-target">' + targetBadge + '</td>' +
-                '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>';
+                '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>' +
+                '<td class="ip-col-actions">' +
+                '<button class="ip-edit-btn" title="Modifier ce message">\u270e Modifier</button>' +
+                '</td>';
 
             // Ligne d'expansion pour le corps du message
             var expandTr = document.createElement('tr');
             expandTr.className = 'ip-row-expand';
             var expandTd = document.createElement('td');
-            expandTd.colSpan = 4;
+            expandTd.colSpan = 5;
             expandTd.className = 'ip-row-expand-td';
             expandTd.textContent = 'Chargement\u2026';
             expandTr.appendChild(expandTd);
 
             var isOpen = false;
             var bodyLoaded = false;
+            var msgBody = null;
+
             tr.querySelector('.ip-col-title-toggle').addEventListener('click', function () {
                 isOpen = !isOpen;
                 expandTr.classList.toggle('visible', isOpen);
@@ -194,10 +233,26 @@
                     apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
                         .then(function (res) { return res.json(); })
                         .then(function (data) {
-                            expandTd.textContent = data.body || data.Body || '(vide)';
+                            msgBody = data.body || data.Body || '';
+                            expandTd.innerHTML = renderBody(msgBody);
                         })
                         .catch(function () {
                             expandTd.textContent = '(Erreur lors du chargement)';
+                        });
+                }
+            });
+
+            // Bouton modifier : charge le message dans le formulaire
+            tr.querySelector('.ip-edit-btn').addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (msgBody !== null) {
+                    onEdit({ id: id, title: title, body: msgBody });
+                } else {
+                    apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) {
+                            msgBody = data.body || data.Body || '';
+                            onEdit({ id: id, title: title, body: msgBody });
                         });
                 }
             });
@@ -214,16 +269,16 @@
         container.appendChild(table);
     }
 
-    function loadMessages(page, selectedIds) {
+    function loadMessages(page, selectedIds, onEdit) {
         return apiFetch('/InfoPopup/messages')
             .then(function (res) { return res.json(); })
-            .then(function (msgs) { renderMessages(page, msgs, selectedIds); })
+            .then(function (msgs) { renderMessages(page, msgs, selectedIds, onEdit || function(){}); })
             .catch(function (err) {
                 showToast(page, 'Erreur de chargement\u00a0: ' + err.message, true);
             });
     }
 
-    function publishMessage(page, selectedIds) {
+    function publishMessage(page, selectedIds, editState) {
         var titleEl  = page.querySelector('#ip-title');
         var bodyEl   = page.querySelector('#ip-body');
         var titleErr = page.querySelector('#ip-title-err');
@@ -248,28 +303,43 @@
         var btn = page.querySelector('#ip-publish-btn');
         if (btn) btn.disabled = true;
 
-        var targetIds = getSelectedTargetIds(page);
-
-        apiFetch('/InfoPopup/messages', {
-            method: 'POST',
-            body: JSON.stringify({ title: title, body: body, targetUserIds: targetIds })
-        })
-        .then(function () {
-            if (titleEl) titleEl.value = '';
-            if (bodyEl)  bodyEl.value  = '';
-            resetTargetPicker(page);
-            showToast(page, '\u2713 Message publi\u00e9 avec succ\u00e8s\u00a0!');
-            return loadMessages(page, selectedIds);
-        })
-        .catch(function (err) {
-            showToast(page, 'Erreur de publication\u00a0: ' + err.message, true);
-        })
-        .finally(function () {
-            if (btn) btn.disabled = false;
-        });
+        // Mode édition (PUT) ou création (POST)
+        if (editState.id) {
+            apiFetch('/InfoPopup/messages/' + encodeURIComponent(editState.id), {
+                method: 'PUT',
+                body: JSON.stringify({ title: title, body: body })
+            })
+            .then(function () {
+                showToast(page, '\u2713 Message mis \u00e0 jour\u00a0!');
+                editState.id = null;
+                exitEditMode(page);
+                return loadMessages(page, selectedIds, editState.onEdit);
+            })
+            .catch(function (err) {
+                showToast(page, 'Erreur de mise \u00e0 jour\u00a0: ' + err.message, true);
+            })
+            .finally(function () { if (btn) btn.disabled = false; });
+        } else {
+            var targetIds = getSelectedTargetIds(page);
+            apiFetch('/InfoPopup/messages', {
+                method: 'POST',
+                body: JSON.stringify({ title: title, body: body, targetUserIds: targetIds })
+            })
+            .then(function () {
+                if (titleEl) titleEl.value = '';
+                if (bodyEl)  bodyEl.value  = '';
+                resetTargetPicker(page);
+                showToast(page, '\u2713 Message publi\u00e9 avec succ\u00e8s\u00a0!');
+                return loadMessages(page, selectedIds, editState.onEdit);
+            })
+            .catch(function (err) {
+                showToast(page, 'Erreur de publication\u00a0: ' + err.message, true);
+            })
+            .finally(function () { if (btn) btn.disabled = false; });
+        }
     }
 
-    function deleteSelected(page, selectedIds) {
+    function deleteSelected(page, selectedIds, editState) {
         if (!selectedIds.size) return;
         var count = selectedIds.size;
         showConfirm(
@@ -291,7 +361,7 @@
                     ' supprim\u00e9' + (count > 1 ? 's' : '') + '.'
                 );
                 selectedIds.clear();
-                return loadMessages(page, selectedIds);
+                return loadMessages(page, selectedIds, editState ? editState.onEdit : null);
             })
             .catch(function (err) {
                 showToast(page, 'Erreur de suppression\u00a0: ' + err.message, true);
@@ -416,25 +486,106 @@
         }
     }
 
+    // ── Helpers de formatage textarea ────────────────────────────────────────
+
+    function applyFormat(ta, prefix, suffix) {
+        var start = ta.selectionStart, end = ta.selectionEnd;
+        var val = ta.value;
+        var selected = val.slice(start, end);
+        // Toggle : si déjà entouré, on retire ; sinon on entoure
+        if (selected.startsWith(prefix) && selected.endsWith(suffix) &&
+                selected.length > prefix.length + suffix.length) {
+            var inner = selected.slice(prefix.length, selected.length - suffix.length);
+            ta.value = val.slice(0, start) + inner + val.slice(end);
+            ta.setSelectionRange(start, start + inner.length);
+        } else {
+            ta.value = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
+            ta.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+        }
+    }
+
+    function toggleListLines(ta) {
+        var start = ta.selectionStart, end = ta.selectionEnd;
+        var val = ta.value;
+        var lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        var lineEnd = val.indexOf('\n', end);
+        if (lineEnd === -1) lineEnd = val.length;
+        var block = val.slice(lineStart, lineEnd);
+        var lines = block.split('\n');
+        var allBullet = lines.every(function (l) { return /^- /.test(l); });
+        var newBlock = lines.map(function (l) {
+            return allBullet ? l.slice(2) : '- ' + l;
+        }).join('\n');
+        ta.value = val.slice(0, lineStart) + newBlock + val.slice(lineEnd);
+        ta.setSelectionRange(lineStart, lineStart + newBlock.length);
+    }
+
+    function enterEditMode(page, msg, editState) {
+        editState.id = msg.id;
+        var titleEl = page.querySelector('#ip-title');
+        var bodyEl  = page.querySelector('#ip-body');
+        if (titleEl) titleEl.value = msg.title;
+        if (bodyEl)  bodyEl.value  = msg.body;
+        var publishBtn   = page.querySelector('#ip-publish-btn');
+        var cancelBtn    = page.querySelector('#ip-cancel-edit-btn');
+        var sectionTitle = page.querySelector('#ip-form-section-title');
+        if (publishBtn)   publishBtn.textContent = '\u2713 Mettre \u00e0 jour';
+        if (cancelBtn)    cancelBtn.style.display = 'inline-flex';
+        if (sectionTitle) sectionTitle.textContent = 'Modifier le message';
+        page.querySelector('.detailSection').scrollIntoView({ behavior: 'smooth' });
+        if (titleEl) titleEl.focus();
+    }
+
+    function exitEditMode(page) {
+        var titleEl  = page.querySelector('#ip-title');
+        var bodyEl   = page.querySelector('#ip-body');
+        if (titleEl) titleEl.value = '';
+        if (bodyEl)  bodyEl.value  = '';
+        var publishBtn   = page.querySelector('#ip-publish-btn');
+        var cancelBtn    = page.querySelector('#ip-cancel-edit-btn');
+        var sectionTitle = page.querySelector('#ip-form-section-title');
+        if (publishBtn)   publishBtn.textContent = 'Publier le message';
+        if (cancelBtn)    cancelBtn.style.display = 'none';
+        if (sectionTitle) sectionTitle.textContent = 'Nouveau message';
+    }
+
         function initConfigPage(page) {
         if (page._ipInitDone) return;
         page._ipInitDone = true;
+        // Injecter les styles globaux dès l'init de la page config
+        // (injectStyles() est idempotent — sans effet si déjà injecté)
+        injectStyles();
         console.log('InfoPopup: config page init OK');
 
         var selectedIds = new Set();
 
+        // État d'édition partagé entre fonctions
+        var editState = { id: null, onEdit: null };
+
+        var onEdit = function (msg) { enterEditMode(page, msg, editState); };
+        editState.onEdit = onEdit;
+
         var publishBtn = page.querySelector('#ip-publish-btn');
         var deleteBtn  = page.querySelector('#ip-delete-btn');
         var selectAll  = page.querySelector('#ip-select-all');
+        var cancelBtn  = page.querySelector('#ip-cancel-edit-btn');
+        var bodyEl     = page.querySelector('#ip-body');
+        var toolbar    = page.querySelector('#ip-format-toolbar');
 
         if (publishBtn) {
             publishBtn.addEventListener('click', function () {
-                publishMessage(page, selectedIds);
+                publishMessage(page, selectedIds, editState);
+            });
+        }
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function () {
+                editState.id = null;
+                exitEditMode(page);
             });
         }
         if (deleteBtn) {
             deleteBtn.addEventListener('click', function () {
-                deleteSelected(page, selectedIds);
+                deleteSelected(page, selectedIds, editState);
             });
         }
         if (selectAll) {
@@ -448,10 +599,27 @@
             });
         }
 
+        // ── Toolbar de formatage ─────────────────────────────────────────
+        if (toolbar && bodyEl) {
+            var fmtMap = { bold: ['**','**'], italic: ['_','_'], strike: ['~~','~~'], underline: ['__','__'] };
+            toolbar.addEventListener('click', function (e) {
+                var btn = e.target.closest('.ip-fmt-btn');
+                if (!btn) return;
+                e.preventDefault();
+                var action = btn.dataset.action;
+                if (action === 'list') {
+                    toggleListLines(bodyEl);
+                } else if (fmtMap[action]) {
+                    applyFormat(bodyEl, fmtMap[action][0], fmtMap[action][1]);
+                }
+                bodyEl.focus();
+            });
+        }
+
         // Charger les utilisateurs d'abord, puis initialiser le picker et le tableau
         fetchUsers().then(function (users) {
             renderTargetPicker(page, users);
-            return loadMessages(page, selectedIds);
+            return loadMessages(page, selectedIds, onEdit);
         });
     }
 
@@ -480,7 +648,7 @@
             '.ip-title{flex:1;font-size:1.1rem;font-weight:600;overflow-wrap:break-word;word-break:break-word}',
             '.ip-close-btn{background:none;border:none;cursor:pointer;flex-shrink:0;color:var(--theme-text-color,#e5e5e5);font-size:1.3rem;opacity:.7;padding:4px 6px;border-radius:4px;transition:opacity .15s;line-height:1}',
             '.ip-close-btn:hover{opacity:1}',
-            '#infopopup-body{padding:18px 20px;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;line-height:1.6;flex:1}',
+            '#infopopup-body{padding:18px 20px;overflow-wrap:break-word;word-break:break-word;line-height:1.6;flex:1}',
             '.ip-history{margin:0 20px 12px;border:1px solid rgba(255,255,255,.1);border-radius:6px;overflow:hidden}',
             '.ip-history-toggle{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:rgba(255,255,255,.04);user-select:none;font-size:.9rem;gap:8px}',
             '.ip-history-toggle:hover{background:rgba(255,255,255,.08)}',
@@ -496,11 +664,14 @@
             '.ip-item-date{opacity:.55;font-size:.82rem;flex-shrink:0}',
             '.ip-item-chev{opacity:.55;font-size:.7rem;transition:transform .2s;flex-shrink:0}',
             '.ip-history-item.open .ip-item-chev{transform:rotate(180deg)}',
-            '.ip-item-body{display:none;padding:10px 14px 12px;font-size:.9rem;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;background:rgba(0,0,0,.15);line-height:1.55;opacity:.9}',
+            '.ip-item-body{display:none;padding:10px 14px 12px;font-size:.9rem;overflow-wrap:break-word;word-break:break-word;background:rgba(0,0,0,.15);line-height:1.55;opacity:.9}',
             '.ip-history-item.open .ip-item-body{display:block}',
             '#infopopup-footer{display:flex;justify-content:flex-end;padding:12px 20px 18px;border-top:1px solid rgba(255,255,255,.08)}',
             '.ip-btn-close{background:var(--theme-accent-color,#00a4dc);color:#fff;border:none;border-radius:4px;padding:9px 22px;font-size:.95rem;font-weight:500;cursor:pointer;transition:filter .15s}',
             '.ip-btn-close:hover{filter:brightness(1.15)}',
+            /* ── Listes de corps de message ── */
+            '.ip-list{margin:6px 0 4px 0;padding-left:22px;list-style:disc}',
+            '.ip-list li{margin:3px 0;line-height:1.55}',
             /* ── Confirm dialog — styles en <head> pour survivre aux transitions SPA ── */
             '.ip-confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center}',
             '.ip-confirm-box{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:28px 28px 22px;max-width:420px;width:calc(100% - 32px);box-shadow:0 8px 32px rgba(0,0,0,.6)}',
@@ -513,15 +684,19 @@
             '#infopopup-msgs{padding:12px 20px;display:flex;flex-direction:column;gap:12px}',
             '.ip-msg-card{border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}',
             '.ip-msg-card-title{font-weight:600;font-size:.97rem;padding:11px 14px 10px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.08);overflow-wrap:break-word;word-break:break-word}',
-            '.ip-msg-card-body{padding:11px 14px 13px;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;line-height:1.6;opacity:.92;font-size:.93rem}',
-            /* ── Expand rows dans le tableau admin ── */
+            '.ip-msg-card-body{padding:11px 14px 13px;overflow-wrap:break-word;word-break:break-word;line-height:1.6;opacity:.92;font-size:.93rem}',
+            /* ── Table admin : expand rows + edit btn (en <head> car injectStyles est la seule CSS persistante en SPA) ── */
             '.ip-col-title-toggle{cursor:pointer;user-select:none}',
             '.ip-col-title-toggle:hover .ip-row-title-text{text-decoration:underline;text-underline-offset:2px}',
             '.ip-row-chev{margin-left:8px;opacity:.45;font-size:.72rem;transition:transform .18s;display:inline-block;vertical-align:middle}',
             '.ip-row-chev.open{transform:rotate(90deg)}',
             '.ip-row-expand{display:none}',
             '.ip-row-expand.visible{display:table-row}',
-            '.ip-row-expand-td{padding:10px 16px 14px !important;background:rgba(0,0,0,.18);white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;font-size:.9rem;line-height:1.6;opacity:.88}'
+            '.ip-row-expand-td{padding:12px 16px 14px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05) !important;overflow-wrap:break-word;word-break:break-word;font-size:.9rem;line-height:1.6;opacity:.88}',
+            '.ip-row-expand-td .ip-list{margin:4px 0 0 0}',
+            '.ip-edit-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:4px;cursor:pointer;color:var(--theme-text-color,#e5e5e5);opacity:.55;padding:3px 8px;font-size:.82rem;transition:opacity .15s,background .15s;white-space:nowrap}',
+            '.ip-edit-btn:hover{opacity:1;background:rgba(255,255,255,.08)}',
+            '.ip-col-actions{width:72px;text-align:center}'
         ].join('\n');
         document.head.appendChild(s);
     }
@@ -544,6 +719,9 @@
             var id          = msg.id          || msg.Id          || '';
             var title       = msg.title       || msg.Title       || '';
             var publishedAt = msg.publishedAt || msg.PublishedAt || '';
+            // body déjà pré-chargé par checkForUnseenMessages
+            var bodyRaw     = msg.body        || msg.Body        || null;
+
             var item = document.createElement('div');
             item.className = 'ip-history-item';
             var hdr = document.createElement('div');
@@ -556,18 +734,29 @@
                 '<span class="ip-item-chev">\u25bc</span>';
             var itemBody = document.createElement('div');
             itemBody.className = 'ip-item-body';
-            var loaded = false;
-            var load = function () {
-                if (loaded) return;
+
+            var loaded = (bodyRaw !== null);
+            if (loaded) {
+                // Corps disponible immédiatement
+                itemBody.innerHTML = renderBody(bodyRaw);
+            }
+
+            var loadLazy = function () {
+                if (loaded || !id) return;
                 loaded = true;
+                itemBody.textContent = 'Chargement\u2026';
                 apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
                     .then(function (res) { return res.json(); })
-                    .then(function (data) { itemBody.textContent = data.body; })
+                    .then(function (data) {
+                        var b = data.body || data.Body || '';
+                        itemBody.innerHTML = b ? renderBody(b) : '<em style="opacity:.5">(message vide)</em>';
+                    })
                     .catch(function () { itemBody.textContent = '(Erreur lors du chargement)'; });
             };
+
             var toggleItem = function () {
                 item.classList.toggle('open');
-                if (item.classList.contains('open')) load();
+                if (item.classList.contains('open')) loadLazy();
             };
             hdr.addEventListener('click', toggleItem);
             hdr.addEventListener('keydown', function (e) {
@@ -614,7 +803,7 @@
             // Un seul message non vu : affichage classique titre + corps
             var body = document.createElement('div');
             body.id = 'infopopup-body';
-            body.textContent = unseenMessages[0].body || unseenMessages[0].Body || '';
+            body.innerHTML = renderBody(unseenMessages[0].body || unseenMessages[0].Body || '');
             dialog.appendChild(body);
         } else {
             // Plusieurs messages non vus : chaque message dans sa propre carte
@@ -628,7 +817,7 @@
                 cardTitle.textContent = msg.title || msg.Title || '';
                 var cardBody = document.createElement('div');
                 cardBody.className = 'ip-msg-card-body';
-                cardBody.textContent = msg.body || msg.Body || '';
+                cardBody.innerHTML = renderBody(msg.body || msg.Body || '');
                 card.appendChild(cardTitle);
                 card.appendChild(cardBody);
                 msgsContainer.appendChild(card);
@@ -679,7 +868,7 @@
             .then(function (unseenList) {
                 if (!unseenList || !unseenList.length) return;
                 var unseenIds = unseenList.map(function (m) { return m.id || m.Id || ''; });
-                // Récupérer le corps complet de chaque message non vu + tous les messages
+                // Récupérer : corps de tous les non-vus + liste complète des messages
                 return Promise.all([
                     Promise.all(unseenIds.map(function (id) {
                         return apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
@@ -689,11 +878,20 @@
                 ]).then(function (results) {
                     var unseenFull = results[0];
                     var allMessages = results[1];
-                    // Les messages déjà vus = tous les messages sauf ceux non vus
-                    var seenMessages = allMessages.filter(function (m) {
+                    // Identifier les messages déjà vus
+                    var seenSummaries = allMessages.filter(function (m) {
                         return unseenIds.indexOf(m.id || m.Id || '') === -1;
                     });
-                    showPopup(unseenFull, seenMessages);
+                    // Pré-charger le corps de chaque message vu (élimine le lazy load)
+                    return Promise.all(seenSummaries.map(function (m) {
+                        var id = m.id || m.Id || '';
+                        if (!id) return Promise.resolve(m); // id vide : on garde le résumé
+                        return apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
+                            .then(function (res) { return res.json(); })
+                            .catch(function () { return m; }); // en cas d'erreur, résumé sans body
+                    })).then(function (seenFull) {
+                        showPopup(unseenFull, seenFull);
+                    });
                 });
             })
             .catch(function () {

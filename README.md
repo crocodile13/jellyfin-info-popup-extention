@@ -1,8 +1,8 @@
 # jellyfin-info-popup-extention
 
-Plugin Jellyfin permettant aux administrateurs d’afficher des messages popup aux utilisateurs lors de leur connexion.
+Plugin Jellyfin permettant aux administrateurs d'afficher des messages popup aux utilisateurs lors de leur connexion.
 
-Cette extension a été quasi intégralement vibe codée par Claude. C’est assumé : j’avais simplement besoin d’une telle extension et je ne voulais pas me lancer dans un projet de développement de dix jours.
+Cette extension a été quasi intégralement vibe codée par Claude. C'est assumé : j'avais simplement besoin d'une telle extension et je ne voulais pas me lancer dans un projet de développement de dix jours.
 
 ---
 
@@ -12,16 +12,22 @@ Cette extension a été quasi intégralement vibe codée par Claude. C’est ass
 ![Aperçu 2](images/image2.png)
 
 ---
+
 ## Fonctionnalités
 
 - **Popup à la connexion** : détection post-login via MutationObserver (SPA-compatible, testé Jellyfin 10.10–10.11)
 - **Affichage unique** : suivi côté serveur — pas de localStorage, fonctionne sur tous les appareils
-- **Historique déroulant** : tous les messages passés dans un accordéon replié par défaut
-- **Page admin** : publication, sélection multiple, suppression confirmée
+- **Multi-messages non vus** : si plusieurs messages n'ont pas encore été lus, chacun s'affiche dans sa propre carte (titre + corps) dans la même popup
+- **Historique déroulant** : messages déjà vus dans un accordéon replié par défaut, avec corps disponible au clic
+- **Formatage du corps** : syntaxe légère — `**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, lignes `- liste`
+- **Page admin** : publication, sélection multiple, suppression confirmée, modification de messages existants
+- **Modification sans réaffichage** : un message modifié (`PUT`) conserve son ID — les utilisateurs qui l'avaient déjà vu ne le reverront pas
+- **Toolbar de formatage** : barre de boutons au-dessus du textarea pour appliquer le formatage sans taper la syntaxe à la main
+- **Déroulant par ligne** : clic sur le titre d'un message dans le tableau admin pour afficher son corps inline
 - **Suppression totale** : un message supprimé disparaît immédiatement, partout, pour tout le monde
 - **Injection automatique** : `client.js` injecté dans `index.html` par le `ScriptInjectionMiddleware` — aucune modification manuelle requise
 - **Intégration thème Jellyfin** : variables CSS natives, classes dashboard standard
-- **Sécurité XSS** : texte brut exclusivement (`textContent`, jamais `innerHTML`)
+- **Sécurité XSS** : `escHtml()` appliqué avant tout rendu, jamais de HTML utilisateur brut dans le DOM
 
 ---
 
@@ -33,8 +39,6 @@ URL : https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extentio
 ```
 
 Puis installer **Info Popup** depuis le catalogue et redémarrer Jellyfin.
-
-Le script client (`client.js`) est injecté automatiquement dans `index.html` par le `ScriptInjectionMiddleware` au démarrage de Jellyfin. **Aucune modification manuelle de `index.html` n'est nécessaire.**
 
 > **Fallback Docker** : si un volume monte un `index.html` personnalisé qui écrase celui de Jellyfin-Web, ajoutez manuellement avant `</body>` :
 > ```html
@@ -49,7 +53,23 @@ Le script client (`client.js`) est injecté automatiquement dans `index.html` pa
 2. Extraire `Jellyfin.Plugin.InfoPopup.dll` dans :
    - Linux : `~/.local/share/jellyfin/plugins/InfoPopup/`
    - Docker : `/config/plugins/InfoPopup/`
-3. Redémarrer Jellyfin — `client.js` est injecté automatiquement par le middleware
+3. Redémarrer Jellyfin
+
+---
+
+## Syntaxe de formatage des messages
+
+Le corps des messages supporte une syntaxe légère :
+
+| Syntaxe | Rendu |
+|---------|-------|
+| `**texte**` | **gras** |
+| `_texte_` | *italique* |
+| `__texte__` | souligné |
+| `~~texte~~` | barré |
+| Ligne commençant par `- ` | élément de liste à puces |
+
+Le formatage est rendu dans la popup utilisateur, dans l'historique et dans le déroulant du tableau admin.
 
 ---
 
@@ -70,11 +90,9 @@ Le script client (`client.js`) est injecté automatiquement dans `index.html` pa
 git clone https://github.com/VOTRE_COMPTE/jellyfin-info-popup-extention
 cd jellyfin-info-popup-extention
 
-# Configurer votre GitHub user
 cp .env.make.example .env.make
 # Editer .env.make : GITHUB_USER = votre-login
 
-# Verifier les prerequis
 make check
 ```
 
@@ -83,20 +101,17 @@ make check
 ```bash
 make              # Aide + URL du depot Jellyfin
 
-# Developpement
 make build        # Compile en Debug
 make pack         # Compile Release + cree le ZIP dans dist/
 make clean        # Nettoie bin/, obj/, dist/*.zip
 
-# Versioning
-make bump-patch   # 0.1.4.0 -> 0.1.5.0
-make bump-minor   # 0.1.4.0 -> 0.2.0.0
-make bump-major   # 0.1.4.0 -> 1.0.0.0
+make bump-patch   # 0.3.0.0 -> 0.3.1.0
+make bump-minor   # 0.3.0.0 -> 0.4.0.0
+make bump-major   # 0.3.0.0 -> 1.0.0.0
 
-# Release complete (recommande)
-make release-patch   # Correctif : bump + build + manifest + push + tag + GitHub Release
-make release-minor   # Nouvelle feature : idem
-make release-major   # Rupture de compatibilite : idem
+make release-patch
+make release-minor
+make release-major
 ```
 
 ### Workflow de release
@@ -104,7 +119,7 @@ make release-major   # Rupture de compatibilite : idem
 ```bash
 # 1. Ajouter vos changements dans CHANGELOG.md
 # 2. Lancer la release
-make release-patch   # ou release-minor / release-major
+make release-minor   # ou patch / major
 ```
 
 ---
@@ -112,32 +127,34 @@ make release-patch   # ou release-minor / release-major
 ## Architecture
 
 ```
-API REST (/InfoPopup/*)          Client JS (injecte automatiquement dans index.html)
-┌─────────────────────────┐      ┌──────────────────────────────────────────────┐
-│ GET  /messages           │      │ ScriptInjectionMiddleware -> index.html      │
-│ GET  /messages/{id}      │◄─────│ MutationObserver -> toute navigation SPA     │
-│ POST /messages [ADMIN]   │      │ Guard : skip si #infoPopupConfigPage present │
-│ DELETE /messages [ADMIN] │      │ GET /InfoPopup/unseen                        │
-│ GET  /unseen             │      │ showPopup() -> textContent                   │
-│ POST /seen               │      │ fermeture -> POST /InfoPopup/seen            │
-│ GET  /client.js          │      └──────────────────────────────────────────────┘
-└─────────────────────────┘
-                                  Page Admin (dashboard Jellyfin)
-Persistance                       ┌──────────────────────────────────────────────┐
-┌─────────────────────────┐      │ POST /messages -> publier                    │
-│ XML : messages           │      │ GET  /messages -> tableau (checkboxes natifs)│
-│ JSON: infopopup_seen.json│      │ DELETE /messages -> confirm modal persistant │
-└─────────────────────────┘      └──────────────────────────────────────────────┘
+API REST (/InfoPopup/*)          Client JS (injecté automatiquement dans index.html)
+┌──────────────────────────┐     ┌──────────────────────────────────────────────┐
+│ GET    /messages          │     │ ScriptInjectionMiddleware -> index.html      │
+│ GET    /messages/{id}     │◄────│ MutationObserver -> toute navigation SPA     │
+│ POST   /messages [ADMIN]  │     │ Guard : skip si #infoPopupConfigPage présent │
+│ PUT    /messages/{id}     │     │ GET /InfoPopup/unseen                        │
+│ DELETE /messages [ADMIN]  │     │ showPopup() -> renderBody() -> innerHTML     │
+│ GET    /unseen            │     │ fermeture -> POST /InfoPopup/seen (batch)    │
+│ POST   /seen              │     └──────────────────────────────────────────────┘
+│ GET    /client.js         │
+└──────────────────────────┘     Page Admin (dashboard Jellyfin)
+                                  ┌──────────────────────────────────────────────┐
+Persistance                       │ POST /messages -> publier                    │
+┌──────────────────────────┐     │ PUT  /messages/{id} -> modifier (ID stable)  │
+│ XML : messages            │     │ GET  /messages -> tableau + expand + édition │
+│ JSON : infopopup_seen.json│     │ DELETE /messages -> confirm modal            │
+└──────────────────────────┘     │ Toolbar formatage : B I U S • Liste          │
+                                  └──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Compatibilite
+## Compatibilité
 
 | Jellyfin | .NET | Statut |
 |----------|------|--------|
-| 10.10.x  | 8.0  | Supporte |
-| 10.11.x  | 8.0  | Teste (dashboard React/MUI) |
+| 10.10.x  | 8.0  | Supporté |
+| 10.11.x  | 8.0  | Testé (dashboard React/MUI) |
 
 ---
 
@@ -145,4 +162,4 @@ Persistance                       ┌──────────────�
 GPL3
 
 ## Contrib
-Si vous modifiez le code, si vous rajouter des features ou resolvez des bugs, partagez votre travail !
+Si vous modifiez le code, si vous rajoutez des features ou résolvez des bugs, partagez votre travail !

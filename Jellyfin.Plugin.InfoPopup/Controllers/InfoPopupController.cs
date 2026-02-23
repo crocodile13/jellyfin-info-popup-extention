@@ -36,6 +36,15 @@ public class DeleteMessagesRequest
     [Required] public List<string> Ids { get; set; } = new();
 }
 
+/// <summary>Requête de modification d'un message existant.</summary>
+public class UpdateMessageRequest
+{
+    /// <summary>Nouveau titre (max 200 car.).</summary>
+    [Required][MaxLength(200)] public string Title { get; set; } = string.Empty;
+    /// <summary>Nouveau corps (max 10 000 car., supporte le markup IP).</summary>
+    [Required][MaxLength(10_000)] public string Body { get; set; } = string.Empty;
+}
+
 /// <summary>Requête de marquage comme vu (batch).</summary>
 public class MarkSeenRequest
 {
@@ -159,6 +168,31 @@ public class InfoPopupController : ControllerBase
             return BadRequest(new { error = "Liste d'IDs vide ou invalide." });
         var deleted = _store.DeleteMany(request.Ids);
         return Ok(new { deleted });
+    }
+
+    // PUT /InfoPopup/messages/{id} ── ADMIN ONLY ────────────────────────────────────────────
+
+    /// <summary>
+    /// Met à jour le titre et le corps d'un message existant. Réservé aux administrateurs.
+    /// L'ID du message est conservé : les utilisateurs qui avaient déjà vu ce message
+    /// ne le reverront pas.
+    /// </summary>
+    [HttpPut("messages/{id}")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult<MessageDetail> UpdateMessage([FromRoute] string id, [FromBody] UpdateMessageRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var found = _store.Update(id, request.Title, request.Body);
+            if (!found) return NotFound(new { error = "Message introuvable." });
+            var msg = _store.GetById(id)!;
+            return Ok(new MessageDetail { Id = msg.Id, Title = msg.Title, Body = msg.Body, PublishedAt = msg.PublishedAt });
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     // GET /InfoPopup/unseen ───────────────────────────────────────────────────────────────────────

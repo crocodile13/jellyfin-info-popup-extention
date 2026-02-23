@@ -85,6 +85,40 @@ public class MessageStore
     }
 
     /// <summary>
+    /// Met à jour le titre et le corps d'un message existant sans changer son ID.
+    /// Le suivi des vues (<c>infopopup_seen.json</c>) est préservé : un message
+    /// modifié ne se réaffiche pas aux utilisateurs qui l'avaient déjà vu.
+    /// </summary>
+    /// <param name="id">ID du message à modifier.</param>
+    /// <param name="title">Nouveau titre (max 200 car.).</param>
+    /// <param name="body">Nouveau corps (max 10 000 car., supporte le markup IP).</param>
+    /// <returns><c>true</c> si trouvé et mis à jour, <c>false</c> si introuvable.</returns>
+    public bool Update(string id, string title, string body)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            throw new ArgumentException("Le titre ne peut pas être vide.", nameof(title));
+        if (title.Length > 200)
+            throw new ArgumentException("Le titre ne peut pas dépasser 200 caractères.", nameof(title));
+        if (string.IsNullOrWhiteSpace(body))
+            throw new ArgumentException("Le corps du message ne peut pas être vide.", nameof(body));
+        if (body.Length > 10_000)
+            throw new ArgumentException("Le corps ne peut pas dépasser 10 000 caractères.", nameof(body));
+
+        _lock.EnterWriteLock();
+        try
+        {
+            var msg = Config.Messages.FirstOrDefault(m => m.Id == id);
+            if (msg is null) return false;
+            msg.Title = title.Trim();
+            msg.Body = body;
+            SaveConfig();
+            _logger.LogInformation("InfoPopup: message '{Id}' mis à jour — nouveau titre : '{Title}'", id, msg.Title);
+            return true;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    /// <summary>
     /// Supprime définitivement des messages. Un message supprimé disparaît
     /// partout et pour tous les utilisateurs, sans exception.
     /// </summary>
