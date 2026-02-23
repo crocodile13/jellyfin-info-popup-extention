@@ -365,6 +365,7 @@ release-hotfix: check ## 🔧 Recompile + re-upload le ZIP sans changer de versi
 	$(MAKE) manifest-update \
 		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
 		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP)
+	$(MAKE) verify
 	$(MAKE) push
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)$(GREEN)✓ Hotfix v$(VERSION) appliqué$(RESET)"
@@ -398,6 +399,7 @@ _do-release: _reload-version
 	$(MAKE) manifest-update \
 		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
 		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP)
+	$(MAKE) verify
 	$(MAKE) push
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)$(GREEN)✓ Release v$(VERSION) publiée avec succès !$(RESET)"

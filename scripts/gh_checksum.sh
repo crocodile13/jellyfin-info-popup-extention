@@ -36,7 +36,13 @@ fi
 TMP=$(mktemp /tmp/gh_checksum_XXXXXX.zip)
 trap 'rm -f "$TMP"' EXIT
 
-DELAY=3
+# Délai initial : laisser le CDN GitHub propager le fichier fraîchement uploadé.
+# Sans ce délai, la première tentative peut arriver trop tôt et obtenir un 404
+# ou un fichier stale, produisant un checksum incorrect dans manifest.json.
+DELAY=5
+printf "  [gh_checksum] attente initiale %ds (propagation CDN GitHub)...\n" "$DELAY" >&2
+sleep "$DELAY"
+DELAY=5
 
 for i in $(seq 1 "$MAX_RETRIES"); do
     if curl -fsSL --retry 2 --retry-delay 2 "$URL" -o "$TMP" 2>/dev/null; then

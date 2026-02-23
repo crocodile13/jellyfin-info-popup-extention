@@ -1,12 +1,24 @@
 name: Build & Package — jellyfin-info-popup-extention
 
+# =============================================================================
+#  CE WORKFLOW EST UNIQUEMENT pour la CI (validation build sur push/PR).
+#
+#  POURQUOI pas de déclenchement sur les releases :
+#    Le workflow `make release-*` crée la GitHub Release et uploade le ZIP
+#    compilé localement. Si ce workflow se déclenchait sur `release: created`,
+#    il recompilerait le plugin dans un environnement CI différent (ubuntu runner
+#    ≠ machine locale) et uploaderait un ZIP concurrent. Même avec un nom
+#    différent, cela crée une condition de race dans le CDN GitHub et peut
+#    provoquer un checksum mismatch dans manifest.json → Jellyfin refuse l'install.
+#
+#  Pour publier une release, utiliser : make release-patch / release-minor / release-major
+# =============================================================================
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  release:
-    types: [ created ]
 
 jobs:
   build:
@@ -36,27 +48,7 @@ jobs:
             --output ./publish \
             --no-build
 
-      - name: Create ZIP (release only)
-        if: github.event_name == 'release'
-        run: |
-          mkdir -p ./dist
-          cp publish/Jellyfin.Plugin.InfoPopup.dll ./dist/
-          cd dist
-          zip -r ../infopopup_${{ github.event.release.tag_name }}.zip .
-
-      - name: Upload Release Asset
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./infopopup_${{ github.event.release.tag_name }}.zip
-          asset_name: infopopup_${{ github.event.release.tag_name }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload artifact (non-release)
-        if: github.event_name != 'release'
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: InfoPopup-Plugin
