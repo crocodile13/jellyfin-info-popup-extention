@@ -110,8 +110,12 @@ public class MessageStore
     /// Le suivi des vues est préservé : un message modifié ne se réaffiche pas
     /// aux utilisateurs qui l'avaient déjà vu.
     /// </summary>
-    /// <returns><c>true</c> si trouvé et mis à jour, <c>false</c> si introuvable.</returns>
-    public bool Update(string id, string title, string body)
+    /// <returns>
+    /// Un snapshot du message mis à jour, ou <c>null</c> si l'ID est introuvable.
+    /// Le snapshot est capturé à l'intérieur du lock pour éviter toute race condition
+    /// (TOCTOU) entre la mise à jour et la lecture du résultat par l'appelant.
+    /// </returns>
+    public PopupMessage? Update(string id, string title, string body)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Le titre ne peut pas être vide.", nameof(title));
@@ -127,14 +131,25 @@ public class MessageStore
         {
             var cfg = GetConfig();
             var msg = cfg.Messages.FirstOrDefault(m => m.Id == id);
-            if (msg is null) return false;
+            if (msg is null) return null;
             msg.Title = title.Trim();
             msg.Body = body;
             SaveConfig();
             _logger.LogInformation(
                 "InfoPopup: message '{Id}' mis à jour — nouveau titre : '{Title}'",
                 id, msg.Title);
-            return true;
+
+            // Retourner un snapshot immutable capturé dans le lock.
+            // Évite la TOCTOU qu'aurait causé un second appel à GetById() depuis le controller.
+            return new PopupMessage
+            {
+                Id = msg.Id,
+                Title = msg.Title,
+                Body = msg.Body,
+                PublishedAt = msg.PublishedAt,
+                PublishedBy = msg.PublishedBy,
+                TargetUserIds = new List<string>(msg.TargetUserIds)
+            };
         }
         finally { _lock.ExitWriteLock(); }
     }

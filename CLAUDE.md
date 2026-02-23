@@ -75,7 +75,7 @@ jellyfin-info-popup-extention/
 ```json
 {
   "major": 0,
-  "minor": 5,
+  "minor": 6,
   "patch": 0,
   "targetAbi": "10.10.0.0"
 }
@@ -124,6 +124,22 @@ Jellyfin-Web est une SPA. Toute UI client passe par `Web/client.js` injecté dan
 
 ### Modification de message : ID stable
 `PUT /InfoPopup/messages/{id}` met à jour titre et corps sans changer l'ID. `infopopup_seen.json` n'est pas touché. Un utilisateur ayant déjà vu le message ne le revoit pas après modification.
+
+`MessageStore.Update()` retourne `PopupMessage?` (snapshot capturé dans le lock) et non `bool`. Le controller utilise ce snapshot directement — ne jamais rajouter un appel `GetById()` après `Update()` (TOCTOU).
+
+### Aperçu formaté (v0.6)
+Le champ de saisie admin bascule entre deux modes via `setPreviewMode(page, on)` :
+- **Aperçu (on=true)** : div `#ip-body-preview` visible, `#ip-body` caché. Rendu via `updatePreview(page)` → `renderBody()`.
+- **Brut (on=false)** : textarea `#ip-body` visible, `#ip-body-preview` caché.
+
+Règles obligatoires :
+- `enterEditMode` → `setPreviewMode(page, false)` (l'admin doit pouvoir éditer).
+- `exitEditMode` → `setPreviewMode(page, true)` (retour aperçu après annulation).
+- `publishMessage` POST success → `setPreviewMode(page, true)`.
+- Clic sur un bouton format → `setPreviewMode(page, false)` avant d'appliquer.
+- Clic sur l'aperçu → `setPreviewMode(page, false)`.
+- `updatePreview(page)` est appelé sur chaque `input` du textarea et à l'intérieur de `setPreviewMode(page, true)`.
+- **Ne jamais** montrer le textarea et le div aperçu simultanément.
 
 ### Contrôle d'accès sur les messages
 - **Admins** (`RequiresElevation`) : voient tous les messages sur tous les endpoints.
@@ -243,3 +259,7 @@ Utiliser `<input type="checkbox">` natif avec `accent-color` inline. Ne jamais u
 - **Fallback PascalCase** : toujours `msg.body || msg.Body || ''` — jamais un seul casing.
 - **Jellyfin 10.11** : React Router + MUI. Les sélecteurs legacy (`#indexPage`, `.homePage`) n'existent plus. MutationObserver sur `document.body` sans restriction de sélecteur est la seule approche fiable.
 - **`PUT` sans changer l'ID** : ne jamais recréer un message pour simuler une modification. Toujours passer par `MessageStore.Update()` qui préserve l'ID et ne touche pas à `infopopup_seen.json`.
+- **`Update()` retourne `PopupMessage?`** : ne jamais appeler `GetById()` après `Update()` dans le controller — le snapshot retourné par `Update()` est la source de vérité (élimine le TOCTOU).
+- **`setPreviewMode` / `updatePreview` oubliés** : tout code qui modifie `bodyEl.value` programmatiquement (enterEditMode, exitEditMode, reset post-publish) doit appeler `setPreviewMode` et/ou `updatePreview`. Symptôme : l'aperçu montre l'ancien contenu ou le textarea reste visible après publication.
+- **`usersCache` TTL** : `fetchUsers()` applique un TTL de 5 minutes via `usersCacheAt`. Ne pas supprimer ce mécanisme — sans lui, les nouveaux utilisateurs créés dans la session sont invisibles dans le sélecteur de ciblage.
+- **Styles admin dans `injectStyles()`** : table, badges, toast, target picker, toolbar, editor-wrap et toggle switch sont dans `injectStyles()`. Ne jamais les remettre dans un `<style>` de `configurationpage.html` — ils disparaîtraient en navigation SPA.

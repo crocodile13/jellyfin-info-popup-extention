@@ -1,6 +1,6 @@
 /**
- * jellyfin-info-popup-extention — client.js
- * ------------------------------------------
+ * jellyfin-info-popup-extention — client.js  v0.5.1.0
+ * -----------------------------------------------------
  * Injecté dans index.html via : <script src="/InfoPopup/client.js"></script>
  *
  * Ce fichier gère DEUX responsabilités :
@@ -22,7 +22,8 @@
     var popupActive     = false; // true pendant l'affichage ET le marquage comme vu
     var lastCheckedPath = null;
     var checkScheduled  = false;
-    var usersCache      = null;  // null = pas chargé, [] = chargé mais vide
+    var usersCache      = null;  // null = non chargé, [] = chargé mais vide
+    var usersCacheAt    = 0;     // timestamp du dernier chargement (TTL 5 min)
 
     // ── Utilitaires partagés ─────────────────────────────────────────────────
 
@@ -114,7 +115,6 @@
         el.textContent = msg;
         el.className = isErr ? 'ip-toast-err' : 'ip-toast-ok';
         el.style.display = 'block';
-        // Déclencher une relecture par les lecteurs d'écran via aria-live
         el.setAttribute('aria-live', 'polite');
         el.setAttribute('role', 'status');
         if (toastTimer) clearTimeout(toastTimer);
@@ -313,6 +313,7 @@
         if (btn) btn.disabled = true;
 
         if (editState.id) {
+            // ── Mode édition : PUT ────────────────────────────────────────────
             apiFetch('/InfoPopup/messages/' + encodeURIComponent(editState.id), {
                 method: 'PUT',
                 body: JSON.stringify({ title: title, body: body })
@@ -320,7 +321,7 @@
             .then(function () {
                 showToast(page, '\u2713 Message mis \u00e0 jour\u00a0!');
                 editState.id = null;
-                exitEditMode(page);
+                exitEditMode(page);  // efface les champs + repasse en aperçu
                 return loadMessages(page, selectedIds, editState.onEdit);
             })
             .catch(function (err) {
@@ -328,6 +329,7 @@
             })
             .finally(function () { if (btn) btn.disabled = false; });
         } else {
+            // ── Nouveau message : POST ────────────────────────────────────────
             var targetIds = getSelectedTargetIds(page);
             apiFetch('/InfoPopup/messages', {
                 method: 'POST',
@@ -338,6 +340,7 @@
                 if (bodyEl)  bodyEl.value  = '';
                 resetTargetPicker(page);
                 showToast(page, '\u2713 Message publi\u00e9 avec succ\u00e8s\u00a0!');
+                setPreviewMode(page, true); // repasser en aperçu après publication
                 return loadMessages(page, selectedIds, editState.onEdit);
             })
             .catch(function (err) {
@@ -358,7 +361,6 @@
             var btn = page.querySelector('#ip-delete-btn');
             if (btn) btn.disabled = true;
             var ids = Array.from(selectedIds);
-            // POST /messages/delete plutôt que DELETE avec body (compatibilité proxy/pare-feux)
             apiFetch('/InfoPopup/messages/delete', {
                 method: 'POST',
                 body: JSON.stringify({ ids: ids })
@@ -381,8 +383,16 @@
 
     // ── Gestion des utilisateurs et ciblage ─────────────────────────────────
 
+    /**
+     * Charge la liste des utilisateurs Jellyfin avec un cache de 5 minutes.
+     * Invalide le cache si le TTL est dépassé (permet de voir les nouveaux
+     * utilisateurs créés pendant la session sans recharger la page entière).
+     */
     function fetchUsers() {
-        if (usersCache !== null) return Promise.resolve(usersCache);
+        var now = Date.now();
+        if (usersCache !== null && now - usersCacheAt < 5 * 60 * 1000) {
+            return Promise.resolve(usersCache);
+        }
         return apiFetch('/Users')
             .then(function (res) { return res.json(); })
             .then(function (data) {
@@ -390,10 +400,12 @@
                 usersCache = list.map(function (u) {
                     return { id: u.Id || u.id || '', name: u.Name || u.name || '(sans nom)' };
                 }).filter(function (u) { return u.id; });
+                usersCacheAt = Date.now();
                 return usersCache;
             })
             .catch(function () {
                 usersCache = [];
+                usersCacheAt = Date.now(); // éviter de spammer l'API en cas d'erreur
                 return usersCache;
             });
     }
@@ -422,7 +434,7 @@
 
         if (users.length === 0) {
             var noUsersNote = document.createElement('span');
-            noUsersNote.textContent = '(aucun utilisateur trouvé — vérifiez les droits admin)';
+            noUsersNote.textContent = '(aucun utilisateur trouv\u00e9 \u2014 v\u00e9rifiez les droits admin)';
             noUsersNote.style.cssText = 'opacity:.45;font-size:.8rem;margin-left:auto;';
             allRow.appendChild(noUsersNote);
         }
@@ -490,18 +502,141 @@
 
     // ── Helpers de formatage textarea ────────────────────────────────────────
 
+    // ── Détection de contexte de formatage ───────────────────────────────────
+
+    // Retourne les indices des occurrences de `marker` dans `line`, en gérant
+    // la collision _ vs __ : un _ adjacent à un autre _ est ignoré quand on cherche _.
+    function findMarkerPositions(line, marker) {
+        var positions = [];
+        var mLen = marker.length;
+        var i = 0;
+        while (i <= line.length - mLen) {
+            var idx = line.indexOf(marker, i);
+            if (idx === -1) break;
+            // Pour _ seul : sauter si précédé ou suivi d'un autre _
+            if (marker === '_') {
+                var prevUnd = idx > 0 && line[idx - 1] === '_';
+                var nextUnd = idx + 1 < line.length && line[idx + 1] === '_';
+                if (prevUnd || nextUnd) { i = idx + 1; continue; }
+            }
+            positions.push(idx);
+            i = idx + mLen;
+        }
+        return positions;
+    }
+
+    // Retourne {from, to, innerFrom, innerTo} de la paire de marqueurs qui
+    // entoure `cursorPos`, ou null si le curseur n'est pas dedans.
+    // Opère ligne par ligne (les marqueurs ne traversent pas les sauts de ligne).
+    function getFormatBoundsAroundCursor(val, cursorPos, marker) {
+        var lineStart = val.lastIndexOf('\n', cursorPos - 1) + 1;
+        var lineEnd   = val.indexOf('\n', cursorPos);
+        if (lineEnd === -1) lineEnd = val.length;
+        var line = val.slice(lineStart, lineEnd);
+        var cp   = cursorPos - lineStart;
+        var mLen = marker.length;
+
+        var positions = findMarkerPositions(line, marker);
+        // Les marqueurs fonctionnent par paires ; on itère deux par deux.
+        for (var i = 0; i + 1 < positions.length; i += 2) {
+            var openIdx  = positions[i];
+            var closeIdx = positions[i + 1];
+            // Le curseur est "dedans" s'il est entre le début du marqueur ouvrant
+            // et la fin du marqueur fermant (inclus — pour qu'un clic juste après
+            // le dernier marqueur soit aussi reconnu).
+            if (cp >= openIdx && cp <= closeIdx + mLen) {
+                return {
+                    from:      lineStart + openIdx,
+                    to:        lineStart + closeIdx + mLen,
+                    innerFrom: lineStart + openIdx  + mLen,
+                    innerTo:   lineStart + closeIdx
+                };
+            }
+        }
+        return null;
+    }
+
+    // Retourne {bold, italic, underline, strike} : true si le curseur ou la
+    // sélection est à l'intérieur du formatage correspondant.
+    // __ est testé avant _ pour éviter les faux positifs (__ contient _).
+    function getActiveFormats(ta) {
+        var val   = ta.value;
+        var start = ta.selectionStart;
+        var end   = ta.selectionEnd;
+
+        var checks = [
+            { key: 'bold',      marker: '**' },
+            { key: 'underline', marker: '__' },
+            { key: 'italic',    marker: '_'  },
+            { key: 'strike',    marker: '~~' }
+        ];
+
+        var active = {};
+        checks.forEach(function (c) {
+            if (start < end) {
+                // Avec sélection : vérifier si le texte sélectionné est enveloppé
+                var sel  = val.slice(start, end);
+                var mLen = c.marker.length;
+                active[c.key] = sel.length > mLen * 2 &&
+                                sel.startsWith(c.marker) && sel.endsWith(c.marker);
+            } else {
+                // Sans sélection : curseur à l'intérieur d'une paire ?
+                active[c.key] = getFormatBoundsAroundCursor(val, start, c.marker) !== null;
+            }
+        });
+        return active;
+    }
+
+    // Met à jour l'apparence "enfoncée" des boutons de la toolbar.
+    function updateToolbarActiveState(page, ta) {
+        var active  = getActiveFormats(ta);
+        var toolbar = page.querySelector('#ip-format-toolbar');
+        if (!toolbar) return;
+        toolbar.querySelectorAll('.ip-fmt-btn[data-action]').forEach(function (btn) {
+            var a = btn.dataset.action;
+            if (a && a !== 'list') btn.classList.toggle('active', !!active[a]);
+        });
+    }
+
+    // ── Formatage du textarea ────────────────────────────────────────────────
+
+    // applyFormat — version intelligente :
+    //   • Sélection enveloppée dans les marqueurs → retrait
+    //   • Sélection sans marqueurs → ajout
+    //   • Pas de sélection + curseur dans une paire → retrait de la paire
+    //   • Pas de sélection + curseur hors paire → insertion des marqueurs (curseur entre eux)
     function applyFormat(ta, prefix, suffix) {
         var start = ta.selectionStart, end = ta.selectionEnd;
         var val = ta.value;
-        var selected = val.slice(start, end);
-        if (selected.startsWith(prefix) && selected.endsWith(suffix) &&
-                selected.length > prefix.length + suffix.length) {
-            var inner = selected.slice(prefix.length, selected.length - suffix.length);
-            ta.value = val.slice(0, start) + inner + val.slice(end);
-            ta.setSelectionRange(start, start + inner.length);
+
+        if (start < end) {
+            // ── Avec sélection ──
+            var selected = val.slice(start, end);
+            if (selected.startsWith(prefix) && selected.endsWith(suffix) &&
+                    selected.length > prefix.length + suffix.length) {
+                // Retrait : supprimer les marqueurs, garder le contenu
+                var inner = selected.slice(prefix.length, selected.length - suffix.length);
+                ta.value = val.slice(0, start) + inner + val.slice(end);
+                ta.setSelectionRange(start, start + inner.length);
+            } else {
+                // Ajout : envelopper la sélection
+                ta.value = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
+                ta.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+            }
         } else {
-            ta.value = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
-            ta.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+            // ── Sans sélection ──
+            var bounds = getFormatBoundsAroundCursor(val, start, prefix);
+            if (bounds) {
+                // Curseur dans une paire existante → retrait
+                var inner2  = val.slice(bounds.innerFrom, bounds.innerTo);
+                ta.value    = val.slice(0, bounds.from) + inner2 + val.slice(bounds.to);
+                var newPos  = Math.max(bounds.from, start - prefix.length);
+                ta.setSelectionRange(newPos, newPos);
+            } else {
+                // Hors de toute paire → insertion avec curseur entre les marqueurs
+                ta.value = val.slice(0, start) + prefix + suffix + val.slice(start);
+                ta.setSelectionRange(start + prefix.length, start + prefix.length);
+            }
         }
     }
 
@@ -521,12 +656,68 @@
         ta.setSelectionRange(lineStart, lineStart + newBlock.length);
     }
 
+    // ── Aperçu en temps réel (v0.6) ──────────────────────────────────────────
+
+    /**
+     * Met à jour le div d'aperçu avec le rendu formaté du textarea.
+     * Affiche un texte d'invite si le textarea est vide.
+     * Doit être appelé après chaque modification de bodyEl.value.
+     */
+    function updatePreview(page) {
+        var bodyEl  = page.querySelector('#ip-body');
+        var preview = page.querySelector('#ip-body-preview');
+        if (!preview) return;
+        var raw = bodyEl ? bodyEl.value : '';
+        if (!raw.trim()) {
+            preview.innerHTML = '<span class="ip-preview-hint">Cliquez ici ou sur \u00ab\u00a0Brut\u00a0\u00bb pour commencer \u00e0 saisir\u2026</span>';
+        } else {
+            preview.innerHTML = renderBody(raw);
+        }
+    }
+
+    /**
+     * Bascule entre le mode aperçu (preview visible, textarea caché)
+     * et le mode brut (textarea visible, preview caché).
+     *
+     * @param {Element} page  - Élément racine de la page config.
+     * @param {boolean} on    - true = aperçu, false = brut.
+     */
+    function setPreviewMode(page, on) {
+        var bodyEl  = page.querySelector('#ip-body');
+        var preview = page.querySelector('#ip-body-preview');
+        var toggle  = page.querySelector('#ip-preview-toggle');
+        var label   = page.querySelector('#ip-preview-toggle-label');
+        if (!bodyEl || !preview) return;
+        if (on) {
+            // Mode aperçu : preview visible, textarea caché
+            updatePreview(page);
+            preview.style.display = 'block';
+            bodyEl.style.display  = 'none';
+            if (toggle) toggle.checked = false; // Raw est désactivé
+            if (label)  label.textContent = 'Raw';
+        } else {
+            // Mode brut : textarea visible, preview caché
+            preview.style.display = 'none';
+            bodyEl.style.display  = 'block';
+            if (toggle) toggle.checked = true;  // Raw est activé
+            if (label)  label.textContent = 'Raw';
+            bodyEl.focus();
+            // Mettre à jour l'état des boutons de la toolbar selon la position du curseur
+            var configPage = bodyEl.closest('#infoPopupConfigPage');
+            if (configPage) updateToolbarActiveState(configPage, bodyEl);
+        }
+    }
+
+    // ── Modes édition ────────────────────────────────────────────────────────
+
     function enterEditMode(page, msg, editState) {
         editState.id = msg.id;
         var titleEl = page.querySelector('#ip-title');
         var bodyEl  = page.querySelector('#ip-body');
         if (titleEl) titleEl.value = msg.title;
         if (bodyEl)  bodyEl.value  = msg.body;
+        // Passer automatiquement en mode brut pour permettre l'édition directe
+        setPreviewMode(page, false);
         var publishBtn   = page.querySelector('#ip-publish-btn');
         var cancelBtn    = page.querySelector('#ip-cancel-edit-btn');
         var sectionTitle = page.querySelector('#ip-form-section-title');
@@ -542,6 +733,8 @@
         var bodyEl   = page.querySelector('#ip-body');
         if (titleEl) titleEl.value = '';
         if (bodyEl)  bodyEl.value  = '';
+        // Repasser en aperçu : montre le placeholder "commencer à saisir"
+        setPreviewMode(page, true);
         var publishBtn   = page.querySelector('#ip-publish-btn');
         var cancelBtn    = page.querySelector('#ip-cancel-edit-btn');
         var sectionTitle = page.querySelector('#ip-form-section-title');
@@ -555,7 +748,6 @@
         page._ipInitDone = true;
         injectStyles();
 
-        // Accessibilité : le toast doit annoncer ses changements aux lecteurs d'écran
         var toast = page.querySelector('#ip-toast');
         if (toast) {
             toast.setAttribute('aria-live', 'polite');
@@ -569,13 +761,56 @@
         var onEdit = function (msg) { enterEditMode(page, msg, editState); };
         editState.onEdit = onEdit;
 
-        var publishBtn = page.querySelector('#ip-publish-btn');
-        var deleteBtn  = page.querySelector('#ip-delete-btn');
-        var selectAll  = page.querySelector('#ip-select-all');
-        var cancelBtn  = page.querySelector('#ip-cancel-edit-btn');
-        var bodyEl     = page.querySelector('#ip-body');
-        var toolbar    = page.querySelector('#ip-format-toolbar');
+        var publishBtn    = page.querySelector('#ip-publish-btn');
+        var deleteBtn     = page.querySelector('#ip-delete-btn');
+        var selectAll     = page.querySelector('#ip-select-all');
+        var cancelBtn     = page.querySelector('#ip-cancel-edit-btn');
+        var bodyEl        = page.querySelector('#ip-body');
+        var toolbar       = page.querySelector('#ip-format-toolbar');
+        var previewToggle = page.querySelector('#ip-preview-toggle');
+        var bodyPreview   = page.querySelector('#ip-body-preview');
 
+        // ── État initial : aperçu activé ─────────────────────────────────────
+        setPreviewMode(page, true);
+
+        // ── Toggle Raw : coché = mode brut (textarea), décoché = mode aperçu ──
+        if (previewToggle) {
+            previewToggle.addEventListener('change', function () {
+                // Raw coché = textarea visible, aperçu caché
+                setPreviewMode(page, !previewToggle.checked);
+            });
+        }
+
+        // Cliquer sur l'aperçu bascule en mode brut pour éditer
+        if (bodyPreview) {
+            bodyPreview.addEventListener('click', function () {
+                setPreviewMode(page, false);
+            });
+        }
+
+        // Mise à jour de l'aperçu à chaque frappe (en arrière-plan, même si caché)
+        if (bodyEl) {
+            bodyEl.addEventListener('input', function () {
+                updatePreview(page);
+            });
+
+            // ── Mise à jour de l'état actif des boutons de formatage ─────────────
+            // Appelé à chaque déplacement de curseur ou modification de sélection,
+            // qu'il y ait du texte sélectionné ou non.
+            var refreshToolbarState = function () {
+                updateToolbarActiveState(page, bodyEl);
+            };
+            bodyEl.addEventListener('keyup',    refreshToolbarState);
+            bodyEl.addEventListener('mouseup',  refreshToolbarState);
+            bodyEl.addEventListener('touchend', refreshToolbarState);
+            // selectionchange sur document : filtré par focus pour ne traiter
+            // que les changements dans notre textarea.
+            document.addEventListener('selectionchange', function () {
+                if (document.activeElement === bodyEl) refreshToolbarState();
+            });
+        }
+
+        // ── Boutons principaux ───────────────────────────────────────────────
         if (publishBtn) {
             publishBtn.addEventListener('click', function () {
                 publishMessage(page, selectedIds, editState);
@@ -603,12 +838,16 @@
             });
         }
 
+        // ── Toolbar de formatage ─────────────────────────────────────────────
         if (toolbar && bodyEl) {
             var fmtMap = { bold: ['**','**'], italic: ['_','_'], strike: ['~~','~~'], underline: ['__','__'] };
             toolbar.addEventListener('click', function (e) {
                 var btn = e.target.closest('.ip-fmt-btn');
                 if (!btn) return;
                 e.preventDefault();
+                // Si on est en aperçu, basculer en brut pour que l'utilisateur
+                // voie l'effet du formatage dans le textarea
+                setPreviewMode(page, false);
                 var action = btn.dataset.action;
                 if (action === 'list') {
                     toggleListLines(bodyEl);
@@ -616,9 +855,12 @@
                     applyFormat(bodyEl, fmtMap[action][0], fmtMap[action][1]);
                 }
                 bodyEl.focus();
+                updatePreview(page); // mettre à jour l'aperçu en arrière-plan
+                updateToolbarActiveState(page, bodyEl); // refléter l'état du curseur
             });
         }
 
+        // ── Chargement initial : utilisateurs + messages ──────────────────────
         fetchUsers().then(function (users) {
             renderTargetPicker(page, users);
             return loadMessages(page, selectedIds, onEdit);
@@ -634,6 +876,7 @@
         var s = document.createElement('style');
         s.id = 'infopopup-styles';
         s.textContent = [
+            // ── Popup utilisateur ───────────────────────────────────────────
             '#infopopup-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99998;display:flex;align-items:center;justify-content:center;animation:ip-fade .2s ease}',
             '@keyframes ip-fade{from{opacity:0}to{opacity:1}}',
             '#infopopup-dialog{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.12);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.6);max-width:560px;width:calc(100% - 32px);max-height:80vh;overflow-y:auto;display:flex;flex-direction:column;animation:ip-slide .25s cubic-bezier(.4,0,.2,1);font-family:inherit}',
@@ -666,6 +909,7 @@
             '.ip-btn-close:hover{filter:brightness(1.15)}',
             '.ip-list{margin:6px 0 4px 0;padding-left:22px;list-style:disc}',
             '.ip-list li{margin:3px 0;line-height:1.55}',
+            // ── Confirm dialog ──────────────────────────────────────────────
             '.ip-confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center}',
             '.ip-confirm-box{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:28px 28px 22px;max-width:420px;width:calc(100% - 32px);box-shadow:0 8px 32px rgba(0,0,0,.6)}',
             '.ip-confirm-box h4{margin:0 0 10px;font-size:1.05rem}',
@@ -673,10 +917,12 @@
             '.ip-confirm-actions{display:flex;justify-content:flex-end;gap:12px}',
             '.ip-confirm-actions .ip-btn-cancel{background:rgba(255,255,255,.1);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:9px 22px;font-size:.95rem;font-weight:500;cursor:pointer;transition:background .15s}',
             '.ip-confirm-actions .ip-btn-cancel:hover{background:rgba(255,255,255,.18)}',
+            // ── Multi-messages cards ────────────────────────────────────────
             '#infopopup-msgs{padding:12px 20px;display:flex;flex-direction:column;gap:12px}',
             '.ip-msg-card{border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}',
             '.ip-msg-card-title{font-weight:600;font-size:.97rem;padding:11px 14px 10px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.08);overflow-wrap:break-word;word-break:break-word}',
             '.ip-msg-card-body{padding:11px 14px 13px;overflow-wrap:break-word;word-break:break-word;line-height:1.6;opacity:.92;font-size:.93rem}',
+            // ── Tableau admin (déroulants) ──────────────────────────────────
             '.ip-col-title-toggle{cursor:pointer;user-select:none}',
             '.ip-col-title-toggle:hover .ip-row-title-text{text-decoration:underline;text-underline-offset:2px}',
             '.ip-row-chev{margin-left:8px;opacity:.45;font-size:.72rem;transition:transform .18s;display:inline-block;vertical-align:middle}',
@@ -687,7 +933,52 @@
             '.ip-row-expand-td .ip-list{margin:4px 0 0 0}',
             '.ip-edit-btn{background:none;border:1px solid rgba(255,255,255,.15);border-radius:4px;cursor:pointer;color:var(--theme-text-color,#e5e5e5);opacity:.55;padding:3px 8px;font-size:.82rem;transition:opacity .15s,background .15s;white-space:nowrap}',
             '.ip-edit-btn:hover{opacity:1;background:rgba(255,255,255,.08)}',
-            '.ip-col-actions{width:72px;text-align:center}'
+            '.ip-col-actions{width:72px;text-align:center}',
+            // ── Tableau admin (structure) — migré depuis configurationpage.html ──
+            '.ip-table{width:100%;border-collapse:collapse;font-size:.92rem}',
+            '.ip-table thead th{text-align:left;padding:10px 12px;border-bottom:2px solid rgba(255,255,255,.15);font-weight:600;opacity:.8}',
+            '.ip-table tbody tr{border-bottom:1px solid rgba(255,255,255,.07);transition:background .12s}',
+            '.ip-table tbody tr:hover{background:rgba(255,255,255,.04)}',
+            '.ip-table td{padding:10px 12px;vertical-align:middle}',
+            '.ip-col-check{width:40px}',
+            '.ip-col-date{width:160px;opacity:.65;white-space:nowrap}',
+            '.ip-col-target{width:150px}',
+            '.ip-col-title{font-weight:500;overflow-wrap:break-word;word-break:break-word}',
+            // ── Badges destinataires ────────────────────────────────────────
+            '.ip-badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:.78rem;font-weight:500;white-space:nowrap}',
+            '.ip-badge-all{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}',
+            '.ip-badge-partial{background:rgba(0,164,220,.18);border:1px solid rgba(0,164,220,.35);color:var(--theme-accent-color,#00a4dc)}',
+            // ── Toast ───────────────────────────────────────────────────────
+            '.ip-toast-ok{background:rgba(0,180,100,.2);border:1px solid rgba(0,180,100,.5);color:#6ee09f}',
+            '.ip-toast-err{background:rgba(207,102,121,.2);border:1px solid rgba(207,102,121,.5);color:#cf6679}',
+            // ── Ciblage utilisateurs ────────────────────────────────────────
+            '.ip-target-box{border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}',
+            '.ip-target-all-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,.03)}',
+            '.ip-target-all-row label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.93rem;user-select:none}',
+            '.ip-target-user-list{border-top:1px solid rgba(255,255,255,.1);max-height:200px;overflow-y:auto;padding:8px 0}',
+            '.ip-target-user-list label{display:flex;align-items:center;gap:8px;padding:5px 14px;cursor:pointer;font-size:.88rem;transition:background .1s;user-select:none}',
+            '.ip-target-user-list label:hover{background:rgba(255,255,255,.04)}',
+            // ── Toolbar de formatage ────────────────────────────────────────
+            '.ip-fmt-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:var(--theme-text-color,#e5e5e5);cursor:pointer;font-size:.88rem;min-width:32px;padding:4px 10px;transition:background .15s,border-color .15s;line-height:1.4}',
+            '.ip-fmt-btn:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3)}',
+            '.ip-fmt-btn:active{background:rgba(255,255,255,.2)}',
+            '.ip-fmt-btn-sep{margin-left:6px;border-left:1px solid rgba(255,255,255,.2)}',
+            // ── Éditeur aperçu / brut (v0.6) ────────────────────────────────
+            '.ip-editor-wrap{display:block}',
+            '.ip-body-preview{min-height:130px;border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:10px 12px;line-height:1.55;font-size:.92rem;background:rgba(0,0,0,.12);cursor:text;overflow-y:auto;color:var(--theme-text-color,#e5e5e5);transition:border-color .15s;word-break:break-word;overflow-wrap:break-word;white-space:pre-wrap;width:100%;box-sizing:border-box}',
+            '.ip-body-preview:hover{border-color:rgba(255,255,255,.3)}',
+            '.ip-preview-hint{opacity:.4;font-style:italic;white-space:normal}',
+            // ── Toggle switch aperçu/brut (v0.6) ────────────────────────────
+            '.ip-preview-toggle-wrap{display:flex;align-items:center;gap:7px;font-size:.83rem;opacity:.75;cursor:pointer;user-select:none;margin-left:auto;padding:2px 6px;border-radius:4px;transition:opacity .15s}',
+            '.ip-preview-toggle-wrap:hover{opacity:1}',
+            '.ip-toggle-switch{position:relative;display:inline-block;width:32px;height:18px;flex-shrink:0}',
+            '.ip-toggle-switch input{opacity:0;width:0;height:0;position:absolute}',
+            '.ip-toggle-slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.2);border-radius:9px;transition:background .2s}',
+            '.ip-toggle-slider::before{content:\'\';position:absolute;height:12px;width:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.4)}',
+            '.ip-toggle-switch input:checked+.ip-toggle-slider{background:var(--theme-accent-color,#00a4dc)}',
+            '.ip-toggle-switch input:checked+.ip-toggle-slider::before{transform:translateX(14px)}',
+            // ── État actif des boutons de formatage (curseur dans une paire de marqueurs) ──
+            '.ip-fmt-btn.active{background:rgba(0,164,220,.22);border-color:rgba(0,164,220,.55);color:var(--theme-accent-color,#00a4dc);box-shadow:inset 0 0 0 1px rgba(0,164,220,.25)}'
         ].join('\n');
         document.head.appendChild(s);
     }
@@ -710,7 +1001,6 @@
             var id          = msg.id          || msg.Id          || '';
             var title       = msg.title       || msg.Title       || '';
             var publishedAt = msg.publishedAt || msg.PublishedAt || '';
-            // body peut être null/undefined si c'est un résumé (historique sans corps)
             var bodyRaw     = msg.body        || msg.Body        || null;
 
             var item = document.createElement('div');
@@ -726,8 +1016,6 @@
             var itemBody = document.createElement('div');
             itemBody.className = 'ip-item-body';
 
-            // Si le corps est déjà disponible (popup-data ne le pré-charge pas pour l'historique),
-            // on l'affiche directement ; sinon on charge au premier clic.
             var loaded = (bodyRaw !== null);
             if (loaded) itemBody.innerHTML = renderBody(bodyRaw);
 
@@ -830,9 +1118,8 @@
         var close = function () {
             backdrop.remove();
             // popupActive reste true jusqu'à confirmation du serveur.
-            // Cela évite la race condition où schedulePopupCheck se déclencherait
-            // entre le clic sur "Fermer" et l'acquittement du POST /seen,
-            // causant un re-affichage de la popup avant que le marquage soit persisté.
+            // Évite la race condition où schedulePopupCheck se déclencherait
+            // entre le clic sur "Fermer" et l'acquittement du POST /seen.
             markAllSeen(allUnseenIds).finally(function () {
                 popupActive = false;
             });
@@ -847,11 +1134,11 @@
         document.addEventListener('keydown', onKey);
     }
 
-    /// <summary>
-    /// Marque des messages comme vus côté serveur.
-    /// Retourne une Promise qui se résout toujours (les erreurs sont swallowed)
-    /// pour permettre un .finally() fiable dans close().
-    /// </summary>
+    /**
+     * Marque des messages comme vus côté serveur.
+     * Retourne une Promise qui se résout toujours (erreurs swallowed)
+     * pour permettre un .finally() fiable dans close().
+     */
     function markAllSeen(ids) {
         if (!ids || !ids.length) return Promise.resolve();
         return apiFetch('/InfoPopup/seen', {
@@ -862,14 +1149,14 @@
         });
     }
 
-    /// <summary>
-    /// Récupère en un seul appel (GET /popup-data) :
-    ///   - les messages non vus avec leurs corps complets (affichage immédiat),
-    ///   - l'historique des messages déjà vus en résumé (corps chargé au clic).
-    ///
-    /// Remplace l'ancien pattern N+1 :
-    ///   GET /unseen + N×GET /messages/{id} + GET /messages + M×GET /messages/{id}
-    /// </summary>
+    /**
+     * Récupère en un seul appel (GET /popup-data) :
+     *   - les messages non vus avec leurs corps complets,
+     *   - l'historique des messages déjà vus en résumé (corps chargé au clic).
+     *
+     * Remplace l'ancien pattern N+1 :
+     *   GET /unseen + N×GET /messages/{id} + GET /messages + M×GET /messages/{id}
+     */
     function checkForUnseenMessages() {
         apiFetch('/InfoPopup/popup-data')
             .then(function (res) { return res.json(); })

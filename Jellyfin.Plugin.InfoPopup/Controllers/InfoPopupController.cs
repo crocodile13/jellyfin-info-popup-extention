@@ -181,9 +181,11 @@ public class InfoPopupController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
-            var found = _store.Update(id, request.Title, request.Body);
-            if (!found) return NotFound(new { error = "Message introuvable." });
-            return Ok(ToDetail(_store.GetById(id)!));
+            // Update() retourne un snapshot capturé dans le lock : élimine la TOCTOU
+            // qu'aurait causé un second appel à GetById() après Update().
+            var updated = _store.Update(id, request.Title, request.Body);
+            if (updated is null) return NotFound(new { error = "Message introuvable." });
+            return Ok(ToDetail(updated));
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }

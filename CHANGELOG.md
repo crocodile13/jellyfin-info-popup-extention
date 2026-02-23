@@ -1,8 +1,46 @@
 # Changelog
 
+## [0.5.1.0] — 2026-02-23
+
+### Ajouté
+
+- **Aperçu live dans l'éditeur admin** — un panneau "Aperçu" s'affiche sous le textarea et se met à jour en temps réel à la frappe. Le rendu interprète `**gras**`, `_italique_`, etc. sans quitter le mode édition. Un toggle switch "Raw" permet de masquer le panneau pour travailler en texte brut.
+- **Détection de contexte dans la toolbar** — les boutons B/I/U/S sont désormais "enfoncés" (état actif visuel) quand le curseur se trouve à l'intérieur d'une paire de marqueurs, qu'il y ait une sélection ou non. Compatible Jellyfin 10.10–10.11.
+- **Retrait intelligent du formatage** — cliquer un bouton actif retire les marqueurs encadrant le curseur, même sans sélection préalable. L'ancien comportement ajoutait des marqueurs en doublon.
+
+### Modifié
+
+- `applyFormat()` — refactorisée via `getFormatBoundsAroundCursor()` : retrait propre des marqueurs autour du curseur, fin de l'accumulation de `****`.
+- `initConfigPage()` — listeners `selectionchange` / `keyup` / `mouseup` / `touchend` sur le textarea pour maintenir l'état de la toolbar à jour en continu.
+- Toolbar : dispatch de `input` après chaque action de formatage pour synchroniser l'aperçu live immédiatement.
+
+---
+
 Toutes les modifications notables de ce projet sont documentées dans ce fichier.
 
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
+
+---
+
+## [0.6.0.0] — 2026-02-23
+
+### Ajouté
+
+- **Aperçu formaté en temps réel dans la zone de saisie** — le champ « Message » affiche désormais le rendu formaté par défaut (`**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, listes). Un toggle switch `Aperçu / Brut` dans la barre de formatage permet de basculer vers la saisie du markup brut. Cliquer sur l'aperçu bascule directement en mode brut. Les boutons de formatage (B, I, U, S, Liste) basculent automatiquement en mode brut avant d'appliquer le formatage. Après publication ou annulation, le formulaire repasse en mode aperçu.
+
+### Corrigé
+
+- **TOCTOU dans `UpdateMessage`** — après `_store.Update()`, le controller appelait `_store.GetById(id)!` (opérateur null-forgiveness) pour récupérer le message mis à jour. Entre les deux appels, une suppression concurrente aurait pu produire une `NullReferenceException`. `MessageStore.Update()` retourne désormais un snapshot `PopupMessage?` capturé à l'intérieur du lock, éliminant la race condition. Le type de retour passe de `bool` à `PopupMessage?`.
+- **Cache `usersCache` jamais invalidé** — la liste des utilisateurs était chargée une seule fois et conservée indéfiniment. Les utilisateurs créés dans Jellyfin pendant la session n'étaient pas visibles dans le sélecteur de ciblage. Un TTL de 5 minutes est maintenant appliqué (`usersCacheAt`).
+- **Styles admin perdus en navigation SPA** — les styles du tableau, des badges, du toast, du sélecteur de destinataires et de la toolbar de formatage étaient définis dans le bloc `<style>` de `configurationpage.html`. Ce bloc disparaît lors des transitions SPA (le HTML est rechargé via `innerHTML`). Tous ces styles sont maintenant dans `injectStyles()` et persistent dans `<head>` pour toute la session.
+- **`emby-checkbox` sur la case « Tout sélectionner »** — remplacé par un `<input type="checkbox">` natif avec `accent-color` inline, cohérent avec les autres checkboxes du tableau admin.
+
+### Modifié
+
+- `MessageStore.Update()` — retourne `PopupMessage?` (snapshot dans le lock) au lieu de `bool`.
+- `InfoPopupController.UpdateMessage()` — utilise le snapshot retourné par `Update()`, supprime le second appel `GetById()`.
+- `client.js` — ajout de `updatePreview(page)`, `setPreviewMode(page, on)` ; `enterEditMode` bascule en brut, `exitEditMode` repasse en aperçu, `publishMessage` (POST) repasse en aperçu après succès.
+- `configurationpage.html` — suppression du bloc `<style>` (migré dans `injectStyles()`), ajout du toggle switch et du div aperçu, case « Tout sélectionner » en checkbox native.
 
 ---
 
