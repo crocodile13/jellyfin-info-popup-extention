@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "0.6.2.0",
+        "changelog": "\\### Added\\\\- **Multilanguage support (FR / EN)** — the plugin now detects the active Jellyfin language via `document.documentElement.lang` (set by Jellyfin Web according to user preferences) with a fallback to `navigator.language`. French and English are fully supported. All user-facing strings — admin page labels, toasts, validation errors, confirm dialog, toolbar tooltips, user popup, history accordion — are translated. Adding a new language requires only a new dictionary entry in `ip-i18n.js`.\\- **`ip-i18n.js` module** — language detection (`detectLang()`) + `window.__IP.t(key, ...args)` translation function with `{0}`, `{1}` placeholder substitution.\\\\### Changed\\\\- **`client.js` split into 5 focused modules** — the 1 217-line monolith is replaced by a lightweight loader (`client.js`, ~50 lines) that injects modules sequentially via dynamic `<script>` tags:\\  - `ip-i18n.js` — language detection + FR/EN dictionaries\\  - `ip-utils.js` — shared utilities (`apiFetch`, `escHtml`, `renderBody`, `formatDate`)\\  - `ip-styles.js` — idempotent CSS injection (`injectStyles`)\\  - `ip-admin.js` — admin configuration page (form, table, toolbar, targeting, CRUD)\\  - `ip-popup.js` — user popup + MutationObserver (auto-starts)\\- **`window.__IP` namespace** — all inter-module functions are exposed via `window.__IP` instead of closed-over variables. Each module is an IIFE that reads and extends `window.__IP`.\\- **Controller — generic JS module endpoint** — `GET /InfoPopup/client.js` is replaced by `GET /InfoPopup/{module}.js` with a whitelist (`client.js`, `ip-*.js`). The old dedicated action is removed; a single action now serves all modules.\\- **`configurationpage.html`** — static text remains in French as default (overridden by `applyStaticTranslations()` at runtime). Added `id` attributes to all translatable elements (`#ip-subtitle`, `#ip-title-label`, `#ip-body-label`, `#ip-recipients-label`, `#ip-history-title`, `#ip-select-all-label`, `#ip-delete-btn-label`). The `<span>` inside `#ip-delete-btn` is now a separate element to allow text-only translation without touching the icon.\\- **`Jellyfin.Plugin.InfoPopup.csproj`** — `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` added as `<EmbeddedResource>`.\\- **`CLAUDE.md`** — architecture, naming, pitfalls and REST API reference updated for v0.6.\\\\",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v0.6.2.0/infopopup_0.6.2.0.zip",
+        "checksum": "cdb054c8aee87d1cfc22e8df58af033f",
+        "timestamp": "2026-02-23T16:36:16Z"
+      },
+      {
         "version": "0.6.1.0",
         "changelog": "\\",
         "targetAbi": "10.10.0.0",
