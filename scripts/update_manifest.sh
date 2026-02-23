@@ -41,12 +41,19 @@ echo "  Checksum MD5 (GitHub) : $CHECKSUM"
 
 # ---------------------------------------------------------------------------
 # Extraction du changelog pour cette version (optionnel)
+#
+# IMPORTANT : ne PAS écrire "awk ... | head -20" avec pipefail actif.
+# head -20 ferme le pipe avant qu'awk ait fini de lire → SIGPIPE → exit 141
+# → make: Error 141. On sépare les deux opérations pour éviter le pipe cassé.
 # ---------------------------------------------------------------------------
 CHANGELOG_ENTRY=""
 if [ -f "$CHANGELOG_FILE" ]; then
-    CHANGELOG_ENTRY=$(awk \
+    # awk s'arrête seul via "exit" dans l'action → pas de SIGPIPE
+    CHANGELOG_RAW=$(awk \
         "/^## \[${VERSION}\]|^## v${VERSION}/"',/^## /{if(found) exit; found=1; next} found{print}' \
-        "$CHANGELOG_FILE" | head -20 | tr '\n' '\\n' | sed 's/\\n$//')
+        "$CHANGELOG_FILE" || true)
+    # head appliqué sur la variable déjà capturée → plus de pipe cassé
+    CHANGELOG_ENTRY=$(printf '%s\n' "$CHANGELOG_RAW" | head -20 | tr '\n' '\\n' | sed 's/\\n$//')
 fi
 if [ -z "$CHANGELOG_ENTRY" ]; then
     CHANGELOG_ENTRY="Release v${VERSION}"
