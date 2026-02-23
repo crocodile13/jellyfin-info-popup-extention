@@ -1,122 +1,122 @@
 # Changelog
 
-Toutes les modifications notables de ce projet sont documentées dans ce fichier.
+All notable changes to this project are documented in this file.
 
-Format : [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
 ## [0.5.1.0] — 2026-02-23
 
-### Ajouté
+### Added
 
-- **Aperçu formaté en temps réel dans la zone de saisie** — le champ « Message » affiche désormais le rendu formaté par défaut (`**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, listes). Un toggle switch `Raw` dans la barre de formatage permet de basculer vers la saisie du markup brut. Cliquer sur l'aperçu bascule directement en mode brut. Les boutons de formatage (B, I, U, S, Liste) basculent automatiquement en mode brut avant d'appliquer le formatage. Après publication ou annulation, le formulaire repasse en mode aperçu.
-- **Détection de contexte dans la toolbar** — les boutons B/I/U/S sont désormais « enfoncés » (état actif visuel) quand le curseur se trouve à l'intérieur d'une paire de marqueurs, qu'il y ait une sélection ou non. Compatible Jellyfin 10.10–10.11.
-- **Retrait intelligent du formatage** — cliquer un bouton actif retire les marqueurs encadrant le curseur, même sans sélection préalable. L'ancien comportement ajoutait des marqueurs en doublon.
+- **Real-time formatted preview in the input area** — the "Message" field now displays formatted rendering by default (`**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, lists). A `Raw` toggle switch in the formatting toolbar allows switching to raw markup input. Clicking the preview directly switches to raw mode. Formatting buttons (B, I, U, S, List) automatically switch to raw mode before applying formatting. After publishing or cancelling, the form returns to preview mode.
+- **Context detection in the toolbar** — B/I/U/S buttons are now "pressed" (visual active state) when the cursor is inside a pair of markers, whether there is a selection or not. Compatible with Jellyfin 10.10–10.11.
+- **Smart format removal** — clicking an active button removes the markers surrounding the cursor, even without a prior selection. The old behaviour used to add duplicate markers.
 
-### Corrigé
+### Fixed
 
-- **TOCTOU dans `UpdateMessage`** — après `_store.Update()`, le controller appelait `_store.GetById(id)!` (opérateur null-forgiveness) pour récupérer le message mis à jour. Entre les deux appels, une suppression concurrente aurait pu produire une `NullReferenceException`. `MessageStore.Update()` retourne désormais un snapshot `PopupMessage?` capturé à l'intérieur du lock, éliminant la race condition. Le type de retour passe de `bool` à `PopupMessage?`.
-- **Cache `usersCache` jamais invalidé** — la liste des utilisateurs était chargée une seule fois et conservée indéfiniment. Les utilisateurs créés dans Jellyfin pendant la session n'étaient pas visibles dans le sélecteur de ciblage. Un TTL de 5 minutes est maintenant appliqué (`usersCacheAt`).
-- **Styles admin perdus en navigation SPA** — les styles du tableau, des badges, du toast, du sélecteur de destinataires et de la toolbar de formatage étaient définis dans le bloc `<style>` de `configurationpage.html`. Ce bloc disparaît lors des transitions SPA (le HTML est rechargé via `innerHTML`). Tous ces styles sont maintenant dans `injectStyles()` et persistent dans `<head>` pour toute la session.
-- **`emby-checkbox` sur la case « Tout sélectionner »** — remplacé par un `<input type="checkbox">` natif avec `accent-color` inline, cohérent avec les autres checkboxes du tableau admin.
+- **TOCTOU in `UpdateMessage`** — after `_store.Update()`, the controller was calling `_store.GetById(id)!` (null-forgiveness operator) to retrieve the updated message. Between the two calls, a concurrent deletion could have produced a `NullReferenceException`. `MessageStore.Update()` now returns a `PopupMessage?` snapshot captured inside the lock, eliminating the race condition. The return type changes from `bool` to `PopupMessage?`.
+- **`usersCache` never invalidated** — the user list was loaded once and kept indefinitely. Users created in Jellyfin during the session were not visible in the targeting selector. A 5-minute TTL is now applied (`usersCacheAt`).
+- **Admin styles lost on SPA navigation** — the table, badges, toast, recipient selector and formatting toolbar styles were defined in the `<style>` block of `configurationpage.html`. This block disappears during SPA transitions (HTML is reloaded via `innerHTML`). All these styles are now in `injectStyles()` and persist in `<head>` for the entire session.
+- **`emby-checkbox` on the "Select all" checkbox** — replaced by a native `<input type="checkbox">` with inline `accent-color`, consistent with the other checkboxes in the admin table.
 
-### Modifié
+### Changed
 
-- `MessageStore.Update()` — retourne `PopupMessage?` (snapshot capturé dans le lock) au lieu de `bool`.
-- `InfoPopupController.UpdateMessage()` — utilise le snapshot retourné par `Update()`, supprime le second appel `GetById()`.
-- `applyFormat()` — refactorisée via `getFormatBoundsAroundCursor()` : retrait propre des marqueurs autour du curseur, fin de l'accumulation de `****`.
-- `initConfigPage()` — listeners `selectionchange` / `keyup` / `mouseup` / `touchend` sur le textarea pour maintenir l'état de la toolbar à jour en continu.
-- `client.js` — ajout de `updatePreview(page)` et `setPreviewMode(page, on)` ; `enterEditMode` bascule en brut, `exitEditMode` repasse en aperçu, `publishMessage` (POST) repasse en aperçu après succès. Dispatch de `input` après chaque action de formatage pour synchroniser l'aperçu immédiatement.
-- `configurationpage.html` — suppression du bloc `<style>` (migré dans `injectStyles()`), ajout du toggle switch et du div aperçu, case « Tout sélectionner » en checkbox native.
+- `MessageStore.Update()` — returns `PopupMessage?` (snapshot captured in the lock) instead of `bool`.
+- `InfoPopupController.UpdateMessage()` — uses the snapshot returned by `Update()`, removes the second `GetById()` call.
+- `applyFormat()` — refactored via `getFormatBoundsAroundCursor()`: clean removal of markers around the cursor, end of `****` accumulation.
+- `initConfigPage()` — `selectionchange` / `keyup` / `mouseup` / `touchend` listeners on the textarea to keep the toolbar state continuously up to date.
+- `client.js` — added `updatePreview(page)` and `setPreviewMode(page, on)`; `enterEditMode` switches to raw, `exitEditMode` returns to preview, `publishMessage` (POST) returns to preview after success. `input` dispatch after each formatting action to immediately sync the preview.
+- `configurationpage.html` — removed the `<style>` block (migrated to `injectStyles()`), added toggle switch and preview div, "Select all" checkbox as native checkbox.
 
 ---
 
 ## [0.5.0.0] — 2026-02-23
 
-### Sécurité
+### Security
 
-- **Contrôle d'accès sur `GET /messages` et `GET /messages/{id}`** — ces endpoints étaient accessibles à tout utilisateur authentifié, exposant la liste complète des messages y compris leurs `TargetUserIds` et leurs corps, indépendamment du ciblage. Désormais : les admins voient tout ; les utilisateurs ne voient que les messages qui leur sont destinés. `GET /messages/{id}` retourne `404` (et non `403`) si l'utilisateur n'est pas ciblé, pour ne pas révéler l'existence d'un message non destiné.
-- **UserId vide → 401 explicite** — quand le claim `Jellyfin-UserId` est absent du token, le code retournait silencieusement un ID vide qui créait un enregistrement fantôme dans `infopopup_seen.json`. Tous les endpoints utilisateur retournent maintenant `401 Unauthorized` explicitement si l'ID est absent.
+- **Access control on `GET /messages` and `GET /messages/{id}`** — these endpoints were accessible to any authenticated user, exposing the full list of messages including their `TargetUserIds` and bodies, regardless of targeting. Now: admins see everything; users only see messages intended for them. `GET /messages/{id}` returns `404` (not `403`) if the user is not targeted, to avoid revealing the existence of a non-intended message.
+- **Empty UserId → explicit 401** — when the `Jellyfin-UserId` claim was absent from the token, the code was silently returning an empty ID that created a ghost record in `infopopup_seen.json`. All user endpoints now explicitly return `401 Unauthorized` if the ID is absent.
 
-### Ajouté
+### Added
 
-- **Endpoint `GET /InfoPopup/popup-data`** — retourne en un seul appel tout ce dont la popup a besoin : messages non vus avec corps complet + historique en résumés. Remplace l'ancien pattern N+1 qui générait jusqu'à `2 + N + M` requêtes HTTP pour afficher une popup.
-- **Endpoint `POST /InfoPopup/messages/delete`** (admin) — remplace `DELETE /messages` avec body. Certains proxies et pare-feux rejettent silencieusement les requêtes `DELETE` avec un body. L'ancien endpoint `DELETE` est supprimé.
-- **Dossier `DTOs/`** — `MessageDtos.cs` regroupe tous les DTOs (`CreateMessageRequest`, `DeleteMessagesRequest`, `UpdateMessageRequest`, `MarkSeenRequest`, `MessageSummary`, `MessageDetail`, `PopupDataResponse`). Ils étaient précédemment définis en tête du fichier controller.
+- **`GET /InfoPopup/popup-data` endpoint** — returns in a single call everything the popup needs: unread messages with full body + history as summaries. Replaces the old N+1 pattern that generated up to `2 + N + M` HTTP requests to display a popup.
+- **`POST /InfoPopup/messages/delete` endpoint** (admin) — replaces `DELETE /messages` with body. Some proxies and firewalls silently reject `DELETE` requests with a body. The old `DELETE` endpoint is removed.
+- **`DTOs/` folder** — `MessageDtos.cs` groups all DTOs (`CreateMessageRequest`, `DeleteMessagesRequest`, `UpdateMessageRequest`, `MarkSeenRequest`, `MessageSummary`, `MessageDetail`, `PopupDataResponse`). They were previously defined at the top of the controller file.
 
-### Corrigé
+### Fixed
 
-- **Race condition popup/marquage** — `popupActive` était remis à `false` immédiatement à la fermeture de la popup, avant que le `POST /seen` ait été confirmé par le serveur. `popupActive` reste maintenant à `true` jusqu'au `.finally()` de `markAllSeen()`.
-- **Guard `popupActive` dans `schedulePopupCheck`** — sans ce guard, une navigation rapide après fermeture pouvait re-déclencher un check réseau pendant que le marquage était encore en transit.
-- **Référence config capturée dans le lock** (`MessageStore`) — `Plugin.Instance?.Configuration` était accédé via une propriété sans assignation locale dans le bloc lockté. La référence est maintenant capturée avec `var cfg = GetConfig()` à l'intérieur de chaque bloc.
-- **Cache mémoire dans `SeenTrackerService`** — `ReadStore()` lisait le fichier JSON depuis le disque à chaque appel, y compris sous `ReadLock`. Un cache `_cache` est maintenant maintenu en mémoire et invalidé uniquement à l'écriture.
-- **Accessibilité du toast admin** — `aria-live="polite"` et `role="status"` ajoutés sur le toast lors de l'init de la page config et à chaque affichage.
+- **Popup/marking race condition** — `popupActive` was reset to `false` immediately on popup close, before the `POST /seen` had been confirmed by the server. `popupActive` now stays `true` until the `.finally()` of `markAllSeen()`.
+- **`popupActive` guard in `schedulePopupCheck`** — without this guard, fast navigation after closing could re-trigger a network check while the marking was still in transit.
+- **Config reference captured in the lock** (`MessageStore`) — `Plugin.Instance?.Configuration` was accessed via a property without local assignment inside the locked block. The reference is now captured with `var cfg = GetConfig()` inside each block.
+- **Memory cache in `SeenTrackerService`** — `ReadStore()` was reading the JSON file from disk on every call, including under `ReadLock`. A `_cache` is now maintained in memory and invalidated only on write.
+- **Admin toast accessibility** — `aria-live="polite"` and `role="status"` added to the toast during config page init and on each display.
 
-### Modifié
+### Changed
 
-- `checkForUnseenMessages` utilise désormais `GET /InfoPopup/popup-data` (1 requête).
-- `deleteSelected` dans `client.js` appelle `POST /InfoPopup/messages/delete` au lieu de `DELETE`.
-- `markAllSeen` retourne une `Promise` pour permettre le `.finally()` dans `close()`.
-- Variables d'état global JS regroupées en début d'IIFE.
+- `checkForUnseenMessages` now uses `GET /InfoPopup/popup-data` (1 request).
+- `deleteSelected` in `client.js` calls `POST /InfoPopup/messages/delete` instead of `DELETE`.
+- `markAllSeen` returns a `Promise` to allow the `.finally()` in `close()`.
+- Global JS state variables grouped at the top of the IIFE.
 
 ---
 
 ## [0.4.0.0] — 2026-02-23
 
-### Ajouté
+### Added
 
-- **Formatage du corps des messages** — syntaxe légère rendue côté client en HTML sécurisé (escHtml() toujours appliqué avant tout remplacement, XSS impossible) :
-  - `**texte**` → gras
-  - `_texte_` → italique
-  - `__texte__` → souligné
-  - `~~texte~~` → barré
-  - Lignes préfixées `- ` → liste à puces avec indentation (`<ul><li>`)
-  - Rendu actif dans la popup utilisateur, dans l'historique et dans le déroulant du tableau admin.
-- **Toolbar de formatage** au-dessus du textarea d'administration — cinq boutons (B, I, U, S, • Liste) qui wrappent la sélection courante. Chaque bouton est un toggle : appuyer une seconde fois retire le formatage.
-- **Modification de messages existants** — bouton « ✎ Modifier » sur chaque ligne du tableau admin. Charge le message dans le formulaire, passe en mode édition (titre de section + libellé du bouton changent, bouton « Annuler » apparaît). Utilise `PUT /InfoPopup/messages/{id}` : l'ID est conservé, le suivi des vues n'est pas affecté.
-- **Endpoint `PUT /InfoPopup/messages/{id}`** (admin uniquement) — met à jour titre et corps sans toucher à l'ID ni à `infopopup_seen.json`.
+- **Message body formatting** — lightweight syntax rendered client-side as secure HTML (escHtml() always applied before any replacement, XSS impossible):
+  - `**text**` → bold
+  - `_text_` → italic
+  - `__text__` → underline
+  - `~~text~~` → strikethrough
+  - Lines prefixed with `- ` → bulleted list with indentation (`<ul><li>`)
+  - Rendering active in the user popup, in the history and in the admin table expand rows.
+- **Formatting toolbar** above the admin textarea — five buttons (B, I, U, S, • List) that wrap the current selection. Each button is a toggle: pressing it a second time removes the formatting.
+- **Edit existing messages** — "✎ Edit" button on each row of the admin table. Loads the message into the form, switches to edit mode (section title + button label change, "Cancel" button appears). Uses `PUT /InfoPopup/messages/{id}`: the ID is preserved, view tracking is not affected.
+- **`PUT /InfoPopup/messages/{id}` endpoint** (admin only) — updates title and body without touching the ID or `infopopup_seen.json`.
 
-### Corrigé
+### Fixed
 
-- **Corps vide dans l'historique de la popup** — les messages déjà vus passés à `buildHistoryBlock` étaient des `MessageSummary` sans `body`. `checkForUnseenMessages` pré-charge désormais le détail complet de chaque message vu avant d'ouvrir la popup.
-- **Mise en forme cassée du tableau admin** — CSS de `.ip-row-expand`, `.ip-row-chev`, `.ip-edit-btn` absent lors d'une navigation directe vers la page config. `initConfigPage()` appelle maintenant `injectStyles()` en premier.
+- **Empty body in popup history** — already-seen messages passed to `buildHistoryBlock` were `MessageSummary` objects without a `body`. `checkForUnseenMessages` now pre-loads the full detail of each seen message before opening the popup.
+- **Broken admin table formatting** — CSS for `.ip-row-expand`, `.ip-row-chev`, `.ip-edit-btn` was absent when navigating directly to the config page. `initConfigPage()` now calls `injectStyles()` first.
 
-### Modifié
+### Changed
 
-- `MessageStore` — nouvelle méthode `Update(id, title, body)`.
-- `renderMessages` — colonne Actions + colSpan des expand rows passé de 4 à 5.
-- `publishMessage` — bifurque sur PUT ou POST selon `editState.id`.
-- `buildHistoryBlock` — affichage immédiat si body pré-chargé, lazy load en fallback.
+- `MessageStore` — new `Update(id, title, body)` method.
+- `renderMessages` — Actions column + expand rows colSpan increased from 4 to 5.
+- `publishMessage` — branches to PUT or POST based on `editState.id`.
+- `buildHistoryBlock` — immediate display if body is pre-loaded, lazy load as fallback.
 
 ---
 
 ## [0.3.0.0] — 2026-02-23
 
-### Ajouté
+### Added
 
-- **Tous les messages non vus en zone principale** — chaque non-lu apparaît dans sa propre carte (titre + corps). L'historique ne contient plus que les messages déjà vus.
-- **Titre du message en en-tête de la popup** — un message : son titre dans le header. Plusieurs : « N nouveaux messages ».
-- **Déroulant par ligne dans le tableau admin** — clic sur la colonne Titre → ligne d'expansion avec corps en lazy load, chevron animé.
+- **All unread messages in the main area** — each unread message appears in its own card (title + body). The history now only contains already-seen messages.
+- **Message title in popup header** — single message: its title in the header. Multiple: "N new messages".
+- **Inline row expand in admin table** — click on the Title column → expansion row with body on lazy load, animated chevron.
 
-### Modifié
+### Changed
 
-- `checkForUnseenMessages` — corps de tous les non-vus récupérés en parallèle (`Promise.all`).
-- `showPopup` — deux arguments (`unseenMessages`, `seenMessages`), rendu adaptatif.
-- `renderMessages` — génère une `<tr class="ip-row-expand">` pour chaque ligne.
+- `checkForUnseenMessages` — bodies of all unread messages fetched in parallel (`Promise.all`).
+- `showPopup` — two arguments (`unseenMessages`, `seenMessages`), adaptive rendering.
+- `renderMessages` — generates a `<tr class="ip-row-expand">` for each row.
 
 ---
 
 ## [0.2.1.0] — 2026-02-20
 
-### Ajouté
+### Added
 
-- Popup à la connexion via MutationObserver (SPA-compatible, Jellyfin 10.10–10.11)
-- Affichage unique par utilisateur — suivi côté serveur, sans localStorage
-- Historique déroulant des messages passés
-- Page admin : publication, sélection multiple, suppression confirmée
-- Suppression totale : disparaît immédiatement pour tous les utilisateurs
-- Injection automatique de `client.js` via `ScriptInjectionMiddleware`
-- Ciblage par utilisateurs spécifiques ou diffusion à tous
-- Sécurité XSS : `textContent` exclusivement, jamais `innerHTML`
-- Intégration thème Jellyfin
+- Login popup via MutationObserver (SPA-compatible, Jellyfin 10.10–10.11)
+- Show once per user — server-side tracking, no localStorage
+- Collapsible history of past messages
+- Admin page: publishing, multiple selection, confirmed deletion
+- Full deletion: disappears immediately for all users
+- Automatic injection of `client.js` via `ScriptInjectionMiddleware`
+- Targeting by specific users or broadcast to everyone
+- XSS security: `textContent` exclusively, never `innerHTML`
+- Jellyfin theme integration

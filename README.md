@@ -1,110 +1,110 @@
 # jellyfin-info-popup-extention
 
-Plugin Jellyfin permettant aux administrateurs d'afficher des messages popup aux utilisateurs lors de leur connexion.
+A Jellyfin plugin that allows administrators to display popup messages to users when they log in.
 
-Cette extension a été quasi intégralement vibe codée par Claude. C'est assumé : j'avais simplement besoin d'une telle extension et je ne voulais pas me lancer dans un projet de développement de dix jours.
-
----
-
-## 📸 Aperçu
-
-![Aperçu 1](images/image1.png)
-![Aperçu 2](images/image2.png)
+This extension was almost entirely vibe-coded by Claude. That's intentional: I simply needed such an extension and didn't want to embark on a ten-day development project.
 
 ---
 
-## Fonctionnalités
+## 📸 Preview
 
-- **Popup à la connexion** : détection post-login via MutationObserver (SPA-compatible, testé Jellyfin 10.10–10.11)
-- **Affichage unique** : suivi côté serveur — pas de localStorage, fonctionne sur tous les appareils
-- **Multi-messages non vus** : si plusieurs messages n'ont pas encore été lus, chacun s'affiche dans sa propre carte (titre + corps) dans la même popup
-- **Historique déroulant** : messages déjà vus dans un accordéon replié par défaut, avec corps disponible au clic
-- **Formatage du corps** : syntaxe légère — `**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, lignes `- liste`
-- **Page admin** : publication, sélection multiple, suppression confirmée, modification de messages existants
-- **Modification sans réaffichage** : un message modifié (`PUT`) conserve son ID — les utilisateurs qui l'avaient déjà vu ne le reverront pas
-- **Toolbar de formatage** : barre de boutons au-dessus du textarea pour appliquer le formatage sans taper la syntaxe à la main
-- **Déroulant par ligne** : clic sur le titre d'un message dans le tableau admin pour afficher son corps inline
-- **Suppression totale** : un message supprimé disparaît immédiatement, partout, pour tout le monde
-- **Injection automatique** : `client.js` injecté dans `index.html` par le `ScriptInjectionMiddleware` — aucune modification manuelle requise
-- **Intégration thème Jellyfin** : variables CSS natives, classes dashboard standard
-- **Sécurité XSS** : `escHtml()` appliqué avant tout rendu, jamais de HTML utilisateur brut dans le DOM
-- **Contrôle d'accès ciblage** : les utilisateurs ne peuvent voir que les messages qui leur sont destinés, y compris via l'API directe
+![Preview 1](images/image1.png)
+![Preview 2](images/image2.png)
 
 ---
 
-## Ajouter le dépôt dans Jellyfin
+## Features
+
+- **Login popup**: post-login detection via MutationObserver (SPA-compatible, tested on Jellyfin 10.10–10.11)
+- **Show once**: server-side tracking — no localStorage, works across all devices
+- **Multiple unread messages**: if several messages haven't been read yet, each one is displayed in its own card (title + body) within the same popup
+- **Collapsible history**: previously seen messages in an accordion collapsed by default, with body available on click
+- **Body formatting**: lightweight syntax — `**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, `- list` lines
+- **Admin page**: publishing, multiple selection, confirmed deletion, editing existing messages
+- **Edit without re-display**: an edited message (`PUT`) keeps its ID — users who had already seen it won't see it again
+- **Formatting toolbar**: row of buttons above the textarea to apply formatting without typing the syntax manually
+- **Inline row expand**: click on a message title in the admin table to display its body inline
+- **Full deletion**: a deleted message disappears immediately, everywhere, for everyone
+- **Auto-injection**: `client.js` injected into `index.html` by `ScriptInjectionMiddleware` — no manual modification required
+- **Jellyfin theme integration**: native CSS variables, standard dashboard classes
+- **XSS security**: `escHtml()` applied before any rendering, no raw user HTML in the DOM
+- **Targeting access control**: users can only see messages intended for them, including via the direct API
+
+---
+
+## Add the repository in Jellyfin
 
 ```
-Tableau de bord → Plugins → Catalogues → Ajouter
-URL : https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/manifest.json
+Dashboard → Plugins → Repositories → Add
+URL: https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/manifest.json
 ```
 
-Puis installer **Info Popup** depuis le catalogue et redémarrer Jellyfin.
+Then install **Info Popup** from the catalogue and restart Jellyfin.
 
-> **Fallback Docker** : si un volume monte un `index.html` personnalisé qui écrase celui de Jellyfin-Web, ajoutez manuellement avant `</body>` :
+> **Docker fallback**: if a volume mounts a custom `index.html` that overrides the Jellyfin-Web one, manually add before `</body>`:
 > ```html
 > <script src="/InfoPopup/client.js"></script>
 > ```
 
 ---
 
-## Installation manuelle
+## Manual installation
 
-1. Télécharger `infopopup_X.Y.Z.0.zip` depuis les [Releases](../../releases)
-2. Extraire `Jellyfin.Plugin.InfoPopup.dll` dans :
-   - Linux : `~/.local/share/jellyfin/plugins/InfoPopup/`
-   - Docker : `/config/plugins/InfoPopup/`
-3. Redémarrer Jellyfin
-
----
-
-## Syntaxe de formatage des messages
-
-Le corps des messages supporte une syntaxe légère :
-
-| Syntaxe | Rendu |
-|---------|-------|
-| `**texte**` | **gras** |
-| `_texte_` | *italique* |
-| `__texte__` | souligné |
-| `~~texte~~` | barré |
-| Ligne commençant par `- ` | élément de liste à puces |
-
-Le formatage est rendu dans la popup utilisateur, dans l'historique et dans le déroulant du tableau admin.
+1. Download `infopopup_X.Y.Z.0.zip` from [Releases](../../releases)
+2. Extract `Jellyfin.Plugin.InfoPopup.dll` into:
+   - Linux: `~/.local/share/jellyfin/plugins/InfoPopup/`
+   - Docker: `/config/plugins/InfoPopup/`
+3. Restart Jellyfin
 
 ---
 
-## Développement
+## Message formatting syntax
 
-### Prérequis
+The message body supports a lightweight syntax:
 
-| Outil | Version |
-|-------|---------|
+| Syntax | Render |
+|--------|--------|
+| `**text**` | **bold** |
+| `_text_` | *italic* |
+| `__text__` | underline |
+| `~~text~~` | strikethrough |
+| Line starting with `- ` | bulleted list item |
+
+Formatting is rendered in the user popup, in the history, and in the admin table expand rows.
+
+---
+
+## Development
+
+### Prerequisites
+
+| Tool | Version |
+|------|---------|
 | [.NET SDK](https://dotnet.microsoft.com) | 8.x |
 | [git](https://git-scm.com) | >= 2.x |
 | [jq](https://stedolan.github.io/jq/) | >= 1.6 |
 | [GitHub CLI](https://cli.github.com) | >= 2.x |
 
-### Setup initial
+### Initial setup
 
 ```bash
-git clone https://github.com/VOTRE_COMPTE/jellyfin-info-popup-extention
+git clone https://github.com/YOUR_ACCOUNT/jellyfin-info-popup-extention
 cd jellyfin-info-popup-extention
 
 cp .env.make.example .env.make
-# Editer .env.make : GITHUB_USER = votre-login
+# Edit .env.make: GITHUB_USER = your-login
 
 make check
 ```
 
-### Commandes disponibles
+### Available commands
 
 ```bash
-make              # Aide + URL du depot Jellyfin
+make              # Help + Jellyfin repository URL
 
-make build        # Compile en Debug
-make pack         # Compile Release + cree le ZIP dans dist/
-make clean        # Nettoie bin/, obj/, dist/*.zip
+make build        # Compile in Debug
+make pack         # Compile Release + create ZIP in dist/
+make clean        # Clean bin/, obj/, dist/*.zip
 
 make bump-patch   # 0.4.0.0 -> 0.4.1.0
 make bump-minor   # 0.4.0.0 -> 0.5.0.0
@@ -115,17 +115,17 @@ make release-minor
 make release-major
 ```
 
-### Workflow de release
+### Release workflow
 
 ```bash
-# 1. Ajouter vos changements dans CHANGELOG.md
-# 2. Lancer la release
-make release-minor   # ou patch / major
+# 1. Add your changes to CHANGELOG.md
+# 2. Run the release
+make release-minor   # or patch / major
 ```
 
-### Nettoyer les artefacts de build du dépôt
+### Cleaning build artifacts from the repository
 
-Si `bin/` et `obj/` ont été commités par erreur avant d'être dans `.gitignore` :
+If `bin/` and `obj/` were committed by mistake before being in `.gitignore`:
 
 ```bash
 git rm -r --cached Jellyfin.Plugin.InfoPopup/bin/ Jellyfin.Plugin.InfoPopup/obj/
@@ -137,45 +137,45 @@ git commit -m "chore: untrack bin/ and obj/ build artifacts"
 ## Architecture
 
 ```
-API REST (/InfoPopup/*)               Client JS (injecté dans index.html)
+REST API (/InfoPopup/*)               JS Client (injected into index.html)
 ┌─────────────────────────────────┐   ┌────────────────────────────────────────────┐
 │ GET    /messages          [user]│   │ ScriptInjectionMiddleware → index.html     │
-│ GET    /messages/{id}     [user]│◄──│ MutationObserver → toute navigation SPA    │
-│ POST   /messages         [ADMIN]│   │ Guards : popupActive, #infoPopupConfigPage  │
-│ PUT    /messages/{id}    [ADMIN]│   │ GET /InfoPopup/popup-data (1 seul appel)   │
+│ GET    /messages/{id}     [user]│◄──│ MutationObserver → all SPA navigation      │
+│ POST   /messages         [ADMIN]│   │ Guards: popupActive, #infoPopupConfigPage  │
+│ PUT    /messages/{id}    [ADMIN]│   │ GET /InfoPopup/popup-data (1 single call)  │
 │ POST   /messages/delete  [ADMIN]│   │ showPopup() → renderBody() → innerHTML     │
-│ GET    /popup-data        [user]│   │ fermeture → POST /seen → popupActive=false │
+│ GET    /popup-data        [user]│   │ close → POST /seen → popupActive=false     │
 │ GET    /unseen            [user]│   └────────────────────────────────────────────┘
 │ POST   /seen              [user]│
-│ GET    /client.js         [anon]│   Page Admin (dashboard Jellyfin)
+│ GET    /client.js         [anon]│   Admin Page (Jellyfin dashboard)
 └─────────────────────────────────┘   ┌────────────────────────────────────────────┐
-                                       │ POST /messages        → publier            │
-Contrôle d'accès                       │ PUT  /messages/{id}   → modifier (ID stable│
+                                       │ POST /messages        → publish            │
+Access control                         │ PUT  /messages/{id}   → edit (stable ID)  │
 ┌─────────────────────────────────┐   │ POST /messages/delete → confirm modal      │
-│ Admins : tous les messages      │   │ GET  /messages        → tableau + édition  │
-│ Users  : uniquement ciblés      │   │ Toolbar : B I U S • Liste                 │
-│ UserId absent → 401             │   └────────────────────────────────────────────┘
-│ Non ciblé → 404 (pas 403)       │
-└─────────────────────────────────┘   Persistance
+│ Admins: all messages            │   │ GET  /messages        → table + editing    │
+│ Users:  targeted only           │   │ Toolbar: B I U S • List                   │
+│ Missing UserId → 401            │   └────────────────────────────────────────────┘
+│ Not targeted → 404 (not 403)    │
+└─────────────────────────────────┘   Persistence
                                        ┌────────────────────────────────────────────┐
                                        │ XML  : messages (BasePluginConfiguration)  │
-                                       │ JSON : infopopup_seen.json (cache mémoire) │
+                                       │ JSON : infopopup_seen.json (memory cache)  │
                                        └────────────────────────────────────────────┘
 ```
 
 ---
 
-## Compatibilité
+## Compatibility
 
-| Jellyfin | .NET | Statut |
+| Jellyfin | .NET | Status |
 |----------|------|--------|
-| 10.10.x  | 8.0  | Supporté |
-| 10.11.x  | 8.0  | Testé (dashboard React/MUI) |
+| 10.10.x  | 8.0  | Supported |
+| 10.11.x  | 8.0  | Tested (React/MUI dashboard) |
 
 ---
 
-## Licence
+## License
 GPL3
 
-## Contrib
-Si vous modifiez le code, si vous rajoutez des features ou résolvez des bugs, partagez votre travail !
+## Contributing
+If you modify the code, add features or fix bugs, please share your work!

@@ -1,45 +1,45 @@
-# CLAUDE.md — Directives de travail pour Claude
+# CLAUDE.md — Working directives for Claude
 
-> Ce fichier définit **comment Claude doit se comporter** lorsqu'il travaille sur **jellyfin-info-popup-extention**.
-> Il est lu en priorité avant toute intervention sur le code.
+> This file defines **how Claude must behave** when working on **jellyfin-info-popup-extention**.
+> It is read with priority before any intervention on the code.
 
 ---
 
-## 1. Contexte du projet
+## 1. Project context
 
-**jellyfin-info-popup-extention** est un plugin Jellyfin qui permet aux administrateurs de diffuser des messages popup aux utilisateurs lors de leur connexion.
+**jellyfin-info-popup-extention** is a Jellyfin plugin that allows administrators to broadcast popup messages to users when they log in.
 
-### Nommage — règle absolue
+### Naming — absolute rule
 
-| Contexte | Valeur |
-|----------|--------|
-| Dépôt GitHub / dossier racine | `jellyfin-info-popup-extention` |
-| Assembly .NET / namespace C# | `Jellyfin.Plugin.InfoPopup` |
-| Nom affiché dans le dashboard Jellyfin | `Info Popup` |
-| Préfixe des routes API REST | `/InfoPopup` |
-| Fichier de persistance des vues | `infopopup_seen.json` |
-| Préfixe CSS et IDs DOM côté client | `.ip-` / `#infopopup-` |
-| Garde anti-double-exécution JS | `window.__infoPopupLoaded` |
-| Préfixe des messages de log .NET | `InfoPopup:` |
-| GUID plugin (immuable) | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Context | Value |
+|---------|-------|
+| GitHub repo / root folder | `jellyfin-info-popup-extention` |
+| .NET assembly / C# namespace | `Jellyfin.Plugin.InfoPopup` |
+| Display name in Jellyfin dashboard | `Info Popup` |
+| REST API route prefix | `/InfoPopup` |
+| View persistence file | `infopopup_seen.json` |
+| Client-side CSS prefix and DOM IDs | `.ip-` / `#infopopup-` |
+| JS double-execution guard | `window.__infoPopupLoaded` |
+| .NET log message prefix | `InfoPopup:` |
+| Plugin GUID (immutable) | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
 
 ### Stack
-- Backend : C# / .NET 8, `IBasePlugin`, `ControllerBase`, DI ASP.NET Core
-- Frontend : JavaScript ES2020 vanilla, zéro framework, zéro dépendance externe
-- Persistance : XML pour les messages (`BasePluginConfiguration`) + JSON pour les vues (`infopopup_seen.json`)
-- Build / release : **GNU Make** + scripts Bash + GitHub CLI (`gh`)
+- Backend: C# / .NET 8, `IBasePlugin`, `ControllerBase`, ASP.NET Core DI
+- Frontend: Vanilla JavaScript ES2020, zero framework, zero external dependency
+- Persistence: XML for messages (`BasePluginConfiguration`) + JSON for views (`infopopup_seen.json`)
+- Build / release: **GNU Make** + Bash scripts + GitHub CLI (`gh`)
 
 ---
 
-## 2. Structure du dépôt
+## 2. Repository structure
 
 ```
 jellyfin-info-popup-extention/
 ├── Makefile
-├── version.json                      ← SOURCE UNIQUE DE VÉRITÉ pour la version
+├── version.json                      ← SINGLE SOURCE OF TRUTH for version
 ├── manifest.json
 ├── CHANGELOG.md
-├── CLAUDE.md                         ← ce fichier
+├── CLAUDE.md                         ← this file
 ├── README.md
 ├── .gitignore
 ├── .env.make.example
@@ -59,7 +59,7 @@ jellyfin-info-popup-extention/
     ├── PluginServiceRegistrator.cs
     ├── Configuration/PluginConfiguration.cs
     ├── Models/{PopupMessage,SeenRecord}.cs
-    ├── DTOs/MessageDtos.cs            ← DTOs requête/réponse (séparés du controller)
+    ├── DTOs/MessageDtos.cs            ← request/response DTOs (separated from controller)
     ├── Services/{MessageStore,SeenTrackerService}.cs
     ├── Controllers/InfoPopupController.cs
     ├── Middleware/{ScriptInjectionMiddleware,ScriptInjectionStartupFilter}.cs
@@ -68,9 +68,9 @@ jellyfin-info-popup-extention/
 
 ---
 
-## 3. version.json — Source unique de vérité
+## 3. version.json — Single source of truth
 
-**Ne jamais éditer les numéros de version manuellement. Utiliser `make bump-*`.**
+**Never edit version numbers manually. Use `make bump-*`.**
 
 ```json
 {
@@ -83,183 +83,183 @@ jellyfin-info-popup-extention/
 
 ---
 
-## 4. Workflow Makefile — Référence complète
+## 4. Makefile workflow — Complete reference
 
 ```bash
-make              # Aide
-make check        # Vérifie dotnet, git, jq, gh CLI
-make build        # Compile en Debug
+make              # Help
+make check        # Verify dotnet, git, jq, gh CLI
+make build        # Compile in Debug
 make build-release
-make pack         # Release + ZIP dans dist/
+make pack         # Release + ZIP in dist/
 make clean
 
 make bump-patch / bump-minor / bump-major
 make release-patch / release-minor / release-major
 ```
 
-**Séquence interne de `release-*` :**
+**Internal sequence of `release-*`:**
 1. bump version → `version.json` + `.csproj`
 2. `pack` → `dist/infopopup_X.Y.Z.0.zip`
-3. `manifest-update` → MD5, prépend entrée dans `manifest.json`
+3. `manifest-update` → MD5, prepend entry in `manifest.json`
 4. `push` → commit + push main
 5. `tag` → git tag + push
 6. `gh-release` → GitHub Release + upload ZIP
 
 ---
 
-## 5. Architecture — Points critiques
+## 5. Architecture — Critical points
 
-### Dual-layer SPA obligatoire
-Jellyfin-Web est une SPA. Toute UI client passe par `Web/client.js` injecté dans `index.html`. Aucun rendu HTML côté serveur.
+### Mandatory dual-layer SPA
+Jellyfin-Web is a SPA. All client UI goes through `Web/client.js` injected into `index.html`. No server-side HTML rendering.
 
-### Injection automatique via middleware
-`ScriptInjectionMiddleware` intercepte `/`, `/web`, `/web/`, `/web/index.html` et injecte `<script src="/InfoPopup/client.js"></script>` avant `</body>`.
+### Automatic injection via middleware
+`ScriptInjectionMiddleware` intercepts `/`, `/web`, `/web/`, `/web/index.html` and injects `<script src="/InfoPopup/client.js"></script>` before `</body>`.
 
-### Détection connexion : MutationObserver uniquement
-`document.body` observé avec `{ childList: true, subtree: true }` + listeners `hashchange` et `popstate`. `lastCheckedPath`, `checkScheduled` et `setTimeout(800ms)` dédupliquent les appels.
-**Guards obligatoires** : `schedulePopupCheck` retourne immédiatement si `#infoPopupConfigPage` est dans le DOM, ou si `popupActive === true`.
+### Login detection: MutationObserver only
+`document.body` observed with `{ childList: true, subtree: true }` + `hashchange` and `popstate` listeners. `lastCheckedPath`, `checkScheduled` and `setTimeout(800ms)` deduplicate calls.
+**Mandatory guards**: `schedulePopupCheck` returns immediately if `#infoPopupConfigPage` is in the DOM, or if `popupActive === true`.
 
-### Suivi des vues : 100% serveur
-`infopopup_seen.json` via `SeenTrackerService`. Jamais `localStorage` / `sessionStorage` / cookie.
+### View tracking: 100% server-side
+`infopopup_seen.json` via `SeenTrackerService`. Never `localStorage` / `sessionStorage` / cookie.
 
-### Modification de message : ID stable
-`PUT /InfoPopup/messages/{id}` met à jour titre et corps sans changer l'ID. `infopopup_seen.json` n'est pas touché. Un utilisateur ayant déjà vu le message ne le revoit pas après modification.
+### Message edit: stable ID
+`PUT /InfoPopup/messages/{id}` updates title and body without changing the ID. `infopopup_seen.json` is not touched. A user who had already seen the message will not see it again after editing.
 
-`MessageStore.Update()` retourne `PopupMessage?` (snapshot capturé dans le lock) et non `bool`. Le controller utilise ce snapshot directement — ne jamais rajouter un appel `GetById()` après `Update()` (TOCTOU).
+`MessageStore.Update()` returns `PopupMessage?` (snapshot captured inside the lock) and not `bool`. The controller uses this snapshot directly — never add a `GetById()` call after `Update()` (TOCTOU).
 
-### Aperçu formaté (v0.6)
-Le champ de saisie admin bascule entre deux modes via `setPreviewMode(page, on)` :
-- **Aperçu (on=true)** : div `#ip-body-preview` visible, `#ip-body` caché. Rendu via `updatePreview(page)` → `renderBody()`.
-- **Brut (on=false)** : textarea `#ip-body` visible, `#ip-body-preview` caché.
+### Formatted preview (v0.6)
+The admin input field toggles between two modes via `setPreviewMode(page, on)`:
+- **Preview (on=true)**: `#ip-body-preview` div visible, `#ip-body` hidden. Rendered via `updatePreview(page)` → `renderBody()`.
+- **Raw (on=false)**: `#ip-body` textarea visible, `#ip-body-preview` hidden.
 
-Règles obligatoires :
-- `enterEditMode` → `setPreviewMode(page, false)` (l'admin doit pouvoir éditer).
-- `exitEditMode` → `setPreviewMode(page, true)` (retour aperçu après annulation).
+Mandatory rules:
+- `enterEditMode` → `setPreviewMode(page, false)` (admin must be able to edit).
+- `exitEditMode` → `setPreviewMode(page, true)` (return to preview after cancellation).
 - `publishMessage` POST success → `setPreviewMode(page, true)`.
-- Clic sur un bouton format → `setPreviewMode(page, false)` avant d'appliquer.
-- Clic sur l'aperçu → `setPreviewMode(page, false)`.
-- `updatePreview(page)` est appelé sur chaque `input` du textarea et à l'intérieur de `setPreviewMode(page, true)`.
-- **Ne jamais** montrer le textarea et le div aperçu simultanément.
+- Click on a format button → `setPreviewMode(page, false)` before applying.
+- Click on the preview → `setPreviewMode(page, false)`.
+- `updatePreview(page)` is called on each textarea `input` event and inside `setPreviewMode(page, true)`.
+- **Never** show the textarea and the preview div simultaneously.
 
-### Contrôle d'accès sur les messages
-- **Admins** (`RequiresElevation`) : voient tous les messages sur tous les endpoints.
-- **Utilisateurs** : `GET /messages` et `GET /messages/{id}` filtrent selon `TargetUserIds`. Un message non ciblé retourne `404` (pas `403`) pour ne pas révéler son existence.
-- **UserId manquant** : tous les endpoints utilisateur retournent `401 Unauthorized` si le claim `Jellyfin-UserId` est absent du token.
+### Access control on messages
+- **Admins** (`RequiresElevation`): see all messages on all endpoints.
+- **Users**: `GET /messages` and `GET /messages/{id}` filter by `TargetUserIds`. A non-targeted message returns `404` (not `403`) to avoid revealing its existence.
+- **Missing UserId**: all user endpoints return `401 Unauthorized` if the `Jellyfin-UserId` claim is absent from the token.
 
-### Appel popup unique via /popup-data
-`GET /InfoPopup/popup-data` retourne en un seul appel :
-- `unseen` : messages non vus avec corps complet
-- `history` : résumés des messages déjà vus (corps chargé en lazy au clic)
+### Single popup call via /popup-data
+`GET /InfoPopup/popup-data` returns in a single call:
+- `unseen`: unread messages with full body
+- `history`: summaries of already-seen messages (body loaded lazily on click)
 
-Ne jamais revenir à l'ancien pattern qui enchaînait `/unseen` + N×`/messages/{id}` + `/messages` + M×`/messages/{id}`.
+Never revert to the old pattern that chained `/unseen` + N×`/messages/{id}` + `/messages` + M×`/messages/{id}`.
 
-### Race condition popup/marquage
-`popupActive` doit rester `true` pendant toute la durée entre le clic sur "Fermer" et la résolution du `POST /seen` côté serveur. La remise à `false` se fait exclusivement dans le `.finally()` de `markAllSeen()`. Ne jamais remettre `popupActive = false` avant cela.
+### Popup/marking race condition
+`popupActive` must remain `true` for the entire duration between clicking "Close" and the resolution of the `POST /seen` on the server side. Setting it back to `false` happens exclusively in the `.finally()` of `markAllSeen()`. Never set `popupActive = false` before that.
 
-### Suppression : POST /messages/delete
-Utiliser `POST /InfoPopup/messages/delete` et non `DELETE /messages` avec body. Certains proxies et pare-feux rejettent silencieusement le body sur DELETE.
+### Deletion: POST /messages/delete
+Use `POST /InfoPopup/messages/delete` and not `DELETE /messages` with a body. Some proxies and firewalls silently reject the body on DELETE.
 
-### Cache SeenTrackerService
-`SeenTrackerService` maintient un cache mémoire `_cache` du fichier JSON. Il est invalidé uniquement à l'écriture (`WriteStore`). Ne pas appeler `File.ReadAllText` à l'intérieur d'un lock sans passer par `ReadStore()`.
+### SeenTrackerService cache
+`SeenTrackerService` maintains an in-memory cache `_cache` of the JSON file. It is invalidated only on write (`WriteStore`). Do not call `File.ReadAllText` inside a lock without going through `ReadStore()`.
 
-### Référence config dans MessageStore
-Dans `MessageStore`, toujours capturer `var cfg = GetConfig()` à l'intérieur du bloc lockté. Ne jamais appeler `GetConfig()` plusieurs fois dans la même opération : si Jellyfin recharge la config entre deux appels, la référence change et les modifications pourraient être perdues.
+### Config reference in MessageStore
+In `MessageStore`, always capture `var cfg = GetConfig()` inside the locked block. Never call `GetConfig()` multiple times in the same operation: if Jellyfin reloads the config between two calls, the reference changes and modifications could be lost.
 
-### Formatage du corps : markup IP
-Syntaxe supportée : `**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, lignes `- liste`.
-Pipeline de rendu dans `renderBody()` :
-1. `escHtml()` sur chaque ligne ou token — **le texte brut est toujours échappé en premier**
-2. Remplacement regex sur le texte échappé → balises HTML whitelistées (`<strong>`, `<em>`, `<u>`, `<s>`, `<ul>`, `<li>`)
-3. Résultat injecté via `innerHTML` — XSS impossible car aucune donnée utilisateur ne passe en clair
+### Body formatting: IP markup
+Supported syntax: `**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, `- list` lines.
+Rendering pipeline in `renderBody()`:
+1. `escHtml()` on each line or token — **raw text is always escaped first**
+2. Regex replacement on the escaped text → whitelisted HTML tags (`<strong>`, `<em>`, `<u>`, `<s>`, `<ul>`, `<li>`)
+3. Result injected via `innerHTML` — XSS impossible because no user data passes through unescaped
 
-**Ne jamais inverser l'ordre `escHtml` / remplacement.**
+**Never reverse the `escHtml` / replacement order.**
 
-### injectStyles() — portée et idempotence
-`injectStyles()` injecte toutes les CSS globales dans `<head>` (popup, historique, confirm dialog, tableau admin). Elle est idempotente (guard sur `#infopopup-styles`).
-**Règle** : tout composant JS qui crée des éléments stylisés par ces classes doit s'assurer que `injectStyles()` a été appelé avant. `initConfigPage()` l'appelle en premier.
+### injectStyles() — scope and idempotence
+`injectStyles()` injects all global CSS into `<head>` (popup, history, confirm dialog, admin table). It is idempotent (guard on `#infopopup-styles`).
+**Rule**: any JS component that creates elements styled by these classes must ensure that `injectStyles()` has been called before. `initConfigPage()` calls it first.
 
-### Styles SPA-persistants
-Tous les CSS pour des éléments ajoutés dynamiquement au `<body>` doivent être dans `injectStyles()`. Les `<style>` de `configurationpage.html` ne persistent pas lors des transitions SPA.
+### SPA-persistent styles
+All CSS for elements dynamically added to `<body>` must be in `injectStyles()`. The `<style>` blocks in `configurationpage.html` do not persist across SPA transitions.
 
-### Sérialisation JSON Jellyfin
-Jellyfin peut sérialiser en camelCase ou PascalCase. Toujours `msg.field || msg.Field || ''` pour tous les champs lus depuis l'API.
+### Jellyfin JSON serialization
+Jellyfin may serialize in camelCase or PascalCase. Always `msg.field || msg.Field || ''` for all fields read from the API.
 
-### Checkboxes dans le tableau admin
-Utiliser `<input type="checkbox">` natif avec `accent-color` inline. Ne jamais utiliser `emby-checkbox` dans du HTML généré dynamiquement (masque l'input natif, zone de clic nulle si `<span>` vide).
-
----
-
-## 6. API REST — Référence complète
-
-| Méthode | Route | Auth | Description |
-|---------|-------|------|-------------|
-| GET | `/InfoPopup/messages` | user/admin | Résumés filtrés par ciblage (admin : tous) |
-| GET | `/InfoPopup/messages/{id}` | user/admin | Détail complet (404 si non ciblé et non-admin) |
-| POST | `/InfoPopup/messages` | **admin** | Créer un message |
-| PUT | `/InfoPopup/messages/{id}` | **admin** | Modifier titre/corps (ID stable, vues préservées) |
-| POST | `/InfoPopup/messages/delete` | **admin** | Supprimer (body `{ ids: [...] }`) |
-| GET | `/InfoPopup/popup-data` | user | Non-vus + historique en un seul appel |
-| GET | `/InfoPopup/unseen` | user | Messages non vus (compatibilité, préférer popup-data) |
-| POST | `/InfoPopup/seen` | user | Marquer vus (body `{ ids: [...] }`) |
-| GET | `/InfoPopup/client.js` | anonyme | Script client embarqué |
+### Checkboxes in the admin table
+Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby-checkbox` in dynamically generated HTML (hides the native input, zero click area if `<span>` is empty).
 
 ---
 
-## 7. Règles métier — Non négociables
+## 6. REST API — Complete reference
 
-| # | Règle |
-|---|-------|
-| R1 | Un message **supprimé disparaît définitivement et partout** — popup ET historique, pour tous les utilisateurs. |
-| R2 | Un message est affiché **une seule fois** par utilisateur (suivi serveur). |
-| R3 | La popup affiche **tous** les messages non vus simultanément — le plus récent en principal ou en première carte. |
-| R4 | À la fermeture, **tous** les non-vus sont marqués vus en batch. `popupActive` reste `true` jusqu'à confirmation serveur. |
-| R5 | POST/PUT/POST(delete) `/InfoPopup/messages` → **admin uniquement** (`RequiresElevation`). |
-| R6 | Nettoyage des orphelins dans `infopopup_seen.json` → **paresseux**, au prochain accès. |
-| R7 | `escHtml()` **toujours avant** les remplacements de formatage. Jamais de données utilisateur brutes dans `innerHTML`. |
-| R8 | `PUT /InfoPopup/messages/{id}` ne modifie **jamais** l'ID ni `infopopup_seen.json` — un message modifié n'est pas réaffiché aux utilisateurs qui l'avaient vu. |
-| R9 | `GET /messages` et `GET /messages/{id}` filtrent par `TargetUserIds` pour les non-admins. Retourner `404` (pas `403`) si non ciblé. |
-| R10 | Tout endpoint user retourne `401` si le claim `Jellyfin-UserId` est absent. Jamais de fallback sur `string.Empty`. |
-
----
-
-## 8. Procédure de modification du code
-
-### Avant
-1. Lire le fichier concerné en entier
-2. Identifier tous les fichiers impactés (changement API → `client.js` + `configurationpage.html` + `README.md`)
-3. Vérifier cohérence avec les règles R1–R10
-
-### Pendant
-- Préserver les commentaires XML C# sur les membres publics
-- Ne **jamais** changer le GUID
-- Ne **jamais** éditer `version.json` ou `<Version>` dans le `.csproj` à la main
-- Ne **jamais** éditer `manifest.json` à la main
-
-### Après
-- Vérifier les règles R1–R10
-- Ajouter l'entrée dans `CHANGELOG.md`
-- Mettre à jour `README.md` et `CLAUDE.md` si l'architecture ou une règle change
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/InfoPopup/messages` | user/admin | Summaries filtered by targeting (admin: all) |
+| GET | `/InfoPopup/messages/{id}` | user/admin | Full detail (404 if not targeted and non-admin) |
+| POST | `/InfoPopup/messages` | **admin** | Create a message |
+| PUT | `/InfoPopup/messages/{id}` | **admin** | Edit title/body (stable ID, views preserved) |
+| POST | `/InfoPopup/messages/delete` | **admin** | Delete (body `{ ids: [...] }`) |
+| GET | `/InfoPopup/popup-data` | user | Unseen + history in a single call |
+| GET | `/InfoPopup/unseen` | user | Unread messages (compatibility, prefer popup-data) |
+| POST | `/InfoPopup/seen` | user | Mark as seen (body `{ ids: [...] }`) |
+| GET | `/InfoPopup/client.js` | anonymous | Embedded client script |
 
 ---
 
-## 9. Pièges récurrents
+## 7. Business rules — Non-negotiable
 
-- `client.js` doit être `<EmbeddedResource>` dans le `.csproj` — sinon 404 sur `/InfoPopup/client.js`
-- Le nom de ressource assembly est exactement `Jellyfin.Plugin.InfoPopup.Web.client.js`
-- `HttpContext.User.FindFirst("Jellyfin-UserId")` — pas `User.Identity.Name`
-- Policy admin : `"RequiresElevation"` dans Jellyfin 10.10+
-- **`popupActive` remis trop tôt** : ne jamais faire `popupActive = false` avant le `.finally()` de `markAllSeen()`. Symptôme : la popup réapparaît immédiatement après fermeture si navigation rapide.
-- **DELETE avec body** : utiliser `POST /InfoPopup/messages/delete`. Ne jamais revenir à `DELETE` avec body — peut être ignoré silencieusement par des proxies.
-- **`GetConfig()` hors lock** : toujours capturer `var cfg = GetConfig()` à l'intérieur du bloc lockté dans `MessageStore`. Ne jamais accéder via la propriété statique directement dans une opération multi-étapes.
-- **Cache SeenTrackerService** : ne pas lire le fichier JSON directement — toujours passer par `ReadStore()` qui gère le cache.
-- **`injectStyles()` non appelée** : tout composant qui génère des éléments DOM stylisés par les classes IP doit s'assurer que `injectStyles()` a été appelée. Symptôme : styles absents en navigation directe vers la page config.
-- **`renderBody()` vs `textContent`** : utiliser `renderBody()` + `innerHTML` pour les corps de messages. Ne jamais utiliser `textContent` pour le rendu final.
-- **`emby-checkbox` dynamique** : `<span></span>` vide = 0px = zone de clic nulle. Toujours `<input type="checkbox">` natif avec `accent-color` inline.
-- **Styles SPA** : les `<style>` de `configurationpage.html` disparaissent lors des transitions. Tout CSS pour des overlays/éléments ajoutés au `<body>` doit être dans `injectStyles()`.
-- **Fallback PascalCase** : toujours `msg.body || msg.Body || ''` — jamais un seul casing.
-- **Jellyfin 10.11** : React Router + MUI. Les sélecteurs legacy (`#indexPage`, `.homePage`) n'existent plus. MutationObserver sur `document.body` sans restriction de sélecteur est la seule approche fiable.
-- **`PUT` sans changer l'ID** : ne jamais recréer un message pour simuler une modification. Toujours passer par `MessageStore.Update()` qui préserve l'ID et ne touche pas à `infopopup_seen.json`.
-- **`Update()` retourne `PopupMessage?`** : ne jamais appeler `GetById()` après `Update()` dans le controller — le snapshot retourné par `Update()` est la source de vérité (élimine le TOCTOU).
-- **`setPreviewMode` / `updatePreview` oubliés** : tout code qui modifie `bodyEl.value` programmatiquement (enterEditMode, exitEditMode, reset post-publish) doit appeler `setPreviewMode` et/ou `updatePreview`. Symptôme : l'aperçu montre l'ancien contenu ou le textarea reste visible après publication.
-- **`usersCache` TTL** : `fetchUsers()` applique un TTL de 5 minutes via `usersCacheAt`. Ne pas supprimer ce mécanisme — sans lui, les nouveaux utilisateurs créés dans la session sont invisibles dans le sélecteur de ciblage.
-- **Styles admin dans `injectStyles()`** : table, badges, toast, target picker, toolbar, editor-wrap et toggle switch sont dans `injectStyles()`. Ne jamais les remettre dans un `<style>` de `configurationpage.html` — ils disparaîtraient en navigation SPA.
+| # | Rule |
+|---|------|
+| R1 | A **deleted message disappears permanently and everywhere** — popup AND history, for all users. |
+| R2 | A message is displayed **only once** per user (server-side tracking). |
+| R3 | The popup displays **all** unread messages simultaneously — the most recent as the main one or as the first card. |
+| R4 | On close, **all** unread messages are marked as seen in batch. `popupActive` stays `true` until server confirmation. |
+| R5 | POST/PUT/POST(delete) `/InfoPopup/messages` → **admin only** (`RequiresElevation`). |
+| R6 | Cleanup of orphans in `infopopup_seen.json` → **lazy**, on next access. |
+| R7 | `escHtml()` **always before** formatting replacements. Never raw user data in `innerHTML`. |
+| R8 | `PUT /InfoPopup/messages/{id}` **never** modifies the ID or `infopopup_seen.json` — an edited message is not re-displayed to users who had already seen it. |
+| R9 | `GET /messages` and `GET /messages/{id}` filter by `TargetUserIds` for non-admins. Return `404` (not `403`) if not targeted. |
+| R10 | All user endpoints return `401` if the `Jellyfin-UserId` claim is absent. Never fall back to `string.Empty`. |
+
+---
+
+## 8. Code modification procedure
+
+### Before
+1. Read the file in its entirety
+2. Identify all impacted files (API change → `client.js` + `configurationpage.html` + `README.md`)
+3. Verify consistency with rules R1–R10
+
+### During
+- Preserve XML C# comments on public members
+- **Never** change the GUID
+- **Never** manually edit `version.json` or `<Version>` in the `.csproj`
+- **Never** manually edit `manifest.json`
+
+### After
+- Verify rules R1–R10
+- Add the entry to `CHANGELOG.md`
+- Update `README.md` and `CLAUDE.md` if the architecture or a rule changes
+
+---
+
+## 9. Recurring pitfalls
+
+- `client.js` must be `<EmbeddedResource>` in the `.csproj` — otherwise 404 on `/InfoPopup/client.js`
+- The assembly resource name is exactly `Jellyfin.Plugin.InfoPopup.Web.client.js`
+- `HttpContext.User.FindFirst("Jellyfin-UserId")` — not `User.Identity.Name`
+- Admin policy: `"RequiresElevation"` in Jellyfin 10.10+
+- **`popupActive` reset too early**: never set `popupActive = false` before the `.finally()` of `markAllSeen()`. Symptom: the popup reappears immediately after closing if navigation is fast.
+- **DELETE with body**: use `POST /InfoPopup/messages/delete`. Never revert to `DELETE` with a body — it may be silently ignored by proxies.
+- **`GetConfig()` outside lock**: always capture `var cfg = GetConfig()` inside the locked block in `MessageStore`. Never access it via the static property directly in a multi-step operation.
+- **SeenTrackerService cache**: do not read the JSON file directly — always go through `ReadStore()` which handles the cache.
+- **`injectStyles()` not called**: any component that generates DOM elements styled by IP classes must ensure `injectStyles()` has been called. Symptom: styles missing when navigating directly to the config page.
+- **`renderBody()` vs `textContent`**: use `renderBody()` + `innerHTML` for message body rendering. Never use `textContent` for final rendering.
+- **Dynamic `emby-checkbox`**: `<span></span>` empty = 0px = zero click area. Always use native `<input type="checkbox">` with inline `accent-color`.
+- **SPA styles**: the `<style>` blocks in `configurationpage.html` disappear during transitions. All CSS for overlays/elements added to `<body>` must be in `injectStyles()`.
+- **PascalCase fallback**: always `msg.body || msg.Body || ''` — never a single casing.
+- **Jellyfin 10.11**: React Router + MUI. Legacy selectors (`#indexPage`, `.homePage`) no longer exist. MutationObserver on `document.body` without selector restriction is the only reliable approach.
+- **`PUT` without changing the ID**: never recreate a message to simulate an edit. Always go through `MessageStore.Update()` which preserves the ID and doesn't touch `infopopup_seen.json`.
+- **`Update()` returns `PopupMessage?`**: never call `GetById()` after `Update()` in the controller — the snapshot returned by `Update()` is the source of truth (eliminates TOCTOU).
+- **Forgotten `setPreviewMode` / `updatePreview`**: any code that programmatically modifies `bodyEl.value` (enterEditMode, exitEditMode, post-publish reset) must call `setPreviewMode` and/or `updatePreview`. Symptom: the preview shows old content or the textarea remains visible after publishing.
+- **`usersCache` TTL**: `fetchUsers()` applies a 5-minute TTL via `usersCacheAt`. Do not remove this mechanism — without it, users created during the session are invisible in the targeting selector.
+- **Admin styles in `injectStyles()`**: table, badges, toast, target picker, toolbar, editor-wrap and toggle switch are in `injectStyles()`. Never put them back in a `<style>` in `configurationpage.html` — they would disappear on SPA navigation.
