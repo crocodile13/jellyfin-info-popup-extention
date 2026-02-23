@@ -145,7 +145,7 @@
         table.innerHTML =
             '<thead><tr>' +
             '<th class="ip-col-check"></th>' +
-            '<th>Titre</th>' +
+            '<th>Titre <span style="opacity:.45;font-size:.8rem;font-weight:400">(cliquer pour d\u00e9velopper)</span></th>' +
             '<th class="ip-col-target">Destinataires</th>' +
             '<th class="ip-col-date">Publi\u00e9 le</th>' +
             '</tr></thead>' +
@@ -167,15 +167,48 @@
                 '<td class="ip-col-check">' +
                 '<input type="checkbox" class="ip-row-check" data-id="' + escHtml(id) + '" style="width:16px;height:16px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);"/>' +
                 '</td>' +
-                '<td class="ip-col-title">' + escHtml(title) + '</td>' +
+                '<td class="ip-col-title ip-col-title-toggle">' +
+                '<span class="ip-row-title-text">' + escHtml(title) + '</span>' +
+                '<span class="ip-row-chev">\u25b6</span>' +
+                '</td>' +
                 '<td class="ip-col-target">' + targetBadge + '</td>' +
                 '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>';
+
+            // Ligne d'expansion pour le corps du message
+            var expandTr = document.createElement('tr');
+            expandTr.className = 'ip-row-expand';
+            var expandTd = document.createElement('td');
+            expandTd.colSpan = 4;
+            expandTd.className = 'ip-row-expand-td';
+            expandTd.textContent = 'Chargement\u2026';
+            expandTr.appendChild(expandTd);
+
+            var isOpen = false;
+            var bodyLoaded = false;
+            tr.querySelector('.ip-col-title-toggle').addEventListener('click', function () {
+                isOpen = !isOpen;
+                expandTr.classList.toggle('visible', isOpen);
+                tr.querySelector('.ip-row-chev').classList.toggle('open', isOpen);
+                if (isOpen && !bodyLoaded) {
+                    bodyLoaded = true;
+                    apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) {
+                            expandTd.textContent = data.body || data.Body || '(vide)';
+                        })
+                        .catch(function () {
+                            expandTd.textContent = '(Erreur lors du chargement)';
+                        });
+                }
+            });
+
             tr.querySelector('.ip-row-check').addEventListener('change', function (e) {
                 if (e.target.checked) selectedIds.add(id);
                 else selectedIds.delete(id);
                 updateSelectionUI(page, selectedIds);
             });
             tbody.appendChild(tr);
+            tbody.appendChild(expandTr);
         });
         container.innerHTML = '';
         container.appendChild(table);
@@ -475,7 +508,20 @@
             '.ip-confirm-box p{margin:0 0 22px;opacity:.8;font-size:.93rem;line-height:1.5}',
             '.ip-confirm-actions{display:flex;justify-content:flex-end;gap:12px}',
             '.ip-confirm-actions .ip-btn-cancel{background:rgba(255,255,255,.1);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:9px 22px;font-size:.95rem;font-weight:500;cursor:pointer;transition:background .15s}',
-            '.ip-confirm-actions .ip-btn-cancel:hover{background:rgba(255,255,255,.18)}'
+            '.ip-confirm-actions .ip-btn-cancel:hover{background:rgba(255,255,255,.18)}',
+            /* ── Multi-messages non vus ── */
+            '#infopopup-msgs{padding:12px 20px;display:flex;flex-direction:column;gap:12px}',
+            '.ip-msg-card{border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}',
+            '.ip-msg-card-title{font-weight:600;font-size:.97rem;padding:11px 14px 10px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.08);overflow-wrap:break-word;word-break:break-word}',
+            '.ip-msg-card-body{padding:11px 14px 13px;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;line-height:1.6;opacity:.92;font-size:.93rem}',
+            /* ── Expand rows dans le tableau admin ── */
+            '.ip-col-title-toggle{cursor:pointer;user-select:none}',
+            '.ip-col-title-toggle:hover .ip-row-title-text{text-decoration:underline;text-underline-offset:2px}',
+            '.ip-row-chev{margin-left:8px;opacity:.45;font-size:.72rem;transition:transform .18s;display:inline-block;vertical-align:middle}',
+            '.ip-row-chev.open{transform:rotate(90deg)}',
+            '.ip-row-expand{display:none}',
+            '.ip-row-expand.visible{display:table-row}',
+            '.ip-row-expand-td{padding:10px 16px 14px !important;background:rgba(0,0,0,.18);white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;font-size:.9rem;line-height:1.6;opacity:.88}'
         ].join('\n');
         document.head.appendChild(s);
     }
@@ -536,10 +582,16 @@
         return block;
     }
 
-    function showPopup(newestMsg, olderMessages, allUnseenIds) {
+    function showPopup(unseenMessages, seenMessages) {
         if (popupActive) return;
         popupActive = true;
         injectStyles();
+
+        var allUnseenIds = unseenMessages.map(function (m) { return m.id || m.Id || ''; });
+        var isSingle = unseenMessages.length === 1;
+        var headerTitle = isSingle
+            ? (unseenMessages[0].title || unseenMessages[0].Title || '')
+            : unseenMessages.length + ' nouveaux messages';
 
         var backdrop = document.createElement('div');
         backdrop.id = 'infopopup-backdrop';
@@ -547,22 +599,44 @@
         dialog.id = 'infopopup-dialog';
         dialog.setAttribute('role', 'dialog');
         dialog.setAttribute('aria-modal', 'true');
-        dialog.setAttribute('aria-label', newestMsg.title);
+        dialog.setAttribute('aria-label', headerTitle);
 
         var header = document.createElement('div');
         header.id = 'infopopup-header';
         header.innerHTML =
             '<span class="ip-icon" aria-hidden="true">\ud83d\udd14</span>' +
-            '<span class="ip-title">' + escHtml(newestMsg.title) + '</span>' +
+            '<span class="ip-title">' + escHtml(headerTitle) + '</span>' +
             '<button class="ip-close-btn" aria-label="Fermer" title="Fermer">\u2715</button>';
 
-        var body = document.createElement('div');
-        body.id = 'infopopup-body';
-        body.textContent = newestMsg.body || newestMsg.Body || '';
-
         dialog.appendChild(header);
-        dialog.appendChild(body);
-        if (olderMessages.length > 0) dialog.appendChild(buildHistoryBlock(olderMessages));
+
+        if (isSingle) {
+            // Un seul message non vu : affichage classique titre + corps
+            var body = document.createElement('div');
+            body.id = 'infopopup-body';
+            body.textContent = unseenMessages[0].body || unseenMessages[0].Body || '';
+            dialog.appendChild(body);
+        } else {
+            // Plusieurs messages non vus : chaque message dans sa propre carte
+            var msgsContainer = document.createElement('div');
+            msgsContainer.id = 'infopopup-msgs';
+            unseenMessages.forEach(function (msg) {
+                var card = document.createElement('div');
+                card.className = 'ip-msg-card';
+                var cardTitle = document.createElement('div');
+                cardTitle.className = 'ip-msg-card-title';
+                cardTitle.textContent = msg.title || msg.Title || '';
+                var cardBody = document.createElement('div');
+                cardBody.className = 'ip-msg-card-body';
+                cardBody.textContent = msg.body || msg.Body || '';
+                card.appendChild(cardTitle);
+                card.appendChild(cardBody);
+                msgsContainer.appendChild(card);
+            });
+            dialog.appendChild(msgsContainer);
+        }
+
+        if (seenMessages.length > 0) dialog.appendChild(buildHistoryBlock(seenMessages));
 
         var footer = document.createElement('div');
         footer.id = 'infopopup-footer';
@@ -604,19 +678,23 @@
             .then(function (res) { return res.json(); })
             .then(function (unseenList) {
                 if (!unseenList || !unseenList.length) return;
-                return apiFetch('/InfoPopup/messages')
-                    .then(function (res) { return res.json(); })
-                    .then(function (allMessages) {
-                        var newest = unseenList[0];
-                        var newestId = newest.id || newest.Id || '';
-                        return apiFetch('/InfoPopup/messages/' + encodeURIComponent(newestId))
-                            .then(function (res) { return res.json(); })
-                            .then(function (newestFull) {
-                                var older = allMessages.filter(function (m) { return (m.id || m.Id) !== newestId; });
-                                var allUnseenIds = unseenList.map(function (m) { return m.id || m.Id || ''; });
-                                showPopup(newestFull, older, allUnseenIds);
-                            });
+                var unseenIds = unseenList.map(function (m) { return m.id || m.Id || ''; });
+                // Récupérer le corps complet de chaque message non vu + tous les messages
+                return Promise.all([
+                    Promise.all(unseenIds.map(function (id) {
+                        return apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
+                            .then(function (res) { return res.json(); });
+                    })),
+                    apiFetch('/InfoPopup/messages').then(function (res) { return res.json(); })
+                ]).then(function (results) {
+                    var unseenFull = results[0];
+                    var allMessages = results[1];
+                    // Les messages déjà vus = tous les messages sauf ceux non vus
+                    var seenMessages = allMessages.filter(function (m) {
+                        return unseenIds.indexOf(m.id || m.Id || '') === -1;
                     });
+                    showPopup(unseenFull, seenMessages);
+                });
             })
             .catch(function () {
                 // Silencieux : session expirée, réseau KO, aucun message
