@@ -31,6 +31,11 @@
   <ItemGroup>
     <EmbeddedResource Include="Web\configurationpage.html" />
     <EmbeddedResource Include="Web\client.js" />
+    <EmbeddedResource Include="Web\ip-i18n.js" />
+    <EmbeddedResource Include="Web\ip-utils.js" />
+    <EmbeddedResource Include="Web\ip-styles.js" />
+    <EmbeddedResource Include="Web\ip-admin.js" />
+    <EmbeddedResource Include="Web\ip-popup.js" />
   </ItemGroup>
 
 </Project>

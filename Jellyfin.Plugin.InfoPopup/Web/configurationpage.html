@@ -7,7 +7,7 @@
             <span class="material-icons" style="vertical-align:middle;margin-right:8px;">notifications_active</span>
             Info Popup
         </h2>
-        <p class="sectionText" style="opacity:.75;margin-top:4px;">
+        <p id="ip-subtitle" class="sectionText" style="opacity:.75;margin-top:4px;">
             Diffusez des messages à tous les utilisateurs. Le message s'affiche en popup à leur prochaine connexion.
         </p>
     </div>
@@ -17,7 +17,7 @@
         <h3 class="sectionTitle" id="ip-form-section-title">Nouveau message</h3>
 
         <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="ip-title">Titre *</label>
+            <label id="ip-title-label" class="inputLabel inputLabelUnfocused" for="ip-title">Titre *</label>
             <input id="ip-title"
                    type="text"
                    class="emby-input"
@@ -28,17 +28,17 @@
         </div>
 
         <div class="inputContainer" style="margin-top:16px;">
-            <label class="inputLabel inputLabelUnfocused" for="ip-body">Message *</label>
+            <label id="ip-body-label" class="inputLabel inputLabelUnfocused" for="ip-body">Message *</label>
 
             <!-- Toolbar de formatage + toggle apercu/brut -->
             <div id="ip-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">
                 <button type="button" class="ip-fmt-btn" data-action="bold"      title="Gras"><strong>B</strong></button>
                 <button type="button" class="ip-fmt-btn" data-action="italic"    title="Italique"><em>I</em></button>
-                <button type="button" class="ip-fmt-btn" data-action="underline" title="Soulige"><u>U</u></button>
+                <button type="button" class="ip-fmt-btn" data-action="underline" title="Souligne"><u>U</u></button>
                 <button type="button" class="ip-fmt-btn" data-action="strike"    title="Barre"><s>S</s></button>
                 <button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list" title="Liste a puces">&#8226; Liste</button>
                 <label class="ip-preview-toggle-wrap" for="ip-preview-toggle"
-                       title="Activer pour afficher le texte brut (désactive l'aperçu formaté)">
+                       title="Activer pour afficher le texte brut (desactive l'apercu formate)">
                     <div class="ip-toggle-switch">
                         <input type="checkbox" id="ip-preview-toggle">
                         <span class="ip-toggle-slider"></span>
@@ -64,7 +64,7 @@
         </div>
 
         <div class="inputContainer" style="margin-top:16px;">
-            <label class="inputLabel inputLabelUnfocused">Destinataires</label>
+            <label id="ip-recipients-label" class="inputLabel inputLabelUnfocused">Destinataires</label>
             <div id="ip-target-picker" style="margin-top:8px;">
                 <span style="opacity:.5;font-size:.88rem;">Chargement des utilisateurs...</span>
             </div>
@@ -84,24 +84,24 @@
 
     <!-- Historique des messages -->
     <div class="detailSection" style="margin-top:32px;">
-        <h3 class="sectionTitle">Historique des messages</h3>
+        <h3 id="ip-history-title" class="sectionTitle">Historique des messages</h3>
 
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
                 <input id="ip-select-all" type="checkbox"
                        style="width:16px;height:16px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);flex-shrink:0;"/>
-                <span>Tout selectionner</span>
+                <span id="ip-select-all-label">Tout selectionner</span>
             </label>
             <button id="ip-delete-btn" class="raised emby-button button-delete" type="button" disabled
                     style="display:flex;align-items:center;gap:6px;">
                 <span class="material-icons" style="font-size:1em;">delete</span>
-                Supprimer la selection
+                <span id="ip-delete-btn-label">Supprimer la selection</span>
             </button>
             <span id="ip-sel-count" style="opacity:.6;font-size:.88rem;"></span>
         </div>
 
         <div id="ip-msg-container">
-            <p id="ip-empty" style="opacity:.55;">Aucun message publi&#233; pour le moment.</p>
+            <p id="ip-empty" style="opacity:.55;">Aucun message publie pour le moment.</p>
         </div>
     </div>
 

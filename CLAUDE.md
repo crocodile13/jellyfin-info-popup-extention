@@ -63,57 +63,106 @@ jellyfin-info-popup-extention/
     ├── Services/{MessageStore,SeenTrackerService}.cs
     ├── Controllers/InfoPopupController.cs
     ├── Middleware/{ScriptInjectionMiddleware,ScriptInjectionStartupFilter}.cs
-    └── Web/{client.js,configurationpage.html}
+    └── Web/
+        ├── client.js                  ← loader séquentiel (~50 lignes)
+        ├── ip-i18n.js                 ← détection langue + dictionnaires FR/EN
+        ├── ip-utils.js                ← utilitaires partagés
+        ├── ip-styles.js               ← CSS idempotent dans <head>
+        ├── ip-admin.js                ← page de configuration admin
+        ├── ip-popup.js                ← popup utilisateur + MutationObserver
+        └── configurationpage.html
 ```
 
 ---
 
-## 3. version.json — Single source of truth
+## 3. Files managed exclusively by the Makefile — NEVER touch manually
 
-**Never edit version numbers manually. Use `make bump-*`.**
+> **These files must NEVER be edited by hand or by Claude.**
+> They are fully managed by the Makefile and its scripts. Any manual edit
+> will desynchronize the version, the checksum, or the git history and
+> will break the Jellyfin plugin installation.
 
-```json
-{
-  "major": 0,
-  "minor": 6,
-  "patch": 0,
-  "targetAbi": "10.10.0.0"
-}
-```
+| File | Managed by | What it does |
+|------|-----------|--------------|
+| `version.json` | `make bump-*` via `scripts/bump_version.sh` | Increments major/minor/patch |
+| `<Version>` in `.csproj` | `make bump-*` via `scripts/bump_version.sh` | Kept in sync with `version.json` |
+| `manifest.json` | `make manifest-update` via `scripts/update_manifest.sh` | Prepends a new version entry with the **real MD5 downloaded from GitHub** |
+| `dist/infopopup_*.zip` | `make pack` | Release ZIP built from the compiled DLL |
+
+### Why the MD5 in manifest.json must come from GitHub, not locally
+
+`manifest.json` contains the MD5 that Jellyfin will verify against the ZIP it downloads from GitHub Releases. The local ZIP and the GitHub-served ZIP could differ (CDN processing, re-upload, CI interference). `make manifest-update` downloads the ZIP from GitHub and computes the checksum from what Jellyfin will actually receive. **Never compute or paste an MD5 manually.**
+
+### What `make bump-*` modifies (and only that)
+
+`scripts/bump_version.sh` touches exactly two things:
+1. `version.json` — increments the appropriate number, resets lower components
+2. `<Version>X.Y.Z.0</Version>` in `Jellyfin.Plugin.InfoPopup.csproj` — sed replace
+
+It does **not** touch `manifest.json`, `CHANGELOG.md`, or any source file.
+
+### What `make manifest-update` modifies (and only that)
+
+`scripts/update_manifest.sh` touches exactly one thing:
+- `manifest.json` — prepends a new entry to `versions[]` (or replaces it if the version already exists), with the checksum fetched from GitHub
+
+It does **not** touch `version.json`, `.csproj`, or any source file.
 
 ---
 
 ## 4. Makefile workflow — Complete reference
 
 ```bash
-make              # Help
-make check        # Verify dotnet, git, jq, gh CLI
-make build        # Compile in Debug
-make build-release
-make pack         # Release + ZIP in dist/
-make clean
+make                   # Help + Jellyfin repository URL
+make check             # Verify dotnet, git, jq, gh CLI, gh auth
+make version           # Display current version and associated URLs
+make verify            # Check that the GitHub ZIP matches the manifest checksum
 
-make bump-patch / bump-minor / bump-major
-make release-patch / release-minor / release-major
+make build             # Compile in Debug
+make build-release     # Compile in Release (no ZIP)
+make pack              # Compile Release + create ZIP in dist/
+make clean             # Delete bin/, obj/, dist/*.zip
+
+make bump-patch        # 0.6.0 → 0.6.1  (version.json + .csproj only)
+make bump-minor        # 0.6.0 → 0.7.0  (version.json + .csproj only)
+make bump-major        # 0.6.0 → 1.0.0  (version.json + .csproj only)
+
+make release-patch     # Full release: bump-patch → pack → push → tag → gh-release → manifest-update → push
+make release-minor     # Full release: bump-minor → …
+make release-major     # Full release: bump-major → …
+make release-hotfix    # Recompile + re-upload ZIP on existing release, no version bump
 ```
 
-**Internal sequence of `release-*`:**
-1. bump version → `version.json` + `.csproj`
+**Guaranteed sequence inside `release-*`:**
+1. `bump-*` → `version.json` + `<Version>` in `.csproj`
 2. `pack` → `dist/infopopup_X.Y.Z.0.zip`
-3. `manifest-update` → MD5, prepend entry in `manifest.json`
-4. `push` → commit + push main
-5. `tag` → git tag + push
-6. `gh-release` → GitHub Release + upload ZIP
+3. `push` → commit + push code (without manifest yet)
+4. `tag` → create and push git tag `vX.Y.Z.0`
+5. `gh-release` → create GitHub Release + upload ZIP
+6. `manifest-update` → download ZIP from GitHub, compute real MD5, prepend to `manifest.json`
+7. `push` → commit + push manifest
+
+**`release-hotfix` sequence** (same version, ZIP replacement only):
+1. `pack` → recompile
+2. `gh-release-upload` → delete old asset (invalidates CDN cache) + upload new ZIP
+3. `manifest-update` → recompute MD5 from the new GitHub ZIP
+4. `push` → commit + push manifest
 
 ---
 
 ## 5. Architecture — Critical points
 
 ### Mandatory dual-layer SPA
-Jellyfin-Web is a SPA. All client UI goes through `Web/client.js` injected into `index.html`. No server-side HTML rendering.
+Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `index.html`. No server-side HTML rendering.
 
 ### Automatic injection via middleware
 `ScriptInjectionMiddleware` intercepts `/`, `/web`, `/web/`, `/web/index.html` and injects `<script src="/InfoPopup/client.js"></script>` before `</body>`.
+
+### Modular JS architecture (v0.6+)
+`client.js` is a lightweight loader (~50 lines) that sequentially injects `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` via dynamic `<script>` tags with `load` event chaining. All inter-module communication goes through the `window.__IP` namespace (IIFE pattern: `(function(ns){ ... }(window.__IP = window.__IP || {}))`).
+
+### i18n — language detection
+`ip-i18n.js` detects the language from `document.documentElement.lang` (set by Jellyfin Web based on user settings), with `navigator.language` as fallback. Normalized to `'fr'` or `'en'` (default). `window.__IP.t(key, ...args)` is the single translation entry point. `applyStaticTranslations(page)` in `ip-admin.js` updates all static elements of `configurationpage.html` at init time.
 
 ### Login detection: MutationObserver only
 `document.body` observed with `{ childList: true, subtree: true }` + `hashchange` and `popstate` listeners. `lastCheckedPath`, `checkScheduled` and `setTimeout(800ms)` deduplicate calls.
@@ -201,7 +250,7 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 | GET | `/InfoPopup/popup-data` | user | Unseen + history in a single call |
 | GET | `/InfoPopup/unseen` | user | Unread messages (compatibility, prefer popup-data) |
 | POST | `/InfoPopup/seen` | user | Mark as seen (body `{ ids: [...] }`) |
-| GET | `/InfoPopup/client.js` | anonymous | Embedded client script |
+| GET | `/InfoPopup/{module}.js` | anonymous | JS modules — whitelist: `client.js`, `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` |
 
 ---
 
@@ -232,20 +281,33 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 ### During
 - Preserve XML C# comments on public members
 - **Never** change the GUID
-- **Never** manually edit `version.json` or `<Version>` in the `.csproj`
-- **Never** manually edit `manifest.json`
+- **Never** manually edit `version.json` or `<Version>` in the `.csproj` → use `make bump-*`
+- **Never** manually edit `manifest.json` → use `make manifest-update` (or a full `make release-*`)
+- **Never** manually edit `dist/infopopup_*.zip` or compute/paste an MD5 checksum → the Makefile downloads the ZIP from GitHub and computes the real checksum
 
 ### After
 - Verify rules R1–R10
 - Add the entry to `CHANGELOG.md`
 - Update `README.md` and `CLAUDE.md` if the architecture or a rule changes
+- **Do not** run `make bump-*` or `make release-*` — that is the human's responsibility
 
 ---
 
 ## 9. Recurring pitfalls
 
-- `client.js` must be `<EmbeddedResource>` in the `.csproj` — otherwise 404 on `/InfoPopup/client.js`
-- The assembly resource name is exactly `Jellyfin.Plugin.InfoPopup.Web.client.js`
+- ⛔ **`version.json` — NEVER edit manually.** Use `make bump-patch / bump-minor / bump-major`. The script also updates `<Version>` in the `.csproj`. Any manual edit desynchronizes the two files and will produce a mismatch between the compiled DLL version and the manifest entry.
+- ⛔ **`manifest.json` — NEVER edit manually.** Use `make manifest-update` (included in all `release-*` targets). The MD5 checksum must be computed from the ZIP actually served by GitHub, not the local file. A wrong checksum causes Jellyfin to refuse the installation.
+- ⛔ **`<Version>` in `.csproj` — NEVER edit manually.** It is kept in sync with `version.json` by `scripts/bump_version.sh`. Editing it alone breaks `make pack` (ZIP name derived from `version.json`) and the manifest entry.
+- ⛔ **`dist/*.zip` — NEVER commit or modify manually.** It is a build artifact, regenerated by `make pack`. It is excluded from git via `.gitignore`.
+
+- All JS modules (`client.js`, `ip-*.js`) must be `<EmbeddedResource>` in the `.csproj` — otherwise 404 on `/InfoPopup/{module}.js`
+- Assembly resource names: the .NET SDK replaces hyphens (`-`) and other non-identifier characters with underscores (`_`) in embedded resource manifest names. `ip-admin.js` becomes `Jellyfin.Plugin.InfoPopup.Web.ip_admin.js`. The controller applies `fileName.Replace('-', '_')` before calling `GetManifestResourceStream`. **Never remove this replacement.**
+- **Module loading order is critical**: `ip-popup.js` depends on `ip-admin.js` (calls `ns.checkConfigPage`), which depends on `ip-utils.js` and `ip-styles.js`, which depend on `ip-i18n.js`. The loader in `client.js` enforces sequential loading via `load` events.
+- **`window.__IP` namespace**: every module extends `window.__IP = window.__IP || {}`. Never access another module's functions directly — always go through `ns.functionName`.
+- **`GET /InfoPopup/{module}.js` whitelist**: only filenames in `_allowedModules` are served. Adding a new module requires updating both the whitelist in the controller AND the `<EmbeddedResource>` list in the `.csproj`.
+- **i18n — adding a language**: add a new dictionary object in `ip-i18n.js` under `_dicts`, update `detectLang()` to recognize the new language code. All keys present in `en` and `fr` must be present in the new dictionary.
+- **i18n — `t()` with plurals**: use separate keys (`key_singular` / `key_plural`) and select the key before calling `t()`. Never try to add pluralization logic inside `t()`.
+- **i18n — `applyStaticTranslations()`**: called once at config page init. If a new translatable element is added to `configurationpage.html`, add its `id` to the `map` in `applyStaticTranslations()` in `ip-admin.js`.
 - `HttpContext.User.FindFirst("Jellyfin-UserId")` — not `User.Identity.Name`
 - Admin policy: `"RequiresElevation"` in Jellyfin 10.10+
 - **`popupActive` reset too early**: never set `popupActive = false` before the `.finally()` of `markAllSeen()`. Symptom: the popup reappears immediately after closing if navigation is fast.
@@ -255,11 +317,11 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 - **`injectStyles()` not called**: any component that generates DOM elements styled by IP classes must ensure `injectStyles()` has been called. Symptom: styles missing when navigating directly to the config page.
 - **`renderBody()` vs `textContent`**: use `renderBody()` + `innerHTML` for message body rendering. Never use `textContent` for final rendering.
 - **Dynamic `emby-checkbox`**: `<span></span>` empty = 0px = zero click area. Always use native `<input type="checkbox">` with inline `accent-color`.
-- **SPA styles**: the `<style>` blocks in `configurationpage.html` disappear during transitions. All CSS for overlays/elements added to `<body>` must be in `injectStyles()`.
+- **SPA styles**: the `<style>` blocks in `configurationpage.html` disappear during transitions. All CSS for overlays/elements added to `<body>` must be in `injectStyles()` (in `ip-styles.js`).
 - **PascalCase fallback**: always `msg.body || msg.Body || ''` — never a single casing.
 - **Jellyfin 10.11**: React Router + MUI. Legacy selectors (`#indexPage`, `.homePage`) no longer exist. MutationObserver on `document.body` without selector restriction is the only reliable approach.
 - **`PUT` without changing the ID**: never recreate a message to simulate an edit. Always go through `MessageStore.Update()` which preserves the ID and doesn't touch `infopopup_seen.json`.
 - **`Update()` returns `PopupMessage?`**: never call `GetById()` after `Update()` in the controller — the snapshot returned by `Update()` is the source of truth (eliminates TOCTOU).
 - **Forgotten `setPreviewMode` / `updatePreview`**: any code that programmatically modifies `bodyEl.value` (enterEditMode, exitEditMode, post-publish reset) must call `setPreviewMode` and/or `updatePreview`. Symptom: the preview shows old content or the textarea remains visible after publishing.
 - **`usersCache` TTL**: `fetchUsers()` applies a 5-minute TTL via `usersCacheAt`. Do not remove this mechanism — without it, users created during the session are invisible in the targeting selector.
-- **Admin styles in `injectStyles()`**: table, badges, toast, target picker, toolbar, editor-wrap and toggle switch are in `injectStyles()`. Never put them back in a `<style>` in `configurationpage.html` — they would disappear on SPA navigation.
+- **Admin styles in `injectStyles()`**: table, badges, toast, target picker, toolbar, editor-wrap and toggle switch are in `injectStyles()` (in `ip-styles.js`). Never put them back in a `<style>` in `configurationpage.html` — they would disappear on SPA navigation.

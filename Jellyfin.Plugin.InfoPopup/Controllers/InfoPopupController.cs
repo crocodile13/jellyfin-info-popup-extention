@@ -272,20 +272,48 @@ public class InfoPopupController : ControllerBase
         return NoContent();
     }
 
-    // GET /InfoPopup/client.js ───────────────────────────────────────────────────────
+    // GET /InfoPopup/{module}.js ─────────────────────────────────────────────────────
+    // Sert les modules JavaScript embarqués dans l'assembly.
+    // client.js est le point d'entrée (injecté par ScriptInjectionMiddleware).
+    // Les modules ip-*.js sont chargés dynamiquement par client.js.
+    // Seuls les noms figurant dans la whitelist sont servis (sécurité).
 
-    /// <summary>Sert le script JavaScript client (public, injecté dans index.html).</summary>
-    [HttpGet("client.js")]
+    private static readonly System.Collections.Generic.HashSet<string> _allowedModules =
+        new(System.StringComparer.OrdinalIgnoreCase)
+        {
+            "client.js",
+            "ip-i18n.js",
+            "ip-utils.js",
+            "ip-styles.js",
+            "ip-admin.js",
+            "ip-popup.js"
+        };
+
+    /// <summary>
+    /// Sert un module JavaScript embarqué dans l'assembly.
+    /// Whitelist : client.js, ip-i18n.js, ip-utils.js, ip-styles.js, ip-admin.js, ip-popup.js.
+    /// Note : le SDK .NET remplace les tirets par des underscores dans les noms de ressources
+    /// embarquées (ip-admin.js → ip_admin.js dans le manifest). La conversion est appliquée ici.
+    /// </summary>
+    [HttpGet("{module}.js")]
     [AllowAnonymous]
     [Produces("application/javascript")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetClientScript()
+    public IActionResult GetJsModule([FromRoute] string module)
     {
-        var stream = GetType().Assembly.GetManifestResourceStream("Jellyfin.Plugin.InfoPopup.Web.client.js");
+        var fileName = module + ".js";
+        if (!_allowedModules.Contains(fileName))
+            return NotFound();
+
+        // Le SDK .NET remplace les caractères non valides en identifiant C# (dont "-")
+        // par "_" dans les noms de ressources embarquées.
+        var resourceFileName = fileName.Replace('-', '_');
+        var resourceName = "Jellyfin.Plugin.InfoPopup.Web." + resourceFileName;
+        var stream = GetType().Assembly.GetManifestResourceStream(resourceName);
         if (stream is null)
         {
-            _logger.LogError("InfoPopup: ressource embarquée client.js introuvable dans l'assembly");
+            _logger.LogError("InfoPopup: ressource embarquée {Resource} introuvable dans l'assembly", resourceName);
             return NotFound();
         }
         return File(stream, "application/javascript");
