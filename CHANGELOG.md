@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [Unreleased] — 1.8.0.0
+
+### Added
+
+- **Internationalisation — 6 nouvelles langues** : espagnol (`es`), allemand (`de`), portugais (`pt`), italien (`it`), japonais (`ja`), chinois simplifié (`zh`). La langue est détectée automatiquement depuis `document.documentElement.lang` (attribut positionné par Jellyfin selon les préférences de l'utilisateur). Les 65 clés de traduction présentes en FR et EN sont couvertes dans chaque nouvelle langue : page admin (labels, placeholders, boutons, toasts, validation, dialogue de confirmation, toolbar, aperçu) et popup utilisateur.
+- **`normalizeLang()` étendue** : normalise désormais `es*`, `de*`, `pt*`, `it*`, `ja*`, `zh*` en plus de `fr*`. Tout code BCP-47 non reconnu retombe sur `en` (comportement inchangé).
+
+---
+
 ## [Unreleased] — 1.4.0.0
 
 ### Added

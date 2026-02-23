@@ -17,6 +17,7 @@ Popup example:
 
 ## Features
 
+- **Multilingual UI**: admin page and user popup automatically displayed in the user's Jellyfin language — supported: English, French, Spanish, German, Portuguese, Italian, Japanese, Chinese (Simplified). Falls back to English for any other language.
 - **Login popup**: post-login detection via MutationObserver (SPA-compatible, tested on Jellyfin 10.10–10.11)
 - **Show once**: server-side tracking — no localStorage, works across all devices
 - **Multiple unread messages**: if several messages haven't been read yet, each one is displayed in its own card (title + body) within the same popup

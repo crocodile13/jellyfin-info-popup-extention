@@ -162,7 +162,9 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 `client.js` is a lightweight loader (~50 lines) that sequentially injects `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` via dynamic `<script>` tags with `load` event chaining. All inter-module communication goes through the `window.__IP` namespace (IIFE pattern: `(function(ns){ ... }(window.__IP = window.__IP || {}))`).
 
 ### i18n — language detection
-`ip-i18n.js` detects the language from `document.documentElement.lang` (set by Jellyfin Web based on user settings), with `navigator.language` as fallback. Normalized to `'fr'` or `'en'` (default). `window.__IP.t(key, ...args)` is the single translation entry point. `applyStaticTranslations(page)` in `ip-admin.js` updates all static elements of `configurationpage.html` at init time.
+`ip-i18n.js` detects the language from `document.documentElement.lang` (set by Jellyfin Web based on user settings), with `navigator.language` as fallback. Normalized via `normalizeLang()` to one of `'fr'`, `'es'`, `'de'`, `'pt'`, `'it'`, `'ja'`, `'zh'` — falls back to `'en'` for any unrecognized code. `window.__IP.t(key, ...args)` is the single translation entry point. `applyStaticTranslations(page)` in `ip-admin.js` updates all static elements of `configurationpage.html` at init time.
+
+**Supported languages (8 total):** English (`en`, default), French (`fr`), Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Chinese Simplified (`zh`). All 65 translation keys are present in every language dict.
 
 **Jellyfin 10.11 React Router timing issue** — in 10.11, `document.documentElement.lang` is not set when the module first loads because the `localusersignedin` event fires before the subscriber is registered (confirmed by jellyfin-web PR #4306). Two complementary mechanisms handle this:
 1. **`MutationObserver`** on `document.documentElement`: whenever Jellyfin sets or changes the `lang` attribute (even with a delay), `_lang` and `_dict` are updated immediately.
@@ -325,7 +327,7 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 - **`window.__IP` namespace**: every module extends `window.__IP = window.__IP || {}`. Never access another module's functions directly — always go through `ns.functionName`.
 - **`GET /InfoPopup/{module}.js` whitelist**: only filenames in `_allowedModules` are served. Adding a new module requires updating both the whitelist in the controller AND the `<EmbeddedResource>` list in the `.csproj`.
 - **`_lang` frozen at load time (Jellyfin 10.11)**: in 10.11 with React Router, `document.documentElement.lang` is empty when `ip-i18n.js` loads, so `detectLang()` falls back to `navigator.language`. If the browser and Jellyfin are in different languages, all strings are wrong. The fix is the MutationObserver + lazy `t()` re-detection pattern already in place — **never remove these mechanisms** or replace them with a single `var _lang = detectLang()` call.
-- **Adding a new language**: add a new dictionary in `_dicts`, add a case in `normalizeLang()`. All keys present in `en` and `fr` must be present in the new dictionary.
+- **Adding a new language**: add a new dictionary in `_dicts` with all 65 keys (parity with `en`), add a case in `normalizeLang()`. All keys present in `en` must be present in the new dictionary — verify with the Python key-parity check used during v1.5.0.0 development.
 - **i18n — `t()` with plurals**: use separate keys (`key_singular` / `key_plural`) and select the key before calling `t()`. Never try to add pluralization logic inside `t()`.
 - **i18n — `applyStaticTranslations()`**: called once at config page init. If a new translatable element is added to `configurationpage.html`, add its `id` to the `map` in `applyStaticTranslations()` in `ip-admin.js`.
 - `HttpContext.User.FindFirst("Jellyfin-UserId")` — not `User.Identity.Name`
