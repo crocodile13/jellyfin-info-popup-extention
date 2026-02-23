@@ -27,11 +27,14 @@
             <div id="ip-title-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
         </div>
 
-        <div style="margin-top:16px;">
-            <!-- Label statique : inputLabelUnfocused utilise position:absolute et flotterait
-                 par-dessus la toolbar. On utilise inputLabel seul avec display:block explicite. -->
+        <div class="inputContainer" style="margin-top:16px;">
+            <!-- inputLabelUnfocused est intentionnellement absent :
+                 en 0.7 le textarea est toujours visible, ce qui active le mécanisme
+                 floating-label de Jellyfin (position:absolute + animation). Le label
+                 "vole" alors au focus/blur et entre en conflit avec la toolbar.
+                 inputLabel seul donne le style (couleur, taille) sans animer. -->
             <label id="ip-body-label" class="inputLabel" for="ip-body"
-                   style="position:static;display:block;margin-bottom:6px;">Message *</label>
+                   style="display:block;margin-bottom:8px;">Message *</label>
 
             <!-- Toolbar de formatage + toggle apercu -->
             <div id="ip-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">
