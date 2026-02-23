@@ -28,6 +28,7 @@ Cette extension a été quasi intégralement vibe codée par Claude. C'est assum
 - **Injection automatique** : `client.js` injecté dans `index.html` par le `ScriptInjectionMiddleware` — aucune modification manuelle requise
 - **Intégration thème Jellyfin** : variables CSS natives, classes dashboard standard
 - **Sécurité XSS** : `escHtml()` appliqué avant tout rendu, jamais de HTML utilisateur brut dans le DOM
+- **Contrôle d'accès ciblage** : les utilisateurs ne peuvent voir que les messages qui leur sont destinés, y compris via l'API directe
 
 ---
 
@@ -105,9 +106,9 @@ make build        # Compile en Debug
 make pack         # Compile Release + cree le ZIP dans dist/
 make clean        # Nettoie bin/, obj/, dist/*.zip
 
-make bump-patch   # 0.3.0.0 -> 0.3.1.0
-make bump-minor   # 0.3.0.0 -> 0.4.0.0
-make bump-major   # 0.3.0.0 -> 1.0.0.0
+make bump-patch   # 0.4.0.0 -> 0.4.1.0
+make bump-minor   # 0.4.0.0 -> 0.5.0.0
+make bump-major   # 0.4.0.0 -> 1.0.0.0
 
 make release-patch
 make release-minor
@@ -122,29 +123,44 @@ make release-major
 make release-minor   # ou patch / major
 ```
 
+### Nettoyer les artefacts de build du dépôt
+
+Si `bin/` et `obj/` ont été commités par erreur avant d'être dans `.gitignore` :
+
+```bash
+git rm -r --cached Jellyfin.Plugin.InfoPopup/bin/ Jellyfin.Plugin.InfoPopup/obj/
+git commit -m "chore: untrack bin/ and obj/ build artifacts"
+```
+
 ---
 
 ## Architecture
 
 ```
-API REST (/InfoPopup/*)          Client JS (injecté automatiquement dans index.html)
-┌──────────────────────────┐     ┌──────────────────────────────────────────────┐
-│ GET    /messages          │     │ ScriptInjectionMiddleware -> index.html      │
-│ GET    /messages/{id}     │◄────│ MutationObserver -> toute navigation SPA     │
-│ POST   /messages [ADMIN]  │     │ Guard : skip si #infoPopupConfigPage présent │
-│ PUT    /messages/{id}     │     │ GET /InfoPopup/unseen                        │
-│ DELETE /messages [ADMIN]  │     │ showPopup() -> renderBody() -> innerHTML     │
-│ GET    /unseen            │     │ fermeture -> POST /InfoPopup/seen (batch)    │
-│ POST   /seen              │     └──────────────────────────────────────────────┘
-│ GET    /client.js         │
-└──────────────────────────┘     Page Admin (dashboard Jellyfin)
-                                  ┌──────────────────────────────────────────────┐
-Persistance                       │ POST /messages -> publier                    │
-┌──────────────────────────┐     │ PUT  /messages/{id} -> modifier (ID stable)  │
-│ XML : messages            │     │ GET  /messages -> tableau + expand + édition │
-│ JSON : infopopup_seen.json│     │ DELETE /messages -> confirm modal            │
-└──────────────────────────┘     │ Toolbar formatage : B I U S • Liste          │
-                                  └──────────────────────────────────────────────┘
+API REST (/InfoPopup/*)               Client JS (injecté dans index.html)
+┌─────────────────────────────────┐   ┌────────────────────────────────────────────┐
+│ GET    /messages          [user]│   │ ScriptInjectionMiddleware → index.html     │
+│ GET    /messages/{id}     [user]│◄──│ MutationObserver → toute navigation SPA    │
+│ POST   /messages         [ADMIN]│   │ Guards : popupActive, #infoPopupConfigPage  │
+│ PUT    /messages/{id}    [ADMIN]│   │ GET /InfoPopup/popup-data (1 seul appel)   │
+│ POST   /messages/delete  [ADMIN]│   │ showPopup() → renderBody() → innerHTML     │
+│ GET    /popup-data        [user]│   │ fermeture → POST /seen → popupActive=false │
+│ GET    /unseen            [user]│   └────────────────────────────────────────────┘
+│ POST   /seen              [user]│
+│ GET    /client.js         [anon]│   Page Admin (dashboard Jellyfin)
+└─────────────────────────────────┘   ┌────────────────────────────────────────────┐
+                                       │ POST /messages        → publier            │
+Contrôle d'accès                       │ PUT  /messages/{id}   → modifier (ID stable│
+┌─────────────────────────────────┐   │ POST /messages/delete → confirm modal      │
+│ Admins : tous les messages      │   │ GET  /messages        → tableau + édition  │
+│ Users  : uniquement ciblés      │   │ Toolbar : B I U S • Liste                 │
+│ UserId absent → 401             │   └────────────────────────────────────────────┘
+│ Non ciblé → 404 (pas 403)       │
+└─────────────────────────────────┘   Persistance
+                                       ┌────────────────────────────────────────────┐
+                                       │ XML  : messages (BasePluginConfiguration)  │
+                                       │ JSON : infopopup_seen.json (cache mémoire) │
+                                       └────────────────────────────────────────────┘
 ```
 
 ---

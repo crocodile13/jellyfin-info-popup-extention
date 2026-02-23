@@ -15,6 +15,15 @@
     if (window.__infoPopupLoaded) return;
     window.__infoPopupLoaded = true;
 
+    // ── État partagé ─────────────────────────────────────────────────────────
+    // Regroupé en tête pour visibility immédiate et éviter la confusion due
+    // au hoisting de var en JS.
+
+    var popupActive     = false; // true pendant l'affichage ET le marquage comme vu
+    var lastCheckedPath = null;
+    var checkScheduled  = false;
+    var usersCache      = null;  // null = pas chargé, [] = chargé mais vide
+
     // ── Utilitaires partagés ─────────────────────────────────────────────────
 
     function getToken() {
@@ -57,7 +66,6 @@
     // Sécurité : escHtml() appliqué AVANT les remplacements → jamais de XSS.
 
     function formatInline(escaped) {
-        // Ordre important : ** avant _, __ avant _
         return escaped
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/~~(.*?)~~/g, '<s>$1</s>')
@@ -106,6 +114,9 @@
         el.textContent = msg;
         el.className = isErr ? 'ip-toast-err' : 'ip-toast-ok';
         el.style.display = 'block';
+        // Déclencher une relecture par les lecteurs d'écran via aria-live
+        el.setAttribute('aria-live', 'polite');
+        el.setAttribute('role', 'status');
         if (toastTimer) clearTimeout(toastTimer);
         toastTimer = setTimeout(function () { el.style.display = 'none'; }, 4000);
     }
@@ -162,7 +173,7 @@
         }).join(', ');
     }
 
-        function renderMessages(page, messages, selectedIds, onEdit) {
+    function renderMessages(page, messages, selectedIds, onEdit) {
         var container = page.querySelector('#ip-msg-container');
         var empty     = page.querySelector('#ip-empty');
         selectedIds.clear();
@@ -187,9 +198,9 @@
         var tbody = table.querySelector('#ip-tbody');
         messages.forEach(function (msg) {
             // Jellyfin peut sérialiser en PascalCase ou camelCase selon la version
-            var id          = msg.id          || msg.Id          || '';
-            var title       = msg.title       || msg.Title       || '';
-            var publishedAt  = msg.publishedAt  || msg.PublishedAt  || '';
+            var id            = msg.id            || msg.Id            || '';
+            var title         = msg.title         || msg.Title         || '';
+            var publishedAt   = msg.publishedAt   || msg.PublishedAt   || '';
             var targetUserIds = msg.targetUserIds || msg.TargetUserIds || [];
             var tr = document.createElement('tr');
             tr.dataset.id = id;
@@ -211,7 +222,6 @@
                 '<button class="ip-edit-btn" title="Modifier ce message">\u270e Modifier</button>' +
                 '</td>';
 
-            // Ligne d'expansion pour le corps du message
             var expandTr = document.createElement('tr');
             expandTr.className = 'ip-row-expand';
             var expandTd = document.createElement('td');
@@ -242,7 +252,6 @@
                 }
             });
 
-            // Bouton modifier : charge le message dans le formulaire
             tr.querySelector('.ip-edit-btn').addEventListener('click', function (e) {
                 e.stopPropagation();
                 if (msgBody !== null) {
@@ -303,7 +312,6 @@
         var btn = page.querySelector('#ip-publish-btn');
         if (btn) btn.disabled = true;
 
-        // Mode édition (PUT) ou création (POST)
         if (editState.id) {
             apiFetch('/InfoPopup/messages/' + encodeURIComponent(editState.id), {
                 method: 'PUT',
@@ -350,8 +358,9 @@
             var btn = page.querySelector('#ip-delete-btn');
             if (btn) btn.disabled = true;
             var ids = Array.from(selectedIds);
-            apiFetch('/InfoPopup/messages', {
-                method: 'DELETE',
+            // POST /messages/delete plutôt que DELETE avec body (compatibilité proxy/pare-feux)
+            apiFetch('/InfoPopup/messages/delete', {
+                method: 'POST',
                 body: JSON.stringify({ ids: ids })
             })
             .then(function () {
@@ -377,7 +386,6 @@
         return apiFetch('/Users')
             .then(function (res) { return res.json(); })
             .then(function (data) {
-                // L'API Jellyfin retourne soit un tableau direct, soit { Items: [...] }
                 var list = Array.isArray(data) ? data : (data.Items || []);
                 usersCache = list.map(function (u) {
                     return { id: u.Id || u.id || '', name: u.Name || u.name || '(sans nom)' };
@@ -394,12 +402,9 @@
         var container = page.querySelector('#ip-target-picker');
         if (!container) return;
 
-        var allChecked = true; // état initial : tous cochés
-
         var box = document.createElement('div');
         box.className = 'ip-target-box';
 
-        // ── Ligne "Tous les utilisateurs" ──────────────────────────────
         var allRow = document.createElement('div');
         allRow.className = 'ip-target-all-row';
 
@@ -424,7 +429,6 @@
 
         box.appendChild(allRow);
 
-        // ── Liste individuelle (masquée par défaut) ────────────────────
         var userList = document.createElement('div');
         userList.className = 'ip-target-user-list';
         userList.style.display = 'none';
@@ -449,7 +453,6 @@
         container.innerHTML = '';
         container.appendChild(box);
 
-        // ── Toggle : quand on décoche "Tous", on affiche la liste ─────
         allChk.addEventListener('change', function () {
             if (allChk.checked) {
                 userList.style.display = 'none';
@@ -458,7 +461,6 @@
                 if (users.length > 0) {
                     userList.style.display = 'block';
                 } else {
-                    // Aucun user dispo, forcer retour à "tous"
                     allChk.checked = true;
                 }
             }
@@ -467,7 +469,7 @@
 
     function getSelectedTargetIds(page) {
         var allChk = page.querySelector('#ip-target-all');
-        if (!allChk || allChk.checked) return []; // vide = tous
+        if (!allChk || allChk.checked) return [];
         var ids = [];
         var picker = page.querySelector('#ip-target-picker');
         if (picker) {
@@ -492,7 +494,6 @@
         var start = ta.selectionStart, end = ta.selectionEnd;
         var val = ta.value;
         var selected = val.slice(start, end);
-        // Toggle : si déjà entouré, on retire ; sinon on entoure
         if (selected.startsWith(prefix) && selected.endsWith(suffix) &&
                 selected.length > prefix.length + suffix.length) {
             var inner = selected.slice(prefix.length, selected.length - suffix.length);
@@ -549,19 +550,22 @@
         if (sectionTitle) sectionTitle.textContent = 'Nouveau message';
     }
 
-        function initConfigPage(page) {
+    function initConfigPage(page) {
         if (page._ipInitDone) return;
         page._ipInitDone = true;
-        // Injecter les styles globaux dès l'init de la page config
-        // (injectStyles() est idempotent — sans effet si déjà injecté)
         injectStyles();
+
+        // Accessibilité : le toast doit annoncer ses changements aux lecteurs d'écran
+        var toast = page.querySelector('#ip-toast');
+        if (toast) {
+            toast.setAttribute('aria-live', 'polite');
+            toast.setAttribute('role', 'status');
+        }
+
         console.log('InfoPopup: config page init OK');
 
         var selectedIds = new Set();
-
-        // État d'édition partagé entre fonctions
         var editState = { id: null, onEdit: null };
-
         var onEdit = function (msg) { enterEditMode(page, msg, editState); };
         editState.onEdit = onEdit;
 
@@ -599,7 +603,6 @@
             });
         }
 
-        // ── Toolbar de formatage ─────────────────────────────────────────
         if (toolbar && bodyEl) {
             var fmtMap = { bold: ['**','**'], italic: ['_','_'], strike: ['~~','~~'], underline: ['__','__'] };
             toolbar.addEventListener('click', function (e) {
@@ -616,7 +619,6 @@
             });
         }
 
-        // Charger les utilisateurs d'abord, puis initialiser le picker et le tableau
         fetchUsers().then(function (users) {
             renderTargetPicker(page, users);
             return loadMessages(page, selectedIds, onEdit);
@@ -626,13 +628,6 @@
     // ════════════════════════════════════════════════════════════════════════
     // B) POPUP UTILISATEUR (messages non vus)
     // ════════════════════════════════════════════════════════════════════════
-
-    var popupActive     = false;
-    var lastCheckedPath = null;
-    var checkScheduled  = false;
-
-    // Cache des utilisateurs Jellyfin (chargé une fois par session de page admin)
-    var usersCache = null; // null = pas encore chargé, [] = chargé mais vide
 
     function injectStyles() {
         if (document.getElementById('infopopup-styles')) return;
@@ -669,10 +664,8 @@
             '#infopopup-footer{display:flex;justify-content:flex-end;padding:12px 20px 18px;border-top:1px solid rgba(255,255,255,.08)}',
             '.ip-btn-close{background:var(--theme-accent-color,#00a4dc);color:#fff;border:none;border-radius:4px;padding:9px 22px;font-size:.95rem;font-weight:500;cursor:pointer;transition:filter .15s}',
             '.ip-btn-close:hover{filter:brightness(1.15)}',
-            /* ── Listes de corps de message ── */
             '.ip-list{margin:6px 0 4px 0;padding-left:22px;list-style:disc}',
             '.ip-list li{margin:3px 0;line-height:1.55}',
-            /* ── Confirm dialog — styles en <head> pour survivre aux transitions SPA ── */
             '.ip-confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center}',
             '.ip-confirm-box{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:28px 28px 22px;max-width:420px;width:calc(100% - 32px);box-shadow:0 8px 32px rgba(0,0,0,.6)}',
             '.ip-confirm-box h4{margin:0 0 10px;font-size:1.05rem}',
@@ -680,12 +673,10 @@
             '.ip-confirm-actions{display:flex;justify-content:flex-end;gap:12px}',
             '.ip-confirm-actions .ip-btn-cancel{background:rgba(255,255,255,.1);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:9px 22px;font-size:.95rem;font-weight:500;cursor:pointer;transition:background .15s}',
             '.ip-confirm-actions .ip-btn-cancel:hover{background:rgba(255,255,255,.18)}',
-            /* ── Multi-messages non vus ── */
             '#infopopup-msgs{padding:12px 20px;display:flex;flex-direction:column;gap:12px}',
             '.ip-msg-card{border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}',
             '.ip-msg-card-title{font-weight:600;font-size:.97rem;padding:11px 14px 10px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.08);overflow-wrap:break-word;word-break:break-word}',
             '.ip-msg-card-body{padding:11px 14px 13px;overflow-wrap:break-word;word-break:break-word;line-height:1.6;opacity:.92;font-size:.93rem}',
-            /* ── Table admin : expand rows + edit btn (en <head> car injectStyles est la seule CSS persistante en SPA) ── */
             '.ip-col-title-toggle{cursor:pointer;user-select:none}',
             '.ip-col-title-toggle:hover .ip-row-title-text{text-decoration:underline;text-underline-offset:2px}',
             '.ip-row-chev{margin-left:8px;opacity:.45;font-size:.72rem;transition:transform .18s;display:inline-block;vertical-align:middle}',
@@ -719,7 +710,7 @@
             var id          = msg.id          || msg.Id          || '';
             var title       = msg.title       || msg.Title       || '';
             var publishedAt = msg.publishedAt || msg.PublishedAt || '';
-            // body déjà pré-chargé par checkForUnseenMessages
+            // body peut être null/undefined si c'est un résumé (historique sans corps)
             var bodyRaw     = msg.body        || msg.Body        || null;
 
             var item = document.createElement('div');
@@ -735,11 +726,10 @@
             var itemBody = document.createElement('div');
             itemBody.className = 'ip-item-body';
 
+            // Si le corps est déjà disponible (popup-data ne le pré-charge pas pour l'historique),
+            // on l'affiche directement ; sinon on charge au premier clic.
             var loaded = (bodyRaw !== null);
-            if (loaded) {
-                // Corps disponible immédiatement
-                itemBody.innerHTML = renderBody(bodyRaw);
-            }
+            if (loaded) itemBody.innerHTML = renderBody(bodyRaw);
 
             var loadLazy = function () {
                 if (loaded || !id) return;
@@ -771,7 +761,7 @@
         return block;
     }
 
-    function showPopup(unseenMessages, seenMessages) {
+    function showPopup(unseenMessages, historyMessages) {
         if (popupActive) return;
         popupActive = true;
         injectStyles();
@@ -800,13 +790,11 @@
         dialog.appendChild(header);
 
         if (isSingle) {
-            // Un seul message non vu : affichage classique titre + corps
             var body = document.createElement('div');
             body.id = 'infopopup-body';
             body.innerHTML = renderBody(unseenMessages[0].body || unseenMessages[0].Body || '');
             dialog.appendChild(body);
         } else {
-            // Plusieurs messages non vus : chaque message dans sa propre carte
             var msgsContainer = document.createElement('div');
             msgsContainer.id = 'infopopup-msgs';
             unseenMessages.forEach(function (msg) {
@@ -825,7 +813,8 @@
             dialog.appendChild(msgsContainer);
         }
 
-        if (seenMessages.length > 0) dialog.appendChild(buildHistoryBlock(seenMessages));
+        if (historyMessages && historyMessages.length > 0)
+            dialog.appendChild(buildHistoryBlock(historyMessages));
 
         var footer = document.createElement('div');
         footer.id = 'infopopup-footer';
@@ -840,9 +829,15 @@
 
         var close = function () {
             backdrop.remove();
-            popupActive = false;
-            markAllSeen(allUnseenIds);
+            // popupActive reste true jusqu'à confirmation du serveur.
+            // Cela évite la race condition où schedulePopupCheck se déclencherait
+            // entre le clic sur "Fermer" et l'acquittement du POST /seen,
+            // causant un re-affichage de la popup avant que le marquage soit persisté.
+            markAllSeen(allUnseenIds).finally(function () {
+                popupActive = false;
+            });
         };
+
         closeBtn.addEventListener('click', close);
         header.querySelector('.ip-close-btn').addEventListener('click', close);
         backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
@@ -852,9 +847,14 @@
         document.addEventListener('keydown', onKey);
     }
 
+    /// <summary>
+    /// Marque des messages comme vus côté serveur.
+    /// Retourne une Promise qui se résout toujours (les erreurs sont swallowed)
+    /// pour permettre un .finally() fiable dans close().
+    /// </summary>
     function markAllSeen(ids) {
-        if (!ids || !ids.length) return;
-        apiFetch('/InfoPopup/seen', {
+        if (!ids || !ids.length) return Promise.resolve();
+        return apiFetch('/InfoPopup/seen', {
             method: 'POST',
             body: JSON.stringify({ ids: ids })
         }).catch(function (err) {
@@ -862,47 +862,29 @@
         });
     }
 
+    /// <summary>
+    /// Récupère en un seul appel (GET /popup-data) :
+    ///   - les messages non vus avec leurs corps complets (affichage immédiat),
+    ///   - l'historique des messages déjà vus en résumé (corps chargé au clic).
+    ///
+    /// Remplace l'ancien pattern N+1 :
+    ///   GET /unseen + N×GET /messages/{id} + GET /messages + M×GET /messages/{id}
+    /// </summary>
     function checkForUnseenMessages() {
-        apiFetch('/InfoPopup/unseen')
+        apiFetch('/InfoPopup/popup-data')
             .then(function (res) { return res.json(); })
-            .then(function (unseenList) {
-                if (!unseenList || !unseenList.length) return;
-                var unseenIds = unseenList.map(function (m) { return m.id || m.Id || ''; });
-                // Récupérer : corps de tous les non-vus + liste complète des messages
-                return Promise.all([
-                    Promise.all(unseenIds.map(function (id) {
-                        return apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
-                            .then(function (res) { return res.json(); });
-                    })),
-                    apiFetch('/InfoPopup/messages').then(function (res) { return res.json(); })
-                ]).then(function (results) {
-                    var unseenFull = results[0];
-                    var allMessages = results[1];
-                    // Identifier les messages déjà vus
-                    var seenSummaries = allMessages.filter(function (m) {
-                        return unseenIds.indexOf(m.id || m.Id || '') === -1;
-                    });
-                    // Pré-charger le corps de chaque message vu (élimine le lazy load)
-                    return Promise.all(seenSummaries.map(function (m) {
-                        var id = m.id || m.Id || '';
-                        if (!id) return Promise.resolve(m); // id vide : on garde le résumé
-                        return apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
-                            .then(function (res) { return res.json(); })
-                            .catch(function () { return m; }); // en cas d'erreur, résumé sans body
-                    })).then(function (seenFull) {
-                        showPopup(unseenFull, seenFull);
-                    });
-                });
+            .then(function (data) {
+                var unseen  = data.unseen  || data.Unseen  || [];
+                var history = data.history || data.History || [];
+                if (!unseen.length) return;
+                showPopup(unseen, history);
             })
             .catch(function () {
-                // Silencieux : session expirée, réseau KO, aucun message
+                // Silencieux : session expirée, réseau KO, aucun message non vu.
             });
     }
 
     // ── MutationObserver central ─────────────────────────────────────────────
-    // Un seul observer gère à la fois :
-    //   - la détection de la page home (popup)
-    //   - la détection de la page de config (init boutons)
 
     function schedulePopupCheck() {
         if (checkScheduled) return;
@@ -910,7 +892,9 @@
         setTimeout(function () {
             checkScheduled = false;
             if (!getToken()) return;
-            // Ne pas déclencher le popup si la page de config admin est active
+            // Si la popup est ouverte ou en cours de marquage, ne pas re-déclencher.
+            if (popupActive) return;
+            // Ne pas déclencher si la page de config admin est active.
             if (document.querySelector('#infoPopupConfigPage')) return;
             var path = window.location.hash || window.location.pathname;
             if (path === lastCheckedPath) return;
@@ -926,19 +910,13 @@
 
     function initObserver() {
         new MutationObserver(function () {
-            // Déclenche le check popup à chaque mutation DOM significative.
-            // lastCheckedPath + popupActive empêchent les doublons.
-            // On ne restreint plus à la home page car Jellyfin 10.11 (React Router)
-            // n'utilise plus #indexPage / .homePage comme sélecteurs.
             schedulePopupCheck();
-            // Config page : boutons à initialiser
             checkConfigPage();
         }).observe(document.body, { childList: true, subtree: true });
 
         window.addEventListener('hashchange', schedulePopupCheck);
         window.addEventListener('popstate',   schedulePopupCheck);
 
-        // Tentative immédiate au cas où la page est déjà présente
         schedulePopupCheck();
         checkConfigPage();
     }

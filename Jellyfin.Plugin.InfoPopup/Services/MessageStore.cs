@@ -18,7 +18,12 @@ public class MessageStore
     /// <summary>Initialise le store.</summary>
     public MessageStore(ILogger<MessageStore> logger) => _logger = logger;
 
-    private static Configuration.PluginConfiguration Config =>
+    /// <summary>
+    /// Accède à la configuration du plugin.
+    /// La référence est capturée une fois par opération à l'intérieur du lock
+    /// pour garantir la cohérence si Jellyfin recharge la configuration.
+    /// </summary>
+    private static Configuration.PluginConfiguration GetConfig() =>
         Plugin.Instance?.Configuration
         ?? throw new InvalidOperationException("InfoPopup: Plugin.Instance est null.");
 
@@ -28,7 +33,11 @@ public class MessageStore
     public List<PopupMessage> GetAll()
     {
         _lock.EnterReadLock();
-        try { return Config.Messages.OrderByDescending(m => m.PublishedAt).ToList(); }
+        try
+        {
+            var cfg = GetConfig();
+            return cfg.Messages.OrderByDescending(m => m.PublishedAt).ToList();
+        }
         finally { _lock.ExitReadLock(); }
     }
 
@@ -36,12 +45,18 @@ public class MessageStore
     public PopupMessage? GetById(string id)
     {
         _lock.EnterReadLock();
-        try { return Config.Messages.FirstOrDefault(m => m.Id == id); }
+        try
+        {
+            var cfg = GetConfig();
+            return cfg.Messages.FirstOrDefault(m => m.Id == id);
+        }
         finally { _lock.ExitReadLock(); }
     }
 
     /// <summary>
     /// Crée et persiste un nouveau message.
+    /// La validation ici est la source de vérité : elle s'applique même si le DTO
+    /// est contourné (appel direct à ce service, tests, etc.).
     /// </summary>
     /// <param name="title">Titre du message.</param>
     /// <param name="body">Corps texte brut.</param>
@@ -72,12 +87,18 @@ public class MessageStore
         _lock.EnterWriteLock();
         try
         {
-            Config.Messages.Add(message);
+            // Capturer la référence une seule fois pour travailler sur le même objet
+            // pendant toute la durée de l'opération (cohérence si rechargement config).
+            var cfg = GetConfig();
+            cfg.Messages.Add(message);
             SaveConfig();
+
             var targetInfo = message.TargetUserIds.Count > 0
                 ? $"{message.TargetUserIds.Count} utilisateur(s) ciblé(s)"
                 : "tous les utilisateurs";
-            _logger.LogInformation("InfoPopup: message publié '{Title}' par {UserId} → {Target}", message.Title, publishedBy, targetInfo);
+            _logger.LogInformation(
+                "InfoPopup: message publié '{Title}' par {UserId} → {Target}",
+                message.Title, publishedBy, targetInfo);
         }
         finally { _lock.ExitWriteLock(); }
 
@@ -86,12 +107,9 @@ public class MessageStore
 
     /// <summary>
     /// Met à jour le titre et le corps d'un message existant sans changer son ID.
-    /// Le suivi des vues (<c>infopopup_seen.json</c>) est préservé : un message
-    /// modifié ne se réaffiche pas aux utilisateurs qui l'avaient déjà vu.
+    /// Le suivi des vues est préservé : un message modifié ne se réaffiche pas
+    /// aux utilisateurs qui l'avaient déjà vu.
     /// </summary>
-    /// <param name="id">ID du message à modifier.</param>
-    /// <param name="title">Nouveau titre (max 200 car.).</param>
-    /// <param name="body">Nouveau corps (max 10 000 car., supporte le markup IP).</param>
     /// <returns><c>true</c> si trouvé et mis à jour, <c>false</c> si introuvable.</returns>
     public bool Update(string id, string title, string body)
     {
@@ -107,12 +125,15 @@ public class MessageStore
         _lock.EnterWriteLock();
         try
         {
-            var msg = Config.Messages.FirstOrDefault(m => m.Id == id);
+            var cfg = GetConfig();
+            var msg = cfg.Messages.FirstOrDefault(m => m.Id == id);
             if (msg is null) return false;
             msg.Title = title.Trim();
             msg.Body = body;
             SaveConfig();
-            _logger.LogInformation("InfoPopup: message '{Id}' mis à jour — nouveau titre : '{Title}'", id, msg.Title);
+            _logger.LogInformation(
+                "InfoPopup: message '{Id}' mis à jour — nouveau titre : '{Title}'",
+                id, msg.Title);
             return true;
         }
         finally { _lock.ExitWriteLock(); }
@@ -131,9 +152,10 @@ public class MessageStore
         _lock.EnterWriteLock();
         try
         {
-            var before = Config.Messages.Count;
-            Config.Messages.RemoveAll(m => idSet.Contains(m.Id));
-            var deleted = before - Config.Messages.Count;
+            var cfg = GetConfig();
+            var before = cfg.Messages.Count;
+            cfg.Messages.RemoveAll(m => idSet.Contains(m.Id));
+            var deleted = before - cfg.Messages.Count;
             if (deleted > 0) SaveConfig();
             _logger.LogInformation("InfoPopup: {Count} message(s) supprimé(s) définitivement", deleted);
             return deleted;

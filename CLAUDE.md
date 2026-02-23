@@ -59,6 +59,7 @@ jellyfin-info-popup-extention/
     ├── PluginServiceRegistrator.cs
     ├── Configuration/PluginConfiguration.cs
     ├── Models/{PopupMessage,SeenRecord}.cs
+    ├── DTOs/MessageDtos.cs            ← DTOs requête/réponse (séparés du controller)
     ├── Services/{MessageStore,SeenTrackerService}.cs
     ├── Controllers/InfoPopupController.cs
     ├── Middleware/{ScriptInjectionMiddleware,ScriptInjectionStartupFilter}.cs
@@ -74,7 +75,7 @@ jellyfin-info-popup-extention/
 ```json
 {
   "major": 0,
-  "minor": 4,
+  "minor": 5,
   "patch": 0,
   "targetAbi": "10.10.0.0"
 }
@@ -116,13 +117,37 @@ Jellyfin-Web est une SPA. Toute UI client passe par `Web/client.js` injecté dan
 
 ### Détection connexion : MutationObserver uniquement
 `document.body` observé avec `{ childList: true, subtree: true }` + listeners `hashchange` et `popstate`. `lastCheckedPath`, `checkScheduled` et `setTimeout(800ms)` dédupliquent les appels.
-**Guard obligatoire** : `schedulePopupCheck` retourne immédiatement si `#infoPopupConfigPage` est dans le DOM.
+**Guards obligatoires** : `schedulePopupCheck` retourne immédiatement si `#infoPopupConfigPage` est dans le DOM, ou si `popupActive === true`.
 
 ### Suivi des vues : 100% serveur
 `infopopup_seen.json` via `SeenTrackerService`. Jamais `localStorage` / `sessionStorage` / cookie.
 
 ### Modification de message : ID stable
 `PUT /InfoPopup/messages/{id}` met à jour titre et corps sans changer l'ID. `infopopup_seen.json` n'est pas touché. Un utilisateur ayant déjà vu le message ne le revoit pas après modification.
+
+### Contrôle d'accès sur les messages
+- **Admins** (`RequiresElevation`) : voient tous les messages sur tous les endpoints.
+- **Utilisateurs** : `GET /messages` et `GET /messages/{id}` filtrent selon `TargetUserIds`. Un message non ciblé retourne `404` (pas `403`) pour ne pas révéler son existence.
+- **UserId manquant** : tous les endpoints utilisateur retournent `401 Unauthorized` si le claim `Jellyfin-UserId` est absent du token.
+
+### Appel popup unique via /popup-data
+`GET /InfoPopup/popup-data` retourne en un seul appel :
+- `unseen` : messages non vus avec corps complet
+- `history` : résumés des messages déjà vus (corps chargé en lazy au clic)
+
+Ne jamais revenir à l'ancien pattern qui enchaînait `/unseen` + N×`/messages/{id}` + `/messages` + M×`/messages/{id}`.
+
+### Race condition popup/marquage
+`popupActive` doit rester `true` pendant toute la durée entre le clic sur "Fermer" et la résolution du `POST /seen` côté serveur. La remise à `false` se fait exclusivement dans le `.finally()` de `markAllSeen()`. Ne jamais remettre `popupActive = false` avant cela.
+
+### Suppression : POST /messages/delete
+Utiliser `POST /InfoPopup/messages/delete` et non `DELETE /messages` avec body. Certains proxies et pare-feux rejettent silencieusement le body sur DELETE.
+
+### Cache SeenTrackerService
+`SeenTrackerService` maintient un cache mémoire `_cache` du fichier JSON. Il est invalidé uniquement à l'écriture (`WriteStore`). Ne pas appeler `File.ReadAllText` à l'intérieur d'un lock sans passer par `ReadStore()`.
+
+### Référence config dans MessageStore
+Dans `MessageStore`, toujours capturer `var cfg = GetConfig()` à l'intérieur du bloc lockté. Ne jamais appeler `GetConfig()` plusieurs fois dans la même opération : si Jellyfin recharge la config entre deux appels, la référence change et les modifications pourraient être perdues.
 
 ### Formatage du corps : markup IP
 Syntaxe supportée : `**gras**`, `_italique_`, `__souligné__`, `~~barré~~`, lignes `- liste`.
@@ -138,15 +163,7 @@ Pipeline de rendu dans `renderBody()` :
 **Règle** : tout composant JS qui crée des éléments stylisés par ces classes doit s'assurer que `injectStyles()` a été appelé avant. `initConfigPage()` l'appelle en premier.
 
 ### Styles SPA-persistants
-Tous les CSS pour des éléments ajoutés dynamiquement au `<body>` (popup, confirm, expand rows, bouton édition) doivent être dans `injectStyles()`. Les `<style>` de `configurationpage.html` ne persistent pas lors des transitions SPA — ils ne contiennent que les styles de la page de config elle-même (tableau, badges, toolbar, toast).
-
-### Pré-chargement des corps dans checkForUnseenMessages
-`checkForUnseenMessages` récupère via `Promise.all` :
-1. Le détail complet (avec `body`) de chaque message non vu
-2. La liste de tous les messages
-3. Le détail complet de chaque message vu (pour l'historique)
-
-`buildHistoryBlock` reçoit des objets avec `body` déjà présent et les affiche immédiatement. Un lazy load en fallback est conservé pour les cas d'échec.
+Tous les CSS pour des éléments ajoutés dynamiquement au `<body>` doivent être dans `injectStyles()`. Les `<style>` de `configurationpage.html` ne persistent pas lors des transitions SPA.
 
 ### Sérialisation JSON Jellyfin
 Jellyfin peut sérialiser en camelCase ou PascalCase. Toujours `msg.field || msg.Field || ''` pour tous les champs lus depuis l'API.
@@ -160,12 +177,13 @@ Utiliser `<input type="checkbox">` natif avec `accent-color` inline. Ne jamais u
 
 | Méthode | Route | Auth | Description |
 |---------|-------|------|-------------|
-| GET | `/InfoPopup/messages` | user | Liste résumée (sans body), du plus récent au plus ancien |
-| GET | `/InfoPopup/messages/{id}` | user | Détail complet avec body |
+| GET | `/InfoPopup/messages` | user/admin | Résumés filtrés par ciblage (admin : tous) |
+| GET | `/InfoPopup/messages/{id}` | user/admin | Détail complet (404 si non ciblé et non-admin) |
 | POST | `/InfoPopup/messages` | **admin** | Créer un message |
 | PUT | `/InfoPopup/messages/{id}` | **admin** | Modifier titre/corps (ID stable, vues préservées) |
-| DELETE | `/InfoPopup/messages` | **admin** | Supprimer (body `{ ids: [...] }`) |
-| GET | `/InfoPopup/unseen` | user | Messages non vus par l'utilisateur connecté |
+| POST | `/InfoPopup/messages/delete` | **admin** | Supprimer (body `{ ids: [...] }`) |
+| GET | `/InfoPopup/popup-data` | user | Non-vus + historique en un seul appel |
+| GET | `/InfoPopup/unseen` | user | Messages non vus (compatibilité, préférer popup-data) |
 | POST | `/InfoPopup/seen` | user | Marquer vus (body `{ ids: [...] }`) |
 | GET | `/InfoPopup/client.js` | anonyme | Script client embarqué |
 
@@ -178,11 +196,13 @@ Utiliser `<input type="checkbox">` natif avec `accent-color` inline. Ne jamais u
 | R1 | Un message **supprimé disparaît définitivement et partout** — popup ET historique, pour tous les utilisateurs. |
 | R2 | Un message est affiché **une seule fois** par utilisateur (suivi serveur). |
 | R3 | La popup affiche **tous** les messages non vus simultanément — le plus récent en principal ou en première carte. |
-| R4 | À la fermeture, **tous** les non-vus sont marqués vus en batch. |
-| R5 | POST/PUT/DELETE `/InfoPopup/messages` → **admin uniquement** (`RequiresElevation`). |
+| R4 | À la fermeture, **tous** les non-vus sont marqués vus en batch. `popupActive` reste `true` jusqu'à confirmation serveur. |
+| R5 | POST/PUT/POST(delete) `/InfoPopup/messages` → **admin uniquement** (`RequiresElevation`). |
 | R6 | Nettoyage des orphelins dans `infopopup_seen.json` → **paresseux**, au prochain accès. |
 | R7 | `escHtml()` **toujours avant** les remplacements de formatage. Jamais de données utilisateur brutes dans `innerHTML`. |
 | R8 | `PUT /InfoPopup/messages/{id}` ne modifie **jamais** l'ID ni `infopopup_seen.json` — un message modifié n'est pas réaffiché aux utilisateurs qui l'avaient vu. |
+| R9 | `GET /messages` et `GET /messages/{id}` filtrent par `TargetUserIds` pour les non-admins. Retourner `404` (pas `403`) si non ciblé. |
+| R10 | Tout endpoint user retourne `401` si le claim `Jellyfin-UserId` est absent. Jamais de fallback sur `string.Empty`. |
 
 ---
 
@@ -191,7 +211,7 @@ Utiliser `<input type="checkbox">` natif avec `accent-color` inline. Ne jamais u
 ### Avant
 1. Lire le fichier concerné en entier
 2. Identifier tous les fichiers impactés (changement API → `client.js` + `configurationpage.html` + `README.md`)
-3. Vérifier cohérence avec les règles R1–R8
+3. Vérifier cohérence avec les règles R1–R10
 
 ### Pendant
 - Préserver les commentaires XML C# sur les membres publics
@@ -200,7 +220,7 @@ Utiliser `<input type="checkbox">` natif avec `accent-color` inline. Ne jamais u
 - Ne **jamais** éditer `manifest.json` à la main
 
 ### Après
-- Vérifier les règles R1–R8
+- Vérifier les règles R1–R10
 - Ajouter l'entrée dans `CHANGELOG.md`
 - Mettre à jour `README.md` et `CLAUDE.md` si l'architecture ou une règle change
 
@@ -212,9 +232,12 @@ Utiliser `<input type="checkbox">` natif avec `accent-color` inline. Ne jamais u
 - Le nom de ressource assembly est exactement `Jellyfin.Plugin.InfoPopup.Web.client.js`
 - `HttpContext.User.FindFirst("Jellyfin-UserId")` — pas `User.Identity.Name`
 - Policy admin : `"RequiresElevation"` dans Jellyfin 10.10+
+- **`popupActive` remis trop tôt** : ne jamais faire `popupActive = false` avant le `.finally()` de `markAllSeen()`. Symptôme : la popup réapparaît immédiatement après fermeture si navigation rapide.
+- **DELETE avec body** : utiliser `POST /InfoPopup/messages/delete`. Ne jamais revenir à `DELETE` avec body — peut être ignoré silencieusement par des proxies.
+- **`GetConfig()` hors lock** : toujours capturer `var cfg = GetConfig()` à l'intérieur du bloc lockté dans `MessageStore`. Ne jamais accéder via la propriété statique directement dans une opération multi-étapes.
+- **Cache SeenTrackerService** : ne pas lire le fichier JSON directement — toujours passer par `ReadStore()` qui gère le cache.
 - **`injectStyles()` non appelée** : tout composant qui génère des éléments DOM stylisés par les classes IP doit s'assurer que `injectStyles()` a été appelée. Symptôme : styles absents en navigation directe vers la page config.
-- **`renderBody()` vs `textContent`** : utiliser `renderBody()` + `innerHTML` pour les corps de messages. Ne jamais utiliser `textContent` pour le rendu final (perd le formatage). Ne jamais utiliser `innerHTML` avec une chaîne non passée par `escHtml()` + `renderBody()`.
-- **Corps vide dans `buildHistoryBlock`** : `buildHistoryBlock` doit recevoir des objets avec `body` déjà présent. Si seuls des `MessageSummary` (sans body) sont passés, le corps sera vide. Le pré-chargement est fait dans `checkForUnseenMessages`.
+- **`renderBody()` vs `textContent`** : utiliser `renderBody()` + `innerHTML` pour les corps de messages. Ne jamais utiliser `textContent` pour le rendu final.
 - **`emby-checkbox` dynamique** : `<span></span>` vide = 0px = zone de clic nulle. Toujours `<input type="checkbox">` natif avec `accent-color` inline.
 - **Styles SPA** : les `<style>` de `configurationpage.html` disparaissent lors des transitions. Tout CSS pour des overlays/éléments ajoutés au `<body>` doit être dans `injectStyles()`.
 - **Fallback PascalCase** : toujours `msg.body || msg.Body || ''` — jamais un seul casing.
