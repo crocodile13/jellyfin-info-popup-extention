@@ -106,16 +106,20 @@ public class MessageStore
     }
 
     /// <summary>
-    /// Met à jour le titre et le corps d'un message existant sans changer son ID.
+    /// Met à jour le titre, le corps et le ciblage d'un message existant sans changer son ID.
     /// Le suivi des vues est préservé : un message modifié ne se réaffiche pas
     /// aux utilisateurs qui l'avaient déjà vu.
     /// </summary>
+    /// <param name="id">ID du message à mettre à jour.</param>
+    /// <param name="title">Nouveau titre.</param>
+    /// <param name="body">Nouveau corps.</param>
+    /// <param name="targetUserIds">Nouveaux IDs cibles. Null ou vide = tous les utilisateurs.</param>
     /// <returns>
     /// Un snapshot du message mis à jour, ou <c>null</c> si l'ID est introuvable.
     /// Le snapshot est capturé à l'intérieur du lock pour éviter toute race condition
     /// (TOCTOU) entre la mise à jour et la lecture du résultat par l'appelant.
     /// </returns>
-    public PopupMessage? Update(string id, string title, string body)
+    public PopupMessage? Update(string id, string title, string body, List<string>? targetUserIds = null)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Le titre ne peut pas être vide.", nameof(title));
@@ -134,10 +138,17 @@ public class MessageStore
             if (msg is null) return null;
             msg.Title = title.Trim();
             msg.Body = body;
+            msg.TargetUserIds = targetUserIds?.Count > 0
+                ? new List<string>(targetUserIds)
+                : new List<string>();
             SaveConfig();
+
+            var targetInfo = msg.TargetUserIds.Count > 0
+                ? $"{msg.TargetUserIds.Count} utilisateur(s) ciblé(s)"
+                : "tous les utilisateurs";
             _logger.LogInformation(
-                "InfoPopup: message '{Id}' mis à jour — nouveau titre : '{Title}'",
-                id, msg.Title);
+                "InfoPopup: message '{Id}' mis à jour — titre : '{Title}', cible : {Target}",
+                id, msg.Title, targetInfo);
 
             // Retourner un snapshot immutable capturé dans le lock.
             // Évite la TOCTOU qu'aurait causé un second appel à GetById() depuis le controller.

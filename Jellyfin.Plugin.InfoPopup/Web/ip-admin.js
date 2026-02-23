@@ -5,6 +5,11 @@
  * Gère le formulaire, le tableau de messages, la toolbar de formatage
  * et le sélecteur de ciblage utilisateurs.
  *
+ * Comportement de l'éditeur :
+ *   - Le textarea est TOUJOURS visible pour la saisie directe.
+ *   - Le panneau d'aperçu formaté est optionnel (toggle "Aperçu").
+ *   - Aucun changement de mode automatique à la frappe ou via la toolbar.
+ *
  * Dépendances : ip-i18n.js, ip-utils.js, ip-styles.js
  * Exposition   : window.__IP.initConfigPage(page)
  *                window.__IP.checkConfigPage()
@@ -188,13 +193,13 @@
             tr.querySelector('.ip-edit-btn').addEventListener('click', function (e) {
                 e.stopPropagation();
                 if (msgBody !== null) {
-                    onEdit({ id: id, title: title, body: msgBody });
+                    onEdit({ id: id, title: title, body: msgBody, targetUserIds: targetUserIds });
                 } else {
                     apiFetch('/InfoPopup/messages/' + encodeURIComponent(id))
                         .then(function (res) { return res.json(); })
                         .then(function (data) {
                             msgBody = data.body || data.Body || '';
-                            onEdit({ id: id, title: title, body: msgBody });
+                            onEdit({ id: id, title: title, body: msgBody, targetUserIds: targetUserIds });
                         });
                 }
             });
@@ -253,9 +258,10 @@
 
         if (editState.id) {
             // ── Mode édition : PUT ──────────────────────────────────────────
+            var targetIds = getSelectedTargetIds(page);
             apiFetch('/InfoPopup/messages/' + encodeURIComponent(editState.id), {
                 method: 'PUT',
-                body: JSON.stringify({ title: title, body: body })
+                body: JSON.stringify({ title: title, body: body, targetUserIds: targetIds })
             })
             .then(function () {
                 showToast(page, t('toast_updated'));
@@ -279,7 +285,8 @@
                 if (bodyEl)  bodyEl.value  = '';
                 resetTargetPicker(page);
                 showToast(page, t('toast_published'));
-                setPreviewMode(page, true);
+                // Sync l'aperçu si visible, sinon rien à faire
+                updatePreview(page);
                 return loadMessages(page, selectedIds, editState.onEdit);
             })
             .catch(function (err) {
@@ -431,6 +438,37 @@
         }
     }
 
+    /**
+     * Restaure l'état du sélecteur de ciblage depuis une liste d'IDs.
+     * Utilisé lors du passage en mode édition pour refléter le ciblage actuel du message.
+     * @param {string[]} ids — IDs à cocher. Vide ou null = tous les utilisateurs.
+     */
+    function setTargetPickerIds(page, ids) {
+        var allChk = page.querySelector('#ip-target-all');
+        if (!allChk) return;
+        if (!ids || ids.length === 0) {
+            // Tous les utilisateurs
+            allChk.checked = true;
+            allChk.dispatchEvent(new Event('change'));
+        } else {
+            // Sélection partielle
+            allChk.checked = false;
+            allChk.dispatchEvent(new Event('change'));
+            var picker = page.querySelector('#ip-target-picker');
+            if (picker) {
+                // D'abord tout décocher
+                picker.querySelectorAll('input[data-user-id]').forEach(function (chk) {
+                    chk.checked = false;
+                });
+                // Puis cocher uniquement les IDs ciblés
+                ids.forEach(function (id) {
+                    var chk = picker.querySelector('input[data-user-id="' + id + '"]');
+                    if (chk) chk.checked = true;
+                });
+            }
+        }
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // Toolbar de formatage
     // ════════════════════════════════════════════════════════════════════════
@@ -579,12 +617,12 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Aperçu en temps réel
+    // Aperçu formaté (panneau optionnel sous le textarea)
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * Met à jour le div d'aperçu avec le rendu formaté du textarea.
-     * Affiche un texte d'invite si le textarea est vide.
+     * Met à jour le contenu du panneau d'aperçu avec le rendu formaté du textarea.
+     * N'affecte pas la visibilité du panneau.
      */
     function updatePreview(page) {
         var bodyEl  = page.querySelector('#ip-body');
@@ -599,30 +637,26 @@
     }
 
     /**
-     * Bascule entre le mode aperçu (preview visible, textarea caché)
-     * et le mode brut (textarea visible, preview caché).
-     * @param {boolean} on  true = aperçu, false = brut.
+     * Affiche (on=true) ou cache (on=false) le panneau d'aperçu formaté.
+     * Le textarea reste toujours visible, quelle que soit la valeur de `on`.
+     *
+     * Note : pour toute modification programmatique de bodyEl.value
+     * (enterEditMode, exitEditMode, reset post-publication), appeler
+     * updatePreview(page) si le panneau est visible.
+     *
+     * @param {boolean} on  true = panneau visible, false = panneau caché.
      */
     function setPreviewMode(page, on) {
-        var bodyEl  = page.querySelector('#ip-body');
         var preview = page.querySelector('#ip-body-preview');
         var toggle  = page.querySelector('#ip-preview-toggle');
-        var label   = page.querySelector('#ip-preview-toggle-label');
-        if (!bodyEl || !preview) return;
+        if (!preview) return;
         if (on) {
             updatePreview(page);
             preview.style.display = 'block';
-            bodyEl.style.display  = 'none';
-            if (toggle) toggle.checked = false;
-            if (label)  label.textContent = t('preview_toggle_raw');
+            if (toggle) toggle.checked = true;
         } else {
             preview.style.display = 'none';
-            bodyEl.style.display  = 'block';
-            if (toggle) toggle.checked = true;
-            if (label)  label.textContent = t('preview_toggle_raw');
-            bodyEl.focus();
-            var configPage = bodyEl.closest('#infoPopupConfigPage');
-            if (configPage) updateToolbarActiveState(configPage, bodyEl);
+            if (toggle) toggle.checked = false;
         }
     }
 
@@ -636,7 +670,10 @@
         var bodyEl  = page.querySelector('#ip-body');
         if (titleEl) titleEl.value = msg.title;
         if (bodyEl)  bodyEl.value  = msg.body;
-        setPreviewMode(page, false);
+        // Sync l'aperçu si le panneau est visible
+        updatePreview(page);
+        // Restaurer le ciblage du message en cours d'édition
+        setTargetPickerIds(page, msg.targetUserIds || []);
         var publishBtn   = page.querySelector('#ip-publish-btn');
         var cancelBtn    = page.querySelector('#ip-cancel-edit-btn');
         var sectionTitle = page.querySelector('#ip-form-section-title');
@@ -652,7 +689,9 @@
         var bodyEl   = page.querySelector('#ip-body');
         if (titleEl) titleEl.value = '';
         if (bodyEl)  bodyEl.value  = '';
-        setPreviewMode(page, true);
+        // Sync l'aperçu (vide) si le panneau est visible
+        updatePreview(page);
+        resetTargetPicker(page);
         var publishBtn   = page.querySelector('#ip-publish-btn');
         var cancelBtn    = page.querySelector('#ip-cancel-edit-btn');
         var sectionTitle = page.querySelector('#ip-form-section-title');
@@ -708,7 +747,7 @@
             if (el) el.title = t(toolbarMap[sel]);
         });
 
-        // Tooltip du toggle aperçu/brut
+        // Tooltip du toggle aperçu
         var toggleWrap = page.querySelector('.ip-preview-toggle-wrap');
         if (toggleWrap) toggleWrap.title = t('fmt_raw_tip');
 
@@ -747,28 +786,23 @@
         var bodyEl        = page.querySelector('#ip-body');
         var toolbar       = page.querySelector('#ip-format-toolbar');
         var previewToggle = page.querySelector('#ip-preview-toggle');
-        var bodyPreview   = page.querySelector('#ip-body-preview');
 
-        // État initial : aperçu activé
-        setPreviewMode(page, true);
+        // État initial : panneau d'aperçu caché, textarea directement accessible
+        setPreviewMode(page, false);
 
-        // Toggle Raw : coché = mode brut, décoché = mode aperçu
+        // Toggle Aperçu : coché = panneau visible, décoché = panneau caché
         if (previewToggle) {
             previewToggle.addEventListener('change', function () {
-                setPreviewMode(page, !previewToggle.checked);
-            });
-        }
-
-        // Cliquer sur l'aperçu bascule en mode brut pour éditer
-        if (bodyPreview) {
-            bodyPreview.addEventListener('click', function () {
-                setPreviewMode(page, false);
+                setPreviewMode(page, previewToggle.checked);
             });
         }
 
         if (bodyEl) {
-            // Mise à jour de l'aperçu à chaque frappe
-            bodyEl.addEventListener('input', function () { updatePreview(page); });
+            // Mise à jour de l'aperçu à chaque frappe (si panneau visible)
+            bodyEl.addEventListener('input', function () {
+                var preview = page.querySelector('#ip-body-preview');
+                if (preview && preview.style.display !== 'none') updatePreview(page);
+            });
 
             // Mise à jour de l'état actif des boutons de formatage
             var refreshToolbarState = function () { updateToolbarActiveState(page, bodyEl); };
@@ -808,6 +842,8 @@
         }
 
         // ── Toolbar de formatage ─────────────────────────────────────────────
+        // Les boutons appliquent le formatage directement sur le textarea,
+        // sans changer le mode d'affichage (textarea toujours visible).
         if (toolbar && bodyEl) {
             var fmtMap = {
                 bold:      ['**', '**'],
@@ -819,7 +855,6 @@
                 var btn = e.target.closest('.ip-fmt-btn');
                 if (!btn) return;
                 e.preventDefault();
-                setPreviewMode(page, false);
                 var action = btn.dataset.action;
                 if (action === 'list') {
                     toggleListLines(bodyEl);

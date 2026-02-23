@@ -6,6 +6,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.7.0.0] — 2026-02-23
+
+### Changed
+
+- **Éditeur de message — textarea toujours visible** — le comportement précédent affichait un panneau d'aperçu formaté par défaut et demandait de cliquer dessus (ou sur un bouton de la toolbar) pour basculer en mode « brut » (textarea). Ce changement de mode automatique est supprimé. Le textarea est désormais affiché en permanence et directement accessible à la frappe sans aucune interaction préalable. L'aperçu formaté devient un **panneau optionnel** situé sous le textarea, activé et désactivé par le toggle « Aperçu ». Il se met à jour en temps réel à chaque frappe, uniquement lorsqu'il est visible.
+- **Toggle « Raw » renommé « Aperçu »** — la sémantique est inversée : toggle coché = panneau d'aperçu visible ; décoché = panneau caché (état par défaut). La chaîne est mise à jour dans les deux langues (`'Aperçu'` en FR, `'Preview'` en EN). Le tooltip passe de « Activer pour afficher le texte brut » à « Afficher l'aperçu formaté du message ».
+- **`PUT /InfoPopup/messages/{id}` accepte `TargetUserIds`** — le ciblage utilisateur peut désormais être modifié lors de l'édition d'un message existant. Avant cette version, seuls le titre et le corps pouvaient être changés ; les destinataires restaient figés à la valeur définie à la publication initiale. `UpdateMessageRequest` gagne le champ `List<string> TargetUserIds`. `MessageStore.Update()` accepte le nouveau paramètre `List<string>? targetUserIds` et l'applique dans le lock.
+- **Mode édition — restauration du ciblage** — le formulaire d'édition (bouton « Modifier » dans le tableau) initialise maintenant le sélecteur de destinataires avec le ciblage actuel du message. La nouvelle fonction `setTargetPickerIds(page, ids)` dans `ip-admin.js` gère ce cas : liste vide → « Tous les utilisateurs » coché ; liste partielle → case « Tous » décochée, utilisateurs ciblés individuellement cochés.
+
+### Fixed
+
+- **Boutons de toolbar ne changent plus le mode d'affichage** — auparavant, cliquer sur B / I / U / S / Liste depuis le mode aperçu forçait la bascule vers le textarea (mode brut). Ce comportement perturbant est supprimé. Les boutons appliquent le formatage directement sur le textarea, qui est désormais toujours visible.
+
+---
+
 ## [0.6.2.0] — 2026-02-23
 
 ### Added

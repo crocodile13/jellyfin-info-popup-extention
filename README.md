@@ -24,7 +24,9 @@ Popup example:
 - **Body formatting**: lightweight syntax — `**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, `- list` lines
 - **Admin page**: publishing, multiple selection, confirmed deletion, editing existing messages
 - **Edit without re-display**: an edited message (`PUT`) keeps its ID — users who had already seen it won't see it again
-- **Formatting toolbar**: row of buttons above the textarea to apply formatting without typing the syntax manually
+- **Editable targeting on edit**: the recipients selector is pre-filled with the current message targeting when entering edit mode — title, body and recipients can all be changed in a single operation
+- **Formatting toolbar**: row of buttons above the textarea to apply formatting without typing the syntax manually; buttons act directly on the always-visible textarea without switching view modes
+- **Optional formatted preview**: a formatted preview panel can be displayed below the textarea via the "Preview" toggle — the textarea remains visible at all times regardless of this setting
 - **Inline row expand**: click on a message title in the admin table to display its body inline
 - **Full deletion**: a deleted message disappears immediately, everywhere, for everyone
 - **Auto-injection**: `client.js` injected into `index.html` by `ScriptInjectionMiddleware` — no manual modification required
@@ -152,13 +154,15 @@ REST API (/InfoPopup/*)               JS Client (injected into index.html)
 │ GET    /client.js         [anon]│   Admin Page (Jellyfin dashboard)
 └─────────────────────────────────┘   ┌────────────────────────────────────────────┐
                                        │ POST /messages        → publish            │
-Access control                         │ PUT  /messages/{id}   → edit (stable ID)  │
-┌─────────────────────────────────┐   │ POST /messages/delete → confirm modal      │
-│ Admins: all messages            │   │ GET  /messages        → table + editing    │
-│ Users:  targeted only           │   │ Toolbar: B I U S • List                   │
-│ Missing UserId → 401            │   └────────────────────────────────────────────┘
-│ Not targeted → 404 (not 403)    │
-└─────────────────────────────────┘   Persistence
+Access control                         │ PUT  /messages/{id}   → edit (stable ID,  │
+┌─────────────────────────────────┐   │                          title/body/target)│
+│ Admins: all messages            │   │ POST /messages/delete → confirm modal      │
+│ Users:  targeted only           │   │ GET  /messages        → table + editing    │
+│ Missing UserId → 401            │   │ Toolbar: B I U S • List (always on textarea│
+│ Not targeted → 404 (not 403)    │   │ Preview toggle: optional panel below       │
+└─────────────────────────────────┘   └────────────────────────────────────────────┘
+
+                                       Persistence
                                        ┌────────────────────────────────────────────┐
                                        │ XML  : messages (BasePluginConfiguration)  │
                                        │ JSON : infopopup_seen.json (memory cache)  │

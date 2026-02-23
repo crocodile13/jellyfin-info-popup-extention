@@ -5,10 +5,21 @@
  *
  * Langue détectée depuis (par ordre de priorité) :
  *   1. document.documentElement.lang   → attribut positionné par Jellyfin Web
- *   2. navigator.language              → langue du navigateur
+ *   2. navigator.language              → langue du navigateur (fallback)
  *   Normalisé en 'fr' ou 'en' (défaut).
  *
+ * Problème connu Jellyfin 10.11 (React Router) :
+ *   L'événement localusersignedin est émis AVANT que les listeners soient
+ *   enregistrés → document.documentElement.lang est vide au chargement du
+ *   module. Ce module utilise deux mécanismes pour contourner ce problème :
+ *   1. MutationObserver sur <html> : dès que Jellyfin positionne l'attribut
+ *      lang (même en retard), _lang et _dict sont mis à jour.
+ *   2. Détection lazy dans t() : si _lang a été résolu depuis navigator.language
+ *      et que html.lang est maintenant disponible, t() se re-synchronise au
+ *      premier appel qui suit.
+ *
  * Exposition : window.__IP.t(key, ...args) — args remplacent {0}, {1}…
+ *              window.__IP.lang()          — langue active ('fr' ou 'en')
  */
 (function (ns) {
     'use strict';
@@ -79,8 +90,8 @@
             confirm_cancel:      'Annuler',
 
             // ── Aperçu ───────────────────────────────────────────────────────
-            preview_hint:        'Cliquez ici ou sur \u00ab\u00a0Brut\u00a0\u00bb pour commencer à saisir\u2026',
-            preview_toggle_raw:  'Raw',
+            preview_hint:        'Le message formaté s\'affichera ici\u2026',
+            preview_toggle_raw:  'Aperçu',
 
             // ── Popup utilisateur ────────────────────────────────────────────
             popup_n_messages:    '{0} nouveaux messages',
@@ -97,7 +108,7 @@
             fmt_underline:       'Souligné',
             fmt_strike:          'Barré',
             fmt_list:            'Liste à puces',
-            fmt_raw_tip:         'Activer pour afficher le texte brut (désactive l\'aperçu formaté)',
+            fmt_raw_tip:         'Afficher l\'aperçu formaté du message',
 
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -166,8 +177,8 @@
             confirm_cancel:      'Cancel',
 
             // ── Preview ──────────────────────────────────────────────────────
-            preview_hint:        'Click here or on \u00abRaw\u00bb to start typing\u2026',
-            preview_toggle_raw:  'Raw',
+            preview_hint:        'The formatted message will appear here\u2026',
+            preview_toggle_raw:  'Preview',
 
             // ── User popup ───────────────────────────────────────────────────
             popup_n_messages:    '{0} new messages',
@@ -184,7 +195,7 @@
             fmt_underline:       'Underline',
             fmt_strike:          'Strikethrough',
             fmt_list:            'Bullet list',
-            fmt_raw_tip:         'Enable to show raw markup (disables formatted preview)',
+            fmt_raw_tip:         'Show the formatted message preview',
 
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -194,24 +205,97 @@
     // ── Détection de la langue ───────────────────────────────────────────────
 
     /**
-     * Retourne 'fr' ou 'en' selon la langue active dans Jellyfin.
-     * Source prioritaire : document.documentElement.lang (mis à jour par Jellyfin Web).
-     * Fallback : navigator.language.
+     * Normalise une chaîne brute BCP-47 (ex: 'fr', 'fr-FR', 'en-US', 'en')
+     * en 'fr' ou 'en' (défaut).
+     * @param {string} raw
+     * @returns {'fr'|'en'}
      */
-    function detectLang() {
-        var raw = (document.documentElement.lang || navigator.language || 'en').toLowerCase();
-        return raw.startsWith('fr') ? 'fr' : 'en';
+    function normalizeLang(raw) {
+        if (!raw) return 'en';
+        return raw.toLowerCase().startsWith('fr') ? 'fr' : 'en';
     }
 
-    var _lang = detectLang();
-    var _dict = _dicts[_lang] || _dicts.en;
+    /**
+     * Lit la langue depuis document.documentElement.lang.
+     * Retourne null si l'attribut est absent ou vide (cas Jellyfin 10.11
+     * React Router avant que localusersignedin ait mis à jour l'attribut).
+     * @returns {'fr'|'en'|null}
+     */
+    function readHtmlLang() {
+        var v = document.documentElement.lang;
+        return v ? normalizeLang(v) : null;
+    }
+
+    /**
+     * Résolution complète de la langue avec fallbacks.
+     * Utilisé uniquement au chargement du module.
+     * @returns {'fr'|'en'}
+     */
+    function detectLang() {
+        return readHtmlLang() || normalizeLang(navigator.language) || 'en';
+    }
+
+    // _resolvedFromHtml : true si _lang a été lu depuis html.lang (fiable),
+    // false si résolu depuis navigator.language (peut être erroné en 10.11).
+    var _lang           = detectLang();
+    var _resolvedFromHtml = !!document.documentElement.lang;
+    var _dict           = _dicts[_lang] || _dicts.en;
+
+    /**
+     * Met à jour _lang et _dict si la nouvelle langue diffère de l'actuelle.
+     * @param {'fr'|'en'} newLang
+     */
+    function applyLang(newLang) {
+        if (newLang && newLang !== _lang) {
+            _lang = newLang;
+            _dict = _dicts[_lang] || _dicts.en;
+            console.log('InfoPopup i18n: langue mise à jour → ' + _lang);
+        }
+    }
+
+    // ── MutationObserver : réactivité au changement tardif de html.lang ──────
+    // Jellyfin 10.11 (React Router) peut poser html.lang APRÈS que ce module
+    // s'est chargé. L'observer garantit que _lang se synchronise dès que
+    // Jellyfin positionne l'attribut, sans nécessiter de rechargement de page.
+
+    if (typeof MutationObserver !== 'undefined') {
+        (new MutationObserver(function (mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+                if (mutations[i].attributeName === 'lang') {
+                    var detected = readHtmlLang();
+                    if (detected) {
+                        _resolvedFromHtml = true;
+                        applyLang(detected);
+                    }
+                    break;
+                }
+            }
+        })).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+    }
+
+    // ── Fonction de traduction ───────────────────────────────────────────────
 
     /**
      * Traduit une clé. Les occurrences de {0}, {1}… sont remplacées
      * par les arguments supplémentaires.
      * Retourne la clé entourée de '?' si absente du dictionnaire.
+     *
+     * Détection lazy : si la langue n'a pas encore été résolue depuis html.lang
+     * (cas React Router), chaque appel à t() tente de lire html.lang. Dès
+     * qu'il est disponible, la langue est mise à jour et ne sera plus re-vérifiée.
      */
     function t(key) {
+        // Lazy re-sync : si on avait dû tomber sur navigator.language faute
+        // d'un html.lang disponible, on re-vérifie à chaque appel jusqu'à
+        // ce qu'on obtienne une valeur fiable depuis html.lang.
+        if (!_resolvedFromHtml) {
+            var htmlLang = readHtmlLang();
+            if (htmlLang) {
+                _resolvedFromHtml = true;
+                applyLang(htmlLang);
+            }
+        }
+
         var str = _dict[key];
         if (str === undefined) return '?' + key + '?';
         for (var i = 1; i < arguments.length; i++) {

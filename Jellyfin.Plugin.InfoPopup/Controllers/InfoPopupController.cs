@@ -183,7 +183,7 @@ public class InfoPopupController : ControllerBase
         {
             // Update() retourne un snapshot capturé dans le lock : élimine la TOCTOU
             // qu'aurait causé un second appel à GetById() après Update().
-            var updated = _store.Update(id, request.Title, request.Body);
+            var updated = _store.Update(id, request.Title, request.Body, request.TargetUserIds);
             if (updated is null) return NotFound(new { error = "Message introuvable." });
             return Ok(ToDetail(updated));
         }

@@ -35,6 +35,12 @@ public class UpdateMessageRequest
 
     /// <summary>Nouveau corps (max 10 000 car., supporte le markup IP).</summary>
     [Required][MaxLength(10_000)] public string Body { get; set; } = string.Empty;
+
+    /// <summary>
+    /// IDs Jellyfin des utilisateurs cibles.
+    /// Liste vide = tous les utilisateurs (même comportement que CreateMessageRequest).
+    /// </summary>
+    public List<string> TargetUserIds { get; set; } = new();
 }
 
 /// <summary>Requête de marquage comme vu (batch).</summary>

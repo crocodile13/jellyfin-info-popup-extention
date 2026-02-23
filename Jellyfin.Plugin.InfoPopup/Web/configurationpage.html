@@ -30,7 +30,7 @@
         <div class="inputContainer" style="margin-top:16px;">
             <label id="ip-body-label" class="inputLabel inputLabelUnfocused" for="ip-body">Message *</label>
 
-            <!-- Toolbar de formatage + toggle apercu/brut -->
+            <!-- Toolbar de formatage + toggle apercu -->
             <div id="ip-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">
                 <button type="button" class="ip-fmt-btn" data-action="bold"      title="Gras"><strong>B</strong></button>
                 <button type="button" class="ip-fmt-btn" data-action="italic"    title="Italique"><em>I</em></button>
@@ -38,26 +38,26 @@
                 <button type="button" class="ip-fmt-btn" data-action="strike"    title="Barre"><s>S</s></button>
                 <button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list" title="Liste a puces">&#8226; Liste</button>
                 <label class="ip-preview-toggle-wrap" for="ip-preview-toggle"
-                       title="Activer pour afficher le texte brut (desactive l'apercu formate)">
+                       title="Afficher l'apercu formate du message">
                     <div class="ip-toggle-switch">
                         <input type="checkbox" id="ip-preview-toggle">
                         <span class="ip-toggle-slider"></span>
                     </div>
-                    <span id="ip-preview-toggle-label">Raw</span>
+                    <span id="ip-preview-toggle-label">Apercu</span>
                 </label>
             </div>
 
-            <!-- Zone d'edition : apercu formate (defaut) ou textarea brut -->
+            <!-- Zone de saisie (toujours visible) + panneau apercu optionnel en dessous -->
             <div class="ip-editor-wrap">
-                <div id="ip-body-preview" class="ip-body-preview" title="Cliquer pour editer (mode brut)">
-                    <span class="ip-preview-hint">Cliquez ici ou sur &#171;&#160;Brut&#160;&#187; pour commencer &#224; saisir&#8230;</span>
-                </div>
                 <textarea id="ip-body"
                           class="emby-textarea"
                           maxlength="10000"
                           rows="7"
-                          placeholder="Saisir le contenu&#8230; (**gras**, _italique_, ~~barre~~, __souligne__, - liste)"
-                          style="display:none;width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+                          placeholder="Saisir le contenu... (**gras**, _italique_, ~~barre~~, __souligne__, - liste)"
+                          style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+                <div id="ip-body-preview" class="ip-body-preview" style="display:none;margin-top:8px;">
+                    <span class="ip-preview-hint">Le message formate s'affichera ici...</span>
+                </div>
             </div>
 
             <div id="ip-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>

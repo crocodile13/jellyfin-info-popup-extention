@@ -164,6 +164,12 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 ### i18n — language detection
 `ip-i18n.js` detects the language from `document.documentElement.lang` (set by Jellyfin Web based on user settings), with `navigator.language` as fallback. Normalized to `'fr'` or `'en'` (default). `window.__IP.t(key, ...args)` is the single translation entry point. `applyStaticTranslations(page)` in `ip-admin.js` updates all static elements of `configurationpage.html` at init time.
 
+**Jellyfin 10.11 React Router timing issue** — in 10.11, `document.documentElement.lang` is not set when the module first loads because the `localusersignedin` event fires before the subscriber is registered (confirmed by jellyfin-web PR #4306). Two complementary mechanisms handle this:
+1. **`MutationObserver`** on `document.documentElement`: whenever Jellyfin sets or changes the `lang` attribute (even with a delay), `_lang` and `_dict` are updated immediately.
+2. **Lazy re-detection in `t()`**: if `_lang` was resolved from `navigator.language` (unreliable fallback), every call to `t()` re-checks `document.documentElement.lang` until it gets a value. After the first successful read from `html.lang`, the flag `_resolvedFromHtml` is set to `true` and re-checks stop.
+
+Both mechanisms are idempotent and stop once a reliable source (`html.lang`) is available. Dynamic elements (popup, toasts, table) always use the correct language because they call `t()` after the user is signed in. Static elements from `applyStaticTranslations(page)` are refreshed on each SPA navigation to the config page (`initConfigPage` re-runs).
+
 ### Login detection: MutationObserver only
 `document.body` observed with `{ childList: true, subtree: true }` + `hashchange` and `popstate` listeners. `lastCheckedPath`, `checkScheduled` and `setTimeout(800ms)` deduplicate calls.
 **Mandatory guards**: `schedulePopupCheck` returns immediately if `#infoPopupConfigPage` is in the DOM, or if `popupActive === true`.
@@ -171,24 +177,35 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 ### View tracking: 100% server-side
 `infopopup_seen.json` via `SeenTrackerService`. Never `localStorage` / `sessionStorage` / cookie.
 
-### Message edit: stable ID
-`PUT /InfoPopup/messages/{id}` updates title and body without changing the ID. `infopopup_seen.json` is not touched. A user who had already seen the message will not see it again after editing.
+### Message edit: stable ID, editable targeting
+`PUT /InfoPopup/messages/{id}` updates title, body and `TargetUserIds` without changing the ID. `infopopup_seen.json` is not touched. A user who had already seen the message will not see it again after editing, even if the targeting changes.
 
 `MessageStore.Update()` returns `PopupMessage?` (snapshot captured inside the lock) and not `bool`. The controller uses this snapshot directly — never add a `GetById()` call after `Update()` (TOCTOU).
 
-### Formatted preview (v0.6)
-The admin input field toggles between two modes via `setPreviewMode(page, on)`:
-- **Preview (on=true)**: `#ip-body-preview` div visible, `#ip-body` hidden. Rendered via `updatePreview(page)` → `renderBody()`.
-- **Raw (on=false)**: `#ip-body` textarea visible, `#ip-body-preview` hidden.
+### Formatted preview (v0.7)
+The textarea (`#ip-body`) is **always visible**. The formatted preview is an optional panel (`#ip-body-preview`) displayed **below** the textarea, toggled by the "Aperçu / Preview" switch.
+
+`setPreviewMode(page, on)` controls only the panel visibility, never the textarea:
+- **`on = true`**: `#ip-body-preview` visible, `updatePreview(page)` called to sync content.
+- **`on = false`**: `#ip-body-preview` hidden. Textarea untouched.
 
 Mandatory rules:
-- `enterEditMode` → `setPreviewMode(page, false)` (admin must be able to edit).
-- `exitEditMode` → `setPreviewMode(page, true)` (return to preview after cancellation).
-- `publishMessage` POST success → `setPreviewMode(page, true)`.
-- Click on a format button → `setPreviewMode(page, false)` before applying.
-- Click on the preview → `setPreviewMode(page, false)`.
-- `updatePreview(page)` is called on each textarea `input` event and inside `setPreviewMode(page, true)`.
-- **Never** show the textarea and the preview div simultaneously.
+- The textarea is **never hidden** — do not set `bodyEl.style.display = 'none'` anywhere.
+- `updatePreview(page)` is called on `input` events **only when the panel is visible** (guard: `preview.style.display !== 'none'`).
+- `updatePreview(page)` must be called after any programmatic write to `bodyEl.value` (`enterEditMode`, `exitEditMode`, post-publish reset), **regardless** of panel visibility, so that the panel is up to date if the user opens it afterwards.
+- Format toolbar buttons apply their action directly to the textarea without calling `setPreviewMode`. They call `updatePreview(page)` afterwards to sync the panel content.
+- Initial state on page load: `setPreviewMode(page, false)` — panel hidden, textarea ready.
+
+### Edit mode and targeting (v0.7)
+`enterEditMode(page, msg, editState)` receives the full message object including `targetUserIds`.
+It calls `setTargetPickerIds(page, msg.targetUserIds)` to restore the targeting selector:
+- Empty list → "All users" checkbox checked, individual user list hidden.
+- Non-empty list → "All users" unchecked, individual list shown with the relevant users checked.
+
+`exitEditMode(page)` calls `resetTargetPicker(page)` to restore the "All users" default.
+`publishMessage` in edit mode (`PUT`) reads `getSelectedTargetIds(page)` and includes the result in `targetUserIds` of the request body.
+
+`setTargetPickerIds(page, ids)` is the **only** function that may set individual checkboxes programmatically. Never duplicate this logic elsewhere.
 
 ### Access control on messages
 - **Admins** (`RequiresElevation`): see all messages on all endpoints.
@@ -245,7 +262,7 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 | GET | `/InfoPopup/messages` | user/admin | Summaries filtered by targeting (admin: all) |
 | GET | `/InfoPopup/messages/{id}` | user/admin | Full detail (404 if not targeted and non-admin) |
 | POST | `/InfoPopup/messages` | **admin** | Create a message |
-| PUT | `/InfoPopup/messages/{id}` | **admin** | Edit title/body (stable ID, views preserved) |
+| PUT | `/InfoPopup/messages/{id}` | **admin** | Edit title, body and targeting (stable ID, views preserved) |
 | POST | `/InfoPopup/messages/delete` | **admin** | Delete (body `{ ids: [...] }`) |
 | GET | `/InfoPopup/popup-data` | user | Unseen + history in a single call |
 | GET | `/InfoPopup/unseen` | user | Unread messages (compatibility, prefer popup-data) |
@@ -265,7 +282,7 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 | R5 | POST/PUT/POST(delete) `/InfoPopup/messages` → **admin only** (`RequiresElevation`). |
 | R6 | Cleanup of orphans in `infopopup_seen.json` → **lazy**, on next access. |
 | R7 | `escHtml()` **always before** formatting replacements. Never raw user data in `innerHTML`. |
-| R8 | `PUT /InfoPopup/messages/{id}` **never** modifies the ID or `infopopup_seen.json` — an edited message is not re-displayed to users who had already seen it. |
+| R8 | `PUT /InfoPopup/messages/{id}` **never** modifies the ID or `infopopup_seen.json` — an edited message (including its targeting) is not re-displayed to users who had already seen it. Title, body and `TargetUserIds` can all be changed in a single `PUT`. |
 | R9 | `GET /messages` and `GET /messages/{id}` filter by `TargetUserIds` for non-admins. Return `404` (not `403`) if not targeted. |
 | R10 | All user endpoints return `401` if the `Jellyfin-UserId` claim is absent. Never fall back to `string.Empty`. |
 
@@ -305,7 +322,8 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 - **Module loading order is critical**: `ip-popup.js` depends on `ip-admin.js` (calls `ns.checkConfigPage`), which depends on `ip-utils.js` and `ip-styles.js`, which depend on `ip-i18n.js`. The loader in `client.js` enforces sequential loading via `load` events.
 - **`window.__IP` namespace**: every module extends `window.__IP = window.__IP || {}`. Never access another module's functions directly — always go through `ns.functionName`.
 - **`GET /InfoPopup/{module}.js` whitelist**: only filenames in `_allowedModules` are served. Adding a new module requires updating both the whitelist in the controller AND the `<EmbeddedResource>` list in the `.csproj`.
-- **i18n — adding a language**: add a new dictionary object in `ip-i18n.js` under `_dicts`, update `detectLang()` to recognize the new language code. All keys present in `en` and `fr` must be present in the new dictionary.
+- **`_lang` frozen at load time (Jellyfin 10.11)**: in 10.11 with React Router, `document.documentElement.lang` is empty when `ip-i18n.js` loads, so `detectLang()` falls back to `navigator.language`. If the browser and Jellyfin are in different languages, all strings are wrong. The fix is the MutationObserver + lazy `t()` re-detection pattern already in place — **never remove these mechanisms** or replace them with a single `var _lang = detectLang()` call.
+- **Adding a new language**: add a new dictionary in `_dicts`, add a case in `normalizeLang()`. All keys present in `en` and `fr` must be present in the new dictionary.
 - **i18n — `t()` with plurals**: use separate keys (`key_singular` / `key_plural`) and select the key before calling `t()`. Never try to add pluralization logic inside `t()`.
 - **i18n — `applyStaticTranslations()`**: called once at config page init. If a new translatable element is added to `configurationpage.html`, add its `id` to the `map` in `applyStaticTranslations()` in `ip-admin.js`.
 - `HttpContext.User.FindFirst("Jellyfin-UserId")` — not `User.Identity.Name`
@@ -322,6 +340,9 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 - **Jellyfin 10.11**: React Router + MUI. Legacy selectors (`#indexPage`, `.homePage`) no longer exist. MutationObserver on `document.body` without selector restriction is the only reliable approach.
 - **`PUT` without changing the ID**: never recreate a message to simulate an edit. Always go through `MessageStore.Update()` which preserves the ID and doesn't touch `infopopup_seen.json`.
 - **`Update()` returns `PopupMessage?`**: never call `GetById()` after `Update()` in the controller — the snapshot returned by `Update()` is the source of truth (eliminates TOCTOU).
-- **Forgotten `setPreviewMode` / `updatePreview`**: any code that programmatically modifies `bodyEl.value` (enterEditMode, exitEditMode, post-publish reset) must call `setPreviewMode` and/or `updatePreview`. Symptom: the preview shows old content or the textarea remains visible after publishing.
+- **Forgotten `updatePreview(page)` after programmatic write**: any code that writes to `bodyEl.value` directly (`enterEditMode`, `exitEditMode`, post-publish reset) must call `updatePreview(page)` so the panel stays in sync even if it was not visible at that moment and the user opens it afterwards.
+- **`setPreviewMode` does not touch the textarea**: never set `bodyEl.style.display = 'none'`. The textarea is always visible. `setPreviewMode(page, on)` controls only `#ip-body-preview`.
+- **`updatePreview` inside input listener gated on panel visibility**: the `input` listener on the textarea calls `updatePreview` only when `preview.style.display !== 'none'`. Do not remove this guard — it avoids a useless `renderBody()` call on every keystroke when the panel is hidden.
+- **`setTargetPickerIds` must be called from `enterEditMode`**: if this call is missing, the targeting selector shows the default "All users" state during editing, regardless of the actual targeting of the message. The bug is silent but causes `PUT` to always send an empty `targetUserIds`.
 - **`usersCache` TTL**: `fetchUsers()` applies a 5-minute TTL via `usersCacheAt`. Do not remove this mechanism — without it, users created during the session are invisible in the targeting selector.
 - **Admin styles in `injectStyles()`**: table, badges, toast, target picker, toolbar, editor-wrap and toggle switch are in `injectStyles()` (in `ip-styles.js`). Never put them back in a `<style>` in `configurationpage.html` — they would disappear on SPA navigation.

@@ -111,8 +111,7 @@
             '.ip-fmt-btn-sep{margin-left:6px;border-left:1px solid rgba(255,255,255,.2)}',
             // ── Éditeur aperçu/brut ─────────────────────────────────────────
             '.ip-editor-wrap{display:block}',
-            '.ip-body-preview{min-height:130px;border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:10px 12px;line-height:1.55;font-size:.92rem;background:rgba(0,0,0,.12);cursor:text;overflow-y:auto;color:var(--theme-text-color,#e5e5e5);transition:border-color .15s;word-break:break-word;overflow-wrap:break-word;white-space:pre-wrap;width:100%;box-sizing:border-box}',
-            '.ip-body-preview:hover{border-color:rgba(255,255,255,.3)}',
+            '.ip-body-preview{min-height:80px;border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:10px 12px;line-height:1.55;font-size:.92rem;background:rgba(0,0,0,.12);overflow-y:auto;color:var(--theme-text-color,#e5e5e5);word-break:break-word;overflow-wrap:break-word;white-space:pre-wrap;width:100%;box-sizing:border-box;opacity:.88}',
             '.ip-preview-hint{opacity:.4;font-style:italic;white-space:normal}',
             // ── Toggle switch aperçu/brut ───────────────────────────────────
             '.ip-preview-toggle-wrap{display:flex;align-items:center;gap:7px;font-size:.83rem;opacity:.75;cursor:pointer;user-select:none;margin-left:auto;padding:2px 6px;border-radius:4px;transition:opacity .15s}',
