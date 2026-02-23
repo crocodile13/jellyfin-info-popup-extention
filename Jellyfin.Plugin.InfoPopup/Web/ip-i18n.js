@@ -90,8 +90,8 @@
             confirm_cancel:      'Annuler',
 
             // ── Aperçu ───────────────────────────────────────────────────────
-            preview_hint:        'Le message formaté s\'affichera ici\u2026',
-            preview_toggle_raw:  'Aperçu',
+            preview_hint:        'Cliquez ici ou sur \u00ab\u00a0Brut\u00a0\u00bb pour commencer \u00e0 saisir\u2026',
+            preview_toggle_raw:  'Raw',
 
             // ── Popup utilisateur ────────────────────────────────────────────
             popup_n_messages:    '{0} nouveaux messages',
@@ -108,7 +108,7 @@
             fmt_underline:       'Souligné',
             fmt_strike:          'Barré',
             fmt_list:            'Liste à puces',
-            fmt_raw_tip:         'Afficher l\'aperçu formaté du message',
+            fmt_raw_tip:         'Activer pour saisir le texte brut (markup)',
 
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -177,8 +177,8 @@
             confirm_cancel:      'Cancel',
 
             // ── Preview ──────────────────────────────────────────────────────
-            preview_hint:        'The formatted message will appear here\u2026',
-            preview_toggle_raw:  'Preview',
+            preview_hint:        'Click here or on \u201cRaw\u201d to start typing\u2026',
+            preview_toggle_raw:  'Raw',
 
             // ── User popup ───────────────────────────────────────────────────
             popup_n_messages:    '{0} new messages',
@@ -195,7 +195,7 @@
             fmt_underline:       'Underline',
             fmt_strike:          'Strikethrough',
             fmt_list:            'Bullet list',
-            fmt_raw_tip:         'Show the formatted message preview',
+            fmt_raw_tip:         'Switch to raw markup input mode',
 
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'

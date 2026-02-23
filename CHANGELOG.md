@@ -6,6 +6,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.8.3.0] — 2026-02-23
+
+### Fixed
+
+- **Régression UX éditeur (0.7.0)** — depuis la v0.7.0, le comportement de l'éditeur avait été modifié : le textarea était affiché en permanence et l'aperçu était devenu un panneau optionnel en dessous. Cette version restaure le comportement de v0.5 :
+  - **Aperçu formaté affiché par défaut** (textarea caché) — le formulaire démarre en mode aperçu qui affiche un texte d'invite invitant à cliquer.
+  - **Cliquer sur l'aperçu** bascule en mode brut (textarea visible) pour saisir.
+  - **Boutons de toolbar (B/I/U/S/Liste)** basculent automatiquement en mode brut avant d'appliquer le formatage.
+  - **Après publication** (POST) → retour en aperçu (formulaire réinitialisé).
+  - **Mode édition** (bouton ✎ Modifier) → bascule en mode brut pour permettre l'édition directe.
+  - **Annuler la modification** → retour en aperçu.
+  - **Toggle renommé "Raw"** (était "Aperçu" depuis v0.7.0) : coché = mode brut, décoché = aperçu.
+  - **Texte d'invite** mis à jour : « Cliquez ici ou sur « Brut » pour commencer à saisir… » (FR) / « Click here or on "Raw" to start typing… » (EN).
+  - **Styles** : `cursor:text` et `hover` (border) restaurés sur `.ip-body-preview`.
+
 ## [0.7.1.0] — 2026-02-23
 
 ### Fixed

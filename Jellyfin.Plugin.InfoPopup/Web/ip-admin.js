@@ -286,8 +286,8 @@
                 if (bodyEl)  bodyEl.value  = '';
                 resetTargetPicker(page);
                 showToast(page, t('toast_published'));
-                // Sync l'aperçu si visible, sinon rien à faire
-                updatePreview(page);
+                // Retour en aperçu après publication
+                setPreviewMode(page, true);
                 return loadMessages(page, selectedIds, editState.onEdit);
             })
             .catch(function (err) {
@@ -618,12 +618,13 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Aperçu formaté (panneau optionnel sous le textarea)
+    // Aperçu formaté / mode brut (bascule exclusive comme en v0.5)
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * Met à jour le contenu du panneau d'aperçu avec le rendu formaté du textarea.
-     * N'affecte pas la visibilité du panneau.
+     * Met à jour le contenu du div d'aperçu avec le rendu formaté du textarea.
+     * Affiche un texte d'invite si le textarea est vide.
+     * Doit être appelé après chaque modification de bodyEl.value.
      */
     function updatePreview(page) {
         var bodyEl  = page.querySelector('#ip-body');
@@ -631,33 +632,43 @@
         if (!preview) return;
         var raw = bodyEl ? bodyEl.value : '';
         if (!raw.trim()) {
-            preview.innerHTML = '<span class="ip-preview-hint">' + escHtml(t('preview_hint')) + '</span>';
+            preview.innerHTML = '<span class="ip-preview-hint">' +
+                escHtml(t('preview_hint')) + '</span>';
         } else {
             preview.innerHTML = renderBody(raw);
         }
     }
 
     /**
-     * Affiche (on=true) ou cache (on=false) le panneau d'aperçu formaté.
-     * Le textarea reste toujours visible, quelle que soit la valeur de `on`.
+     * Bascule entre le mode aperçu (preview visible, textarea caché)
+     * et le mode brut (textarea visible, preview caché).
      *
-     * Note : pour toute modification programmatique de bodyEl.value
-     * (enterEditMode, exitEditMode, reset post-publication), appeler
-     * updatePreview(page) si le panneau est visible.
+     * Comportement identique à v0.5 :
+     *   on=true  → aperçu (défaut, après publish/cancel)
+     *   on=false → brut   (pour saisir/formatter)
      *
-     * @param {boolean} on  true = panneau visible, false = panneau caché.
+     * Le toggle "Raw" est coché quand on est en mode brut (textarea visible).
+     *
+     * @param {boolean} on  true = aperçu, false = brut.
      */
     function setPreviewMode(page, on) {
+        var bodyEl  = page.querySelector('#ip-body');
         var preview = page.querySelector('#ip-body-preview');
         var toggle  = page.querySelector('#ip-preview-toggle');
-        if (!preview) return;
+        if (!bodyEl || !preview) return;
         if (on) {
+            // Mode aperçu : preview visible, textarea caché
             updatePreview(page);
             preview.style.display = 'block';
-            if (toggle) toggle.checked = true;
+            bodyEl.style.display  = 'none';
+            if (toggle) toggle.checked = false; // Raw désactivé
         } else {
+            // Mode brut : textarea visible, preview caché
             preview.style.display = 'none';
-            if (toggle) toggle.checked = false;
+            bodyEl.style.display  = 'block';
+            if (toggle) toggle.checked = true;  // Raw activé
+            bodyEl.focus();
+            updateToolbarActiveState(page, bodyEl);
         }
     }
 
@@ -671,8 +682,8 @@
         var bodyEl  = page.querySelector('#ip-body');
         if (titleEl) titleEl.value = msg.title;
         if (bodyEl)  bodyEl.value  = msg.body;
-        // Sync l'aperçu si le panneau est visible
-        updatePreview(page);
+        // Passer en mode brut pour permettre l'édition directe
+        setPreviewMode(page, false);
         // Restaurer le ciblage du message en cours d'édition
         setTargetPickerIds(page, msg.targetUserIds || []);
         var publishBtn   = page.querySelector('#ip-publish-btn');
@@ -690,8 +701,8 @@
         var bodyEl   = page.querySelector('#ip-body');
         if (titleEl) titleEl.value = '';
         if (bodyEl)  bodyEl.value  = '';
-        // Sync l'aperçu (vide) si le panneau est visible
-        updatePreview(page);
+        // Retour en aperçu : montre le placeholder "commencer à saisir"
+        setPreviewMode(page, true);
         resetTargetPicker(page);
         var publishBtn   = page.querySelector('#ip-publish-btn');
         var cancelBtn    = page.querySelector('#ip-cancel-edit-btn');
@@ -788,29 +799,34 @@
         var toolbar       = page.querySelector('#ip-format-toolbar');
         var previewToggle = page.querySelector('#ip-preview-toggle');
 
-        // État initial : panneau d'aperçu caché, textarea directement accessible
-        setPreviewMode(page, false);
+        // État initial : aperçu activé (textarea caché), comme en v0.5
+        setPreviewMode(page, true);
 
-        // Toggle Aperçu : coché = panneau visible, décoché = panneau caché
+        // Toggle Raw : coché = mode brut (textarea), décoché = mode aperçu
         if (previewToggle) {
             previewToggle.addEventListener('change', function () {
-                setPreviewMode(page, previewToggle.checked);
+                setPreviewMode(page, !previewToggle.checked);
+            });
+        }
+
+        // Cliquer sur l'aperçu bascule en mode brut pour éditer
+        var bodyPreview = page.querySelector('#ip-body-preview');
+        if (bodyPreview) {
+            bodyPreview.addEventListener('click', function () {
+                setPreviewMode(page, false);
             });
         }
 
         if (bodyEl) {
-            // Mise à jour de l'aperçu à chaque frappe (si panneau visible)
+            // Mise à jour de l'aperçu à chaque frappe (en arrière-plan, même si caché)
             bodyEl.addEventListener('input', function () {
-                var preview = page.querySelector('#ip-body-preview');
-                if (preview && preview.style.display !== 'none') updatePreview(page);
+                updatePreview(page);
             });
 
             // Mise à jour de l'état actif des boutons de formatage.
-            // keyup/mouseup/touchend sur bodyEl couvrent toutes les interactions
-            // (frappe, sélection souris/tactile, raccourcis Shift+flèche).
-            // selectionchange sur document est intentionnellement absent : il ne
-            // serait jamais retiré après navigation SPA et tirerait à chaque
-            // sélection dans n'importe quel champ de la page.
+            // keyup/mouseup/touchend couvrent toutes les interactions clavier/souris/tactile.
+            // selectionchange sur document est intentionnellement absent : il ne serait
+            // jamais retiré après navigation SPA et tirerait à chaque sélection de la page.
             var refreshToolbarState = function () { updateToolbarActiveState(page, bodyEl); };
             bodyEl.addEventListener('keyup',    refreshToolbarState);
             bodyEl.addEventListener('mouseup',  refreshToolbarState);
@@ -845,8 +861,8 @@
         }
 
         // ── Toolbar de formatage ─────────────────────────────────────────────
-        // Les boutons appliquent le formatage directement sur le textarea,
-        // sans changer le mode d'affichage (textarea toujours visible).
+        // Si on est en aperçu, basculer en brut d'abord pour que l'utilisateur
+        // voie l'effet du formatage dans le textarea (comportement v0.5).
         if (toolbar && bodyEl) {
             var fmtMap = {
                 bold:      ['**', '**'],
@@ -858,6 +874,8 @@
                 var btn = e.target.closest('.ip-fmt-btn');
                 if (!btn) return;
                 e.preventDefault();
+                // Toujours basculer en mode brut pour voir le résultat
+                setPreviewMode(page, false);
                 var action = btn.dataset.action;
                 if (action === 'list') {
                     toggleListLines(bodyEl);
@@ -865,7 +883,7 @@
                     applyFormat(bodyEl, fmtMap[action][0], fmtMap[action][1]);
                 }
                 bodyEl.focus();
-                updatePreview(page);
+                updatePreview(page); // mettre à jour l'aperçu en arrière-plan
                 updateToolbarActiveState(page, bodyEl);
             });
         }
