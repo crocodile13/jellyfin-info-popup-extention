@@ -306,10 +306,10 @@ public class InfoPopupController : ControllerBase
         if (!_allowedModules.Contains(fileName))
             return NotFound();
 
-        // Le SDK .NET remplace les caractères non valides en identifiant C# (dont "-")
-        // par "_" dans les noms de ressources embarquées.
-        var resourceFileName = fileName.Replace('-', '_');
-        var resourceName = "Jellyfin.Plugin.InfoPopup.Web." + resourceFileName;
+        // Le SDK .NET conserve les tirets dans les noms de ressources embarquées
+        // quand les fichiers sont déclarés explicitement via <EmbeddedResource> dans le .csproj.
+        // ip-admin.js → Jellyfin.Plugin.InfoPopup.Web.ip-admin.js (tiret conservé, pas d'underscore).
+        var resourceName = "Jellyfin.Plugin.InfoPopup.Web." + fileName;
         var stream = GetType().Assembly.GetManifestResourceStream(resourceName);
         if (stream is null)
         {
