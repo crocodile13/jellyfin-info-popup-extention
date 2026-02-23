@@ -256,9 +256,11 @@
         var btn = page.querySelector('#ip-publish-btn');
         if (btn) btn.disabled = true;
 
+        // targetIds déclaré une seule fois avant le if/else (évite le double var dans le même scope)
+        var targetIds = getSelectedTargetIds(page);
+
         if (editState.id) {
             // ── Mode édition : PUT ──────────────────────────────────────────
-            var targetIds = getSelectedTargetIds(page);
             apiFetch('/InfoPopup/messages/' + encodeURIComponent(editState.id), {
                 method: 'PUT',
                 body: JSON.stringify({ title: title, body: body, targetUserIds: targetIds })
@@ -275,7 +277,6 @@
             .finally(function () { if (btn) btn.disabled = false; });
         } else {
             // ── Nouveau message : POST ──────────────────────────────────────
-            var targetIds = getSelectedTargetIds(page);
             apiFetch('/InfoPopup/messages', {
                 method: 'POST',
                 body: JSON.stringify({ title: title, body: body, targetUserIds: targetIds })
@@ -804,14 +805,16 @@
                 if (preview && preview.style.display !== 'none') updatePreview(page);
             });
 
-            // Mise à jour de l'état actif des boutons de formatage
+            // Mise à jour de l'état actif des boutons de formatage.
+            // keyup/mouseup/touchend sur bodyEl couvrent toutes les interactions
+            // (frappe, sélection souris/tactile, raccourcis Shift+flèche).
+            // selectionchange sur document est intentionnellement absent : il ne
+            // serait jamais retiré après navigation SPA et tirerait à chaque
+            // sélection dans n'importe quel champ de la page.
             var refreshToolbarState = function () { updateToolbarActiveState(page, bodyEl); };
             bodyEl.addEventListener('keyup',    refreshToolbarState);
             bodyEl.addEventListener('mouseup',  refreshToolbarState);
             bodyEl.addEventListener('touchend', refreshToolbarState);
-            document.addEventListener('selectionchange', function () {
-                if (document.activeElement === bodyEl) refreshToolbarState();
-            });
         }
 
         if (publishBtn) {

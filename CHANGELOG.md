@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.7.1.0] — 2026-02-23
+
+### Fixed
+
+- **Label "Message *" flottant par-dessus la toolbar** — la classe Jellyfin `inputLabelUnfocused` applique `position:absolute` pour simuler le comportement Material Design (label qui flotte vers le haut au focus). En v0.7.0.0, le textarea étant désormais toujours visible, Jellyfin le considérait comme focusable et repositionnait le label en position "unfocused", le faisant se superposer à la toolbar de formatage (boutons B / I / U / S / Liste). Corrigé en remplaçant `inputLabelUnfocused` par `position:static;display:block` sur `#ip-body-label` uniquement. Les labels Titre et Destinataires conservent leur comportement floating-label natif, car ils n'ont pas d'élément intercalé entre eux et leur champ de saisie.
+
+- **`document.addEventListener('selectionchange', …)` jamais retiré** — ce listener global était ajouté sur `document` à chaque initialisation de la page de configuration (`initConfigPage`). Dans une SPA, `initConfigPage` pouvant être rappelé à chaque navigation, les listeners s'accumulaient sur la durée de la session. `selectionchange` pouvant se déclencher des dizaines de fois par seconde, l'overhead progressif pouvait être perçu comme un ralentissement général. Supprimé : `keyup`, `mouseup` et `touchend` sur le textarea couvrent tous les scénarios utiles de mise à jour de l'état actif de la toolbar.
+
+- **Double déclaration `var targetIds` dans `publishMessage()`** — `var targetIds` était déclaré deux fois dans le même scope de fonction (une fois dans la branche `if`, une fois dans la branche `else`). Fonctionnel grâce au hoisting de `var`, mais signalé comme erreur par les linters et potentiellement source de confusion. La déclaration est remontée avant le `if/else`.
+
+---
+
 ## [0.7.0.0] — 2026-02-23
 
 ### Changed
