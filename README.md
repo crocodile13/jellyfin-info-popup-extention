@@ -6,16 +6,26 @@
 A Jellyfin plugin that allows administrators to display popup messages to users when they log in.
 
 ## Table of Contents
-- [Preview](#preview)
+- [📸 Preview](#-preview)
 - [Features](#features)
+  - [Key Features](#key-features)
+  - [Admin & Editing Features](#admin--editing-features)
+  - [Formatting & UI](#formatting--ui)
+  - [Technical & Security](#technical--security)
 - [Installation](#installation)
-  - [Repository](#add-the-repository-in-jellyfin)
-  - [Manual](#manual-installation)
+  - [Install via Repository (Recommended)](#install-via-repository-recommended)
+  - [Manual Installation](#manual-installation)
 - [Message Formatting Syntax](#message-formatting-syntax)
 - [Development](#development)
+  - [Prerequisites](#prerequisites)
+  - [Initial setup](#initial-setup)
+  - [Available commands](#available-commands)
+  - [Release workflow](#release-workflow)
+  - [Cleaning build artifacts from the repository](#cleaning-build-artifacts-from-the-repository)
 - [Architecture](#architecture)
 - [Compatibility](#compatibility)
 - [License](#license)
+- [Contributing](#contributing)
 
 This extension was almost entirely vibe-coded by Claude. That's intentional: I simply needed such an extension and didn't want to embark on a ten-day development project.
 
