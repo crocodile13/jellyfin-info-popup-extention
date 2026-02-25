@@ -9,9 +9,11 @@ This extension was almost entirely vibe-coded by Claude. That's intentional: I s
 ## 📸 Preview
 
 Config page:
-![Preview 1](images/image1.png)
-Popup example:
+![Preview 1](images/image1.png):
 ![Preview 2](images/image2.png)
+
+Popup example:
+![Preview 3](images/image3.png)
 
 ---
 
