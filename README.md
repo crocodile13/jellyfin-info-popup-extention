@@ -48,8 +48,10 @@ This extension was almost entirely vibe-coded by Claude. That's intentional: I s
 - **Multilingual UI** – Admin page and user popup automatically displayed in the user's Jellyfin language (English, French, Spanish, German, Portuguese, Italian, Japanese, Chinese Simplified). Falls back to English for other languages.  
 - **Login popup** – Detects user login via MutationObserver (SPA-compatible, tested on Jellyfin 10.10–10.11).  
 - **Show once per user** – Server-side tracking; works across all devices (no localStorage).  
+- **Targeted messages** – Administrator can choose which users will receive each message.  
 - **Multiple unread messages** – Each unread message appears in its own card (title + body) within the same popup.  
 - **Collapsible history** – Previously seen messages are shown in a collapsed accordion; body can be expanded on click.  
+- **Edit or delete without re-display** – Administrators can edit or delete old messages; users who already saw them will not see them again.
 
 ### Admin & Editing Features
 - **Admin page** – Publish, edit, and delete messages; multiple selection supported.  
