@@ -5,68 +5,84 @@
 
 A Jellyfin plugin that allows administrators to display popup messages to users when they log in.
 
+## Table of Contents
+- [Preview](#preview)
+- [Features](#features)
+- [Installation](#installation)
+  - [Repository](#add-the-repository-in-jellyfin)
+  - [Manual](#manual-installation)
+- [Message Formatting Syntax](#message-formatting-syntax)
+- [Development](#development)
+- [Architecture](#architecture)
+- [Compatibility](#compatibility)
+- [License](#license)
+
 This extension was almost entirely vibe-coded by Claude. That's intentional: I simply needed such an extension and didn't want to embark on a ten-day development project.
 
 ---
 
 ## 📸 Preview
 
-Config page:
-![Preview 1](images/image1.png):
+![Preview 1](images/image1.png)
+*Config page with message edition*
 ![Preview 2](images/image2.png)
-
-Popup example:
+*Config page with message published*
 ![Preview 3](images/image3.png)
+*Example popup render*
 
 ---
 
 ## Features
 
-- **Multilingual UI**: admin page and user popup automatically displayed in the user's Jellyfin language — supported: English, French, Spanish, German, Portuguese, Italian, Japanese, Chinese (Simplified). Falls back to English for any other language.
-- **Login popup**: post-login detection via MutationObserver (SPA-compatible, tested on Jellyfin 10.10–10.11)
-- **Show once**: server-side tracking — no localStorage, works across all devices
-- **Multiple unread messages**: if several messages haven't been read yet, each one is displayed in its own card (title + body) within the same popup
-- **Collapsible history**: previously seen messages in an accordion collapsed by default, with body available on click
-- **Body formatting**: lightweight syntax — `**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, `- list` lines
-- **Admin page**: publishing, multiple selection, confirmed deletion, editing existing messages
-- **Edit without re-display**: an edited message (`PUT`) keeps its ID — users who had already seen it won't see it again
-- **Editable targeting on edit**: the recipients selector is pre-filled with the current message targeting when entering edit mode — title, body and recipients can all be changed in a single operation
-- **Formatting toolbar**: row of buttons above the textarea to apply formatting without typing the syntax manually; buttons act directly on the always-visible textarea without switching view modes
-- **Optional formatted preview**: a formatted preview panel can be displayed below the textarea via the "Preview" toggle — the textarea remains visible at all times regardless of this setting
-- **Inline row expand**: click on a message title in the admin table to display its body inline
-- **Full deletion**: a deleted message disappears immediately, everywhere, for everyone
-- **Auto-injection**: `client.js` injected into `index.html` by `ScriptInjectionMiddleware` — no manual modification required
-- **Jellyfin theme integration**: native CSS variables, standard dashboard classes
-- **XSS security**: `escHtml()` applied before any rendering, no raw user HTML in the DOM
-- **Targeting access control**: users can only see messages intended for them, including via the direct API
+### Key Features
+- **Multilingual UI** – Admin page and user popup automatically displayed in the user's Jellyfin language (English, French, Spanish, German, Portuguese, Italian, Japanese, Chinese Simplified). Falls back to English for other languages.  
+- **Login popup** – Detects user login via MutationObserver (SPA-compatible, tested on Jellyfin 10.10–10.11).  
+- **Show once per user** – Server-side tracking; works across all devices (no localStorage).  
+- **Multiple unread messages** – Each unread message appears in its own card (title + body) within the same popup.  
+- **Collapsible history** – Previously seen messages are shown in a collapsed accordion; body can be expanded on click.  
+
+### Admin & Editing Features
+- **Admin page** – Publish, edit, and delete messages; multiple selection supported.  
+- **Edit without re-display** – Edited messages keep their ID; users who already saw them won’t see them again.  
+- **Editable targeting on edit** – Recipient selector is pre-filled; title, body, and recipients can all be changed in one operation.  
+- **Inline row expand** – Click a message title in the admin table to view its body inline.  
+- **Full deletion** – Deleted messages disappear immediately for all users.  
+
+### Formatting & UI
+- **Body formatting** – Lightweight syntax: `**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, `- list` lines.  
+- **Formatting toolbar** – Buttons above the textarea apply formatting without manually typing syntax.  
+- **Optional formatted preview** – Preview panel below textarea; always-visible textarea.  
+- **Jellyfin theme integration** – Uses native CSS variables and standard dashboard classes.  
+
+### Technical & Security
+- **Auto-injection** – `client.js` injected into `index.html` via ScriptInjectionMiddleware; no manual modification required.  
+- **XSS security** – `escHtml()` applied before rendering; no raw HTML in the DOM.  
+- **Targeting access control** – Users only see messages intended for them, including via direct API.
 
 ---
 
-## Add the repository in Jellyfin
+## Installation
 
-```
-Dashboard → Plugins → Repositories → Add
-URL: https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/manifest.json
-```
+### Install via Repository (Recommended)
+1. Open Jellyfin Dashboard → Plugins → Repositories → Add.
+2. Paste this URL:
+https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/manifest.json
+3. Install **Info Popup** from the catalogue.
+4. Restart Jellyfin.
 
-Then install **Info Popup** from the catalogue and restart Jellyfin.
-
-> **Docker fallback**: if a volume mounts a custom `index.html` that overrides the Jellyfin-Web one, manually add before `</body>`:
+> ⚠️ Docker fallback: if your container mounts a custom `index.html` overriding Jellyfin-Web, manually add before `</body>`:
 > ```html
 > <script src="/InfoPopup/client.js"></script>
 > ```
 
 ---
 
-## Manual installation
-
-1. Download `infopopup_X.Y.Z.0.zip` from [Releases](../../releases)
+### Manual Installation
+1. Download `infopopup_X.Y.Z.0.zip` from [Releases](../../releases).  
 2. Extract `Jellyfin.Plugin.InfoPopup.dll` into:
    - Linux: `~/.local/share/jellyfin/plugins/InfoPopup/`
    - Docker: `/config/plugins/InfoPopup/`
-3. Restart Jellyfin
-
----
+3. Restart Jellyfin.
 
 ## Message formatting syntax
 
