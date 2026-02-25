@@ -1,4 +1,7 @@
 # jellyfin-info-popup-extention
+![GitHub release](https://img.shields.io/github/v/release/crocodile13/jellyfin-info-popup-extention)
+![License](https://img.shields.io/github/license/crocodile13/jellyfin-info-popup-extention)
+![Issues](https://img.shields.io/github/issues/crocodile13/jellyfin-info-popup-extention)
 
 A Jellyfin plugin that allows administrators to display popup messages to users when they log in.
 
