@@ -60,8 +60,8 @@
                           maxlength="10000"
                           rows="7"
                           placeholder="Saisir le contenu... (**gras**, _italique_, ~~barre~~, __souligne__, - liste)"
-                          style="width:100%;box-sizing:border-box;resize:vertical;display:none;"></textarea>
-                <div id="ip-body-preview" class="ip-body-preview" style="margin-top:8px;">
+                          style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+                <div id="ip-body-preview" class="ip-body-preview" style="margin-top:8px;display:none;">
                     <span class="ip-preview-hint">Cliquez ici ou sur &laquo;&nbsp;Raw&nbsp;&raquo; pour commencer &agrave; saisir&hellip;</span>
                 </div>
             </div>
@@ -70,7 +70,7 @@
         </div>
 
         <div class="inputContainer" style="margin-top:16px;">
-            <label id="ip-recipients-label" class="inputLabel inputLabelUnfocused">Destinataires</label>
+            <label id="ip-recipients-label" class="inputLabel" style="display:block;margin-bottom:8px;">Destinataires</label>
             <div id="ip-target-picker" style="margin-top:8px;">
                 <span style="opacity:.5;font-size:.88rem;">Chargement des utilisateurs...</span>
             </div>

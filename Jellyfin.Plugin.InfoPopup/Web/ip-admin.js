@@ -678,33 +678,29 @@
     }
 
     /**
-     * Bascule entre le mode aperçu (preview visible, textarea caché)
-     * et le mode brut (textarea visible, preview caché).
+     * Affiche ou masque le panneau d'aperçu formaté (sous le textarea).
+     * Le textarea est TOUJOURS visible — jamais caché par cette fonction.
      *
-     * Comportement identique à v0.5 :
-     *   on=true  → aperçu (défaut, après publish/cancel)
-     *   on=false → brut   (pour saisir/formatter)
+     *   on=true  → panneau aperçu visible sous le textarea (toggle Raw = décoché)
+     *   on=false → panneau aperçu masqué, textarea seul (toggle Raw = coché)
      *
-     * Le toggle "Raw" est coché quand on est en mode brut (textarea visible).
-     *
-     * @param {boolean} on  true = aperçu, false = brut.
+     * @param {boolean} on  true = aperçu visible, false = aperçu masqué.
      */
     function setPreviewMode(page, on) {
         var bodyEl  = page.querySelector('#ip-body');
         var preview = page.querySelector('#ip-body-preview');
         var toggle  = page.querySelector('#ip-preview-toggle');
         if (!bodyEl || !preview) return;
+        // Le textarea n'est JAMAIS caché (règle CLAUDE.md).
         if (on) {
-            // Mode aperçu : preview visible, textarea caché
+            // Panneau aperçu visible sous le textarea
             updatePreview(page);
             preview.style.display = 'block';
-            bodyEl.style.display  = 'none';
-            if (toggle) toggle.checked = false; // Raw désactivé
+            if (toggle) toggle.checked = false; // Raw désactivé = aperçu visible
         } else {
-            // Mode brut : textarea visible, preview caché
+            // Panneau aperçu masqué
             preview.style.display = 'none';
-            bodyEl.style.display  = 'block';
-            if (toggle) toggle.checked = true;  // Raw activé
+            if (toggle) toggle.checked = true;  // Raw activé = textarea seul
             bodyEl.focus();
             updateToolbarActiveState(page, bodyEl);
         }
@@ -837,8 +833,9 @@
         var toolbar       = page.querySelector('#ip-format-toolbar');
         var previewToggle = page.querySelector('#ip-preview-toggle');
 
-        // État initial : aperçu activé (textarea caché), comme en v0.5
-        setPreviewMode(page, true);
+        // État initial : mode brut — textarea directement visible, aperçu masqué.
+        // (Le textarea ne doit jamais être caché — cf. CLAUDE.md.)
+        setPreviewMode(page, false);
 
         // Toggle Raw : coché = mode brut (textarea), décoché = mode aperçu
         if (previewToggle) {
@@ -847,7 +844,7 @@
             });
         }
 
-        // Cliquer sur l'aperçu bascule en mode brut pour éditer
+        // Cliquer sur le panneau d'aperçu le referme (retour mode brut, textarea déjà visible)
         var bodyPreview = page.querySelector('#ip-body-preview');
         if (bodyPreview) {
             bodyPreview.addEventListener('click', function () {
@@ -856,9 +853,11 @@
         }
 
         if (bodyEl) {
-            // Mise à jour de l'aperçu à chaque frappe (en arrière-plan, même si caché)
+            // Mise à jour de l'aperçu à chaque frappe, uniquement si le panneau est visible.
+            // Guard : évite un renderBody() inutile à chaque frappe quand l'aperçu est masqué.
             bodyEl.addEventListener('input', function () {
-                updatePreview(page);
+                var preview = page.querySelector('#ip-body-preview');
+                if (preview && preview.style.display !== 'none') updatePreview(page);
             });
 
             // Mise à jour de l'état actif des boutons de formatage.
