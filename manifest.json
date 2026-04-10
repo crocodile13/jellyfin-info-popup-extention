@@ -13,8 +13,8 @@
         "changelog": "\\",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v1.12.0.0/infopopup_1.12.0.0.zip",
-        "checksum": "34c4417c740891624ece518e574fd813",
-        "timestamp": "2026-04-10T16:14:39Z"
+        "checksum": "9f5befe747192989159f2ef79e078cb8",
+        "timestamp": "2026-04-10T19:15:05Z"
       },
       {
         "version": "1.10.0.0",
