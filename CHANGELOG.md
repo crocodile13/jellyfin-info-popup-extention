@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.6.1.0] — 2026-04-11
+
+### Fixed
+- **Raccourcis Jellyfin bloqués à la frappe** — les raccourcis globaux de Jellyfin-Web (ex : "q" → Quick Connect, "f" → plein écran) ne se déclenchent plus lors de la saisie dans les champs du plugin. `stopPropagation` appliqué sur `keydown` dans la page admin, la popup et la page utilisateur. Escape et Tab restent fonctionnels.
+
+---
+
 ## [3.6.0.0] — 2026-04-11
 
 ### Added

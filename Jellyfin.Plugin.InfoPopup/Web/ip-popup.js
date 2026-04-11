@@ -336,6 +336,16 @@
         document.body.appendChild(backdrop);
         closeBtn.focus();
 
+        // Bloquer les raccourcis globaux Jellyfin lors de la frappe dans la popup.
+        // Escape reste propagé (ferme la popup via le handler document ci-dessous).
+        dialog.addEventListener('keydown', function (e) {
+            var tg = e.target.tagName;
+            if ((tg === 'INPUT' || tg === 'TEXTAREA' || e.target.isContentEditable)
+                    && e.key !== 'Escape' && e.key !== 'Tab') {
+                e.stopPropagation();
+            }
+        });
+
         var close = function () {
             // Annuler le countdown si l'utilisateur ferme manuellement avant la fin.
             if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null; }

@@ -1470,6 +1470,18 @@
         initTabs(page);
         initSettingsTab(page);
 
+        // ── Bloquer les raccourcis globaux Jellyfin lors de la frappe ────────
+        // Jellyfin-Web enregistre des handlers sur document (ex: "q"=quick connect,
+        // "f"=fullscreen). stopPropagation empêche les keydown émis depuis les champs
+        // du plugin de remonter jusqu'à ces handlers. Escape et Tab sont laissés passer.
+        page.addEventListener('keydown', function (e) {
+            var tg = e.target.tagName;
+            if ((tg === 'INPUT' || tg === 'TEXTAREA' || e.target.isContentEditable)
+                    && e.key !== 'Escape' && e.key !== 'Tab') {
+                e.stopPropagation();
+            }
+        });
+
         var toast = page.querySelector('#ip-toast');
         if (toast) {
             toast.setAttribute('aria-live', 'polite');
