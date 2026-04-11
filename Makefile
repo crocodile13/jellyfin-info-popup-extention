@@ -356,6 +356,12 @@ release-major: check ## 🚀 Release majeure complète (bump + pack + upload + m
 	$(MAKE) bump-major
 	$(MAKE) _do-release
 
+.PHONY: release-current
+release-current: check ## 🚀 Release la version courante SANS bump (version.json tel quel)
+	@printf "%b\n" "$(BOLD)$(GREEN)═══ RELEASE v$(VERSION) (sans bump) ═══$(RESET)"
+	@printf "%b\n" "  Utilise la version courante de version.json sans l'incrémenter."
+	$(MAKE) _do-release
+
 .PHONY: release-hotfix
 release-hotfix: check ## 🔧 Recompile + re-upload le ZIP sans changer de version
 	@printf "%b\n" "$(BOLD)$(YELL)═══ RELEASE HOTFIX v$(VERSION) ═══$(RESET)"
