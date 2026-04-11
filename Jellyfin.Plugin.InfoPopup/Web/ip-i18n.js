@@ -79,6 +79,7 @@
             toast_err_update:    'Erreur de mise à jour\u00a0: {0}',
             toast_err_publish:   'Erreur de publication\u00a0: {0}',
             toast_err_delete:    'Erreur de suppression\u00a0: {0}',
+            toast_rate_limit:    'Veuillez patienter quelques secondes avant de republier.',
 
             // ── Validation ───────────────────────────────────────────────────
             val_title_required:  'Le titre est obligatoire.',
@@ -168,6 +169,7 @@
             toast_err_update:    'Update error: {0}',
             toast_err_publish:   'Publish error: {0}',
             toast_err_delete:    'Delete error: {0}',
+            toast_rate_limit:    'Please wait a few seconds before republishing.',
 
             // ── Validation ───────────────────────────────────────────────────
             val_title_required:  'Title is required.',
@@ -257,6 +259,7 @@
             toast_err_update:    'Error al actualizar: {0}',
             toast_err_publish:   'Error al publicar: {0}',
             toast_err_delete:    'Error al eliminar: {0}',
+            toast_rate_limit:    'Por favor, espera unos segundos antes de volver a publicar.',
 
             // ── Validación ───────────────────────────────────────────────────
             val_title_required:  'El título es obligatorio.',
@@ -346,6 +349,7 @@
             toast_err_update:    'Aktualisierungsfehler: {0}',
             toast_err_publish:   'Veröffentlichungsfehler: {0}',
             toast_err_delete:    'Löschfehler: {0}',
+            toast_rate_limit:    'Bitte warte einige Sekunden, bevor du erneut veröffentlichst.',
 
             // ── Validierung ──────────────────────────────────────────────────
             val_title_required:  'Titel ist erforderlich.',
@@ -435,6 +439,7 @@
             toast_err_update:    'Erro ao atualizar: {0}',
             toast_err_publish:   'Erro ao publicar: {0}',
             toast_err_delete:    'Erro ao excluir: {0}',
+            toast_rate_limit:    'Por favor, aguarde alguns segundos antes de publicar novamente.',
 
             // ── Validação ────────────────────────────────────────────────────
             val_title_required:  'O título é obrigatório.',
@@ -524,6 +529,7 @@
             toast_err_update:    'Errore di aggiornamento: {0}',
             toast_err_publish:   'Errore di pubblicazione: {0}',
             toast_err_delete:    'Errore di eliminazione: {0}',
+            toast_rate_limit:    'Si prega di attendere qualche secondo prima di pubblicare nuovamente.',
 
             // ── Validazione ──────────────────────────────────────────────────
             val_title_required:  'Il titolo è obbligatorio.',
@@ -613,6 +619,7 @@
             toast_err_update:    '更新エラー: {0}',
             toast_err_publish:   '公開エラー: {0}',
             toast_err_delete:    '削除エラー: {0}',
+            toast_rate_limit:    '再公開する前に数秒お待ちください。',
 
             // ── バリデーション ────────────────────────────────────────────────
             val_title_required:  'タイトルは必須です。',
@@ -702,6 +709,7 @@
             toast_err_update:    '更新错误：{0}',
             toast_err_publish:   '发布错误：{0}',
             toast_err_delete:    '删除错误：{0}',
+            toast_rate_limit:    '请等待几秒钟后再重新发布。',
 
             // ── 验证 ──────────────────────────────────────────────────────────
             val_title_required:  '标题为必填项。',

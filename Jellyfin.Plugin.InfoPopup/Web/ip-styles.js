@@ -113,12 +113,26 @@
             '.ip-fmt-btn:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3)}',
             '.ip-fmt-btn:active{background:rgba(255,255,255,.2)}',
             '.ip-fmt-btn-sep{margin-left:6px;border-left:1px solid rgba(255,255,255,.2)}',
-            // ── Éditeur aperçu/brut ─────────────────────────────────────────
-            '.ip-editor-wrap{display:block}',
-            '.ip-body-preview{min-height:130px;border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:10px 12px;line-height:1.55;font-size:.92rem;background:rgba(0,0,0,.12);cursor:text;overflow-y:auto;color:var(--theme-text-color,#e5e5e5);transition:border-color .15s;word-break:break-word;overflow-wrap:break-word;white-space:pre-wrap;width:100%;box-sizing:border-box}',
-            '.ip-body-preview:hover{border-color:rgba(255,255,255,.3)}',
-            '.ip-preview-hint{opacity:.4;font-style:italic;white-space:normal}',
-            // ── Toggle switch aperçu/brut ───────────────────────────────────
+            '.ip-fmt-btn.active{background:rgba(0,164,220,.22);border-color:rgba(0,164,220,.55);color:var(--theme-accent-color,#00a4dc);box-shadow:inset 0 0 0 1px rgba(0,164,220,.25)}',
+            // ── Compteur de caractères ──────────────────────────────────────
+            '.ip-char-count{font-size:.75rem;opacity:.45;margin-left:8px;font-variant-numeric:tabular-nums}',
+            '.ip-char-count.warning{color:#f5a623;opacity:.85}',
+            '.ip-char-count.danger{color:#cf6679;opacity:1}',
+            // ── Éditeur WYSIWYG ─────────────────────────────────────────────
+            '.ip-editor-wrap{display:block;position:relative}',
+            '.ip-body-wysiwyg{min-height:160px;max-height:400px;border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:12px 14px;line-height:1.6;font-size:.93rem;background:rgba(0,0,0,.15);color:var(--theme-text-color,#e5e5e5);overflow-y:auto;outline:none;transition:border-color .15s,box-shadow .15s;word-break:break-word;overflow-wrap:break-word;white-space:pre-wrap;width:100%;box-sizing:border-box}',
+            '.ip-body-wysiwyg:hover{border-color:rgba(255,255,255,.25)}',
+            '.ip-body-wysiwyg:focus{border-color:var(--theme-accent-color,#00a4dc);box-shadow:0 0 0 2px rgba(0,164,220,.2)}',
+            '.ip-body-wysiwyg:empty::before{content:attr(data-placeholder);color:rgba(255,255,255,.35);font-style:italic;pointer-events:none}',
+            // ── Formatage inline dans WYSIWYG ───────────────────────────────
+            '.ip-body-wysiwyg b,.ip-body-wysiwyg strong{font-weight:700}',
+            '.ip-body-wysiwyg i,.ip-body-wysiwyg em{font-style:italic}',
+            '.ip-body-wysiwyg u{text-decoration:underline}',
+            '.ip-body-wysiwyg s,.ip-body-wysiwyg strike{text-decoration:line-through}',
+            '.ip-body-wysiwyg ul{margin:6px 0;padding-left:22px;list-style:disc}',
+            '.ip-body-wysiwyg li{margin:3px 0}',
+            '.ip-body-wysiwyg a{color:var(--theme-accent-color,#00a4dc);text-decoration:underline}',
+            // ── Toggle switch Raw ───────────────────────────────────────────
             '.ip-preview-toggle-wrap{display:flex;align-items:center;gap:7px;font-size:.83rem;opacity:.75;cursor:pointer;user-select:none;margin-left:auto;padding:2px 6px;border-radius:4px;transition:opacity .15s}',
             '.ip-preview-toggle-wrap:hover{opacity:1}',
             '.ip-toggle-switch{position:relative;display:inline-block;width:32px;height:18px;flex-shrink:0}',
@@ -126,9 +140,7 @@
             '.ip-toggle-slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.2);border-radius:9px;transition:background .2s}',
             '.ip-toggle-slider::before{content:\'\';position:absolute;height:12px;width:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.4)}',
             '.ip-toggle-switch input:checked+.ip-toggle-slider{background:var(--theme-accent-color,#00a4dc)}',
-            '.ip-toggle-switch input:checked+.ip-toggle-slider::before{transform:translateX(14px)}',
-            // ── Boutons actifs de la toolbar ────────────────────────────────
-            '.ip-fmt-btn.active{background:rgba(0,164,220,.22);border-color:rgba(0,164,220,.55);color:var(--theme-accent-color,#00a4dc);box-shadow:inset 0 0 0 1px rgba(0,164,220,.25)}'
+            '.ip-toggle-switch input:checked+.ip-toggle-slider::before{transform:translateX(14px)}'
         ].join('\n');
         document.head.appendChild(s);
     }

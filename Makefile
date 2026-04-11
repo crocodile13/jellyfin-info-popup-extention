@@ -266,13 +266,16 @@ manifest-update: ## Télécharge le ZIP GitHub, calcule son MD5 réel, met à jo
 # GIT & GITHUB
 # =============================================================================
 
+# MSG= permet de surcharger le message de commit (ex: make push MSG="fix: mon correctif")
+COMMIT_MSG ?= chore: version $(VERSION)
+
 .PHONY: push
-push: ## Commit les changements locaux et push sur origin/main
+push: ## Commit les changements locaux et push sur origin/main  [MSG="..." pour message custom]
 	@printf "%b\n" "$(BOLD)Push vers origin/$(BRANCH)...$(RESET)"
 	git add -A
 	git diff --cached --quiet && \
 		printf "%b\n" "$(YELL)Rien à committer$(RESET)" || \
-		git commit -m "chore: version $(VERSION)"
+		git commit -m "$(if $(MSG),$(MSG),$(COMMIT_MSG))"
 	git push origin $(BRANCH)
 	@printf "%b\n" "$(GREEN)✓ Push effectué$(RESET)"
 

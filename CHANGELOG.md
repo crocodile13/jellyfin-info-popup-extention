@@ -6,6 +6,54 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.2.0] — 2026-04-11
+
+### Fixed
+
+- **Toolbar WYSIWYG : perte de sélection au clic** — `execCommand` s'exécutait après que le clic ait retiré le focus du `contenteditable`, rendant les boutons B/I/U/S sans effet. Corrigé via `mousedown + preventDefault()` qui maintient la sélection intacte.
+- **Crash sur navigateurs sans lookbehind regex** (`(?<!...)`) — Android WebView < 8, Tizen TV, certains Fire TV ne supportent pas les lookbehinds ES2018. La regex `_italic_` levait une `SyntaxError` silencieuse qui cassait tout l'éditeur. Remplacée par une regex ES5 équivalente.
+- **`htmlToMarkdown` : balises `<span style="...">` ignorées** — Chrome génère parfois `<span style="font-weight:bold">` au lieu de `<strong>` via `execCommand`. Ces spans étaient traversés sans conversion, produisant du markdown sans formatage. Ajout de la détection des styles `fontWeight`, `fontStyle` et `textDecoration` sur les `<span>`.
+- **Focus manquant sur le WYSIWYG** lors du passage en mode WYSIWYG (toggle Raw → WYSIWYG), contrairement au mode Raw qui focusait bien le textarea.
+- **Clé i18n `toast_rate_limit` manquante** dans ES, DE, PT, IT, JA, ZH (uniquement FR et EN présents).
+
+---
+
+## [3.1.0] — 2026-04-10
+
+### Added
+
+- **Éditeur WYSIWYG par défaut** — l'éditeur affiche maintenant le texte formaté directement (gras en gras, italique en italique, etc.). Plus besoin de cliquer sur "Aperçu" pour voir le rendu !
+- **Raccourcis clavier** dans l'éditeur WYSIWYG :
+  - `Ctrl+B` → Gras
+  - `Ctrl+I` → Italique
+  - `Ctrl+U` → Souligné
+  - `Ctrl+Shift+S` → Barré
+- **Compteur de caractères** — affiche le nombre de caractères utilisés avec indicateurs visuels (warning à 75%, danger à 90%)
+- **Rate limiting** — protection contre les double-clics (2 secondes entre chaque publication)
+- **Clé i18n `toast_rate_limit`** — message traduit FR/EN pour le rate limit
+
+### Changed
+
+- **Toggle "Raw" inversé** — coché = mode markdown brut, décoché = mode WYSIWYG (avant c'était l'inverse avec le mode aperçu)
+- **Synchronisation bidirectionnelle** — le contenu est synchronisé en temps réel entre le mode WYSIWYG et le textarea Raw
+- **Boutons de la toolbar** — reflètent maintenant l'état du formatage à la position du curseur dans le WYSIWYG
+
+### Fixed
+
+- **L'éditeur ne rebascule plus automatiquement en mode Raw** quand on clique dedans — c'était le problème principal signalé
+
+---
+
+## [3.0.0] — 2026-04-10
+
+### Changed
+
+- **Migration Jellyfin 10.11** — `targetAbi` mis à jour vers 10.11.0.0
+- **Migration .NET 9** — `<TargetFramework>net9.0</TargetFramework>`
+- **Packages NuGet** — Jellyfin.Controller et Jellyfin.Model mis à jour vers 10.11.0
+
+---
+
 ## [Unreleased] — 1.8.0.0
 
 ### Added

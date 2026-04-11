@@ -36,15 +36,16 @@
             <label id="ip-body-label" class="inputLabel" for="ip-body"
                    style="display:block;margin-bottom:8px;">Message *</label>
 
-            <!-- Toolbar de formatage + toggle apercu -->
+            <!-- Toolbar de formatage + compteur + toggle Raw -->
             <div id="ip-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">
-                <button type="button" class="ip-fmt-btn" data-action="bold"      title="Gras"><strong>B</strong></button>
-                <button type="button" class="ip-fmt-btn" data-action="italic"    title="Italique"><em>I</em></button>
-                <button type="button" class="ip-fmt-btn" data-action="underline" title="Souligne"><u>U</u></button>
-                <button type="button" class="ip-fmt-btn" data-action="strike"    title="Barre"><s>S</s></button>
-                <button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list" title="Liste a puces">&#8226; Liste</button>
+                <button type="button" class="ip-fmt-btn" data-action="bold" title="Gras (Ctrl+B)"><strong>B</strong></button>
+                <button type="button" class="ip-fmt-btn" data-action="italic" title="Italique (Ctrl+I)"><em>I</em></button>
+                <button type="button" class="ip-fmt-btn" data-action="underline" title="Souligné (Ctrl+U)"><u>U</u></button>
+                <button type="button" class="ip-fmt-btn" data-action="strike" title="Barré (Ctrl+Shift+S)"><s>S</s></button>
+                <button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list" title="Liste à puces">&#8226; Liste</button>
+                <span class="ip-char-count" id="ip-char-count"></span>
                 <label class="ip-preview-toggle-wrap" for="ip-preview-toggle"
-                       title="Afficher l'apercu formate du message">
+                       title="Basculer en mode brut (markdown)">
                     <div class="ip-toggle-switch">
                         <input type="checkbox" id="ip-preview-toggle">
                         <span class="ip-toggle-slider"></span>
@@ -53,17 +54,24 @@
                 </label>
             </div>
 
-            <!-- Zone de saisie (toujours visible) + panneau apercu optionnel en dessous -->
+            <!-- Zone éditeur WYSIWYG + textarea caché -->
             <div class="ip-editor-wrap">
+                <!-- Éditeur WYSIWYG (contenteditable) - mode par défaut -->
+                <div id="ip-body-wysiwyg"
+                     class="ip-body-wysiwyg"
+                     contenteditable="true"
+                     role="textbox"
+                     aria-multiline="true"
+                     aria-label="Contenu du message"
+                     data-placeholder="Saisir le contenu... (Ctrl+B gras, Ctrl+I italique, Ctrl+U souligné)"></div>
+
+                <!-- Textarea pour le mode Raw et stockage markdown -->
                 <textarea id="ip-body"
                           class="emby-textarea"
                           maxlength="10000"
                           rows="7"
-                          placeholder="Saisir le contenu... (**gras**, _italique_, ~~barre~~, __souligne__, - liste)"
-                          style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
-                <div id="ip-body-preview" class="ip-body-preview" style="margin-top:8px;display:none;">
-                    <span class="ip-preview-hint">Cliquez ici ou sur &laquo;&nbsp;Raw&nbsp;&raquo; pour commencer &agrave; saisir&hellip;</span>
-                </div>
+                          placeholder="Saisir le contenu... (**gras**, _italique_, ~~barré~~, __souligné__, - liste)"
+                          style="width:100%;box-sizing:border-box;resize:vertical;display:none;"></textarea>
             </div>
 
             <div id="ip-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
