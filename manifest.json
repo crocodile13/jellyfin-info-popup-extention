@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.4.0.0",
+        "changelog": "Release v3.4.0.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.4.0.0/infopopup_3.4.0.0.zip",
+        "checksum": "7d666c68bd64ddae10f27e06bcf90222",
+        "timestamp": "2026-04-11T13:26:08Z"
+      },
+      {
         "version": "3.2.2.0",
         "changelog": "Fixed\n- Changelog illisible dans Jellyfin — update_manifest.sh injectait du markdown brut (###, , backticks, séquences \\n littérales) dans manifest.json. Jellyfin affichant ce champ en texte brut, le résultat était illisible. Le script convertit désormais automatiquement le contenu en texte propre avant injection.\n- Extraction multi-version dans manifest.json — l'expression awk de update_manifest.sh utilisait un range pattern qui démarrait et s'arrêtait sur la même ligne de version (car ## [X.Y.Z.0] matche aussi ^## ), ce qui désactivait immédiatement le filtre et imprimait tout le reste du fichier. Logique alignée sur extract_changelog.sh.",
         "targetAbi": "10.11.0.0",
