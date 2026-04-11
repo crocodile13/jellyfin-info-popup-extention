@@ -10,11 +10,11 @@
     "versions": [
       {
         "version": "3.5.0.0",
-        "changelog": "Release v3.5.0.0",
+        "changelog": "Added\n- Système de droits par utilisateur — 4ème onglet admin \"Droits\" pour configurer par user : envoi, réponse, modification/suppression de ses messages ou ceux des autres, limites journalières.\n- Page sidebar utilisateur — entrée \"Messages\" dans la barre latérale pour tous les users : boîte de réception et onglet d'envoi (si droits accordés). Même design que la page admin.\n- Soft-delete messages — les suppressions via droits utilisateurs marquent le message comme supprimé (visible admin avec indicateur) sans le retirer définitivement.\n- Historique d'éditions — chaque modification d'un message enregistre l'ancienne version (auteur, date, contenu). Indicateur visible en admin.\n- Une réponse par user par message — le serveur retourne 409 si l'utilisateur a déjà répondu. La popup se ferme automatiquement après envoi.\n- Rate limiting journalier — limite configurable par user : max messages/jour et max réponses/jour (0 = illimité).\n- Rétention des messages — délai de conservation configurable séparément pour messages admin et messages utilisateurs (jours, 0 = infini).\n- Réponses routées — les réponses sont adressées à l'expéditeur du message. L'admin voit tout ; les users voient leurs réponses reçues via /replies/mine.\n- i18n étendue — 35 nouvelles clés dans les 8 langues.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.5.0.0/infopopup_3.5.0.0.zip",
         "checksum": "d6575a090c2ebe486bfc3e0afb62bfb6",
-        "timestamp": "2026-04-11T14:05:55Z"
+        "timestamp": "2026-04-11T14:10:35Z"
       },
       {
         "version": "3.4.0.0",
