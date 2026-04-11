@@ -187,11 +187,21 @@
                 var textarea = container.querySelector('[data-reply-for="' + msgId + '"]');
                 var okSpan   = container.querySelector('[data-reply-ok="' + msgId + '"]');
                 var replyArea = btn.closest('.ip-reply-area');
-                if (!textarea || !textarea.value.trim()) return;
+                var REPLY_MAX = 2000;
+                if (!textarea) return;
+                var replyText = textarea.value.trim();
+                if (!replyText) {
+                    if (okSpan) { okSpan.textContent = t('val_reply_empty'); okSpan.style.display = ''; }
+                    return;
+                }
+                if (replyText.length > REPLY_MAX) {
+                    if (okSpan) { okSpan.textContent = t('val_reply_too_long', REPLY_MAX); okSpan.style.display = ''; }
+                    return;
+                }
                 btn.disabled = true;
                 apiFetch('/InfoPopup/messages/' + encodeURIComponent(msgId) + '/reply', {
                     method: 'POST',
-                    body: JSON.stringify({ body: textarea.value.trim() })
+                    body: JSON.stringify({ body: replyText })
                 }).then(function (res) {
                     if (res.status === 409) {
                         // Déjà répondu : remplacer la zone de réponse par un message
@@ -256,6 +266,21 @@
         dialog.setAttribute('aria-modal', 'true');
         dialog.setAttribute('aria-label', headerTitle);
 
+        // ── Barre de progression countdown ──────────────────────────────────
+        // Si popupDelayMs > 0 : barre qui se vide de 100% → 0% sur cette durée,
+        // puis fermeture automatique. Si 0 : pas de countdown (fermeture manuelle).
+        var autoCloseTimer = null;
+        var _delayMs = _settings.popupDelayMs > 0 ? _settings.popupDelayMs : 0;
+        if (_delayMs > 0) {
+            var progressWrap = document.createElement('div');
+            progressWrap.id  = 'infopopup-progress-wrap';
+            var progressBar  = document.createElement('div');
+            progressBar.id   = 'infopopup-progress-bar';
+            progressBar.style.transitionDuration = _delayMs + 'ms';
+            progressWrap.appendChild(progressBar);
+            dialog.appendChild(progressWrap);
+        }
+
         var header = document.createElement('div');
         header.id  = 'infopopup-header';
         header.innerHTML =
@@ -312,6 +337,8 @@
         closeBtn.focus();
 
         var close = function () {
+            // Annuler le countdown si l'utilisateur ferme manuellement avant la fin.
+            if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null; }
             backdrop.remove();
             // popupActive reste true jusqu'à confirmation serveur (R4).
             // Évite la race condition entre "Fermer" et l'acquittement du POST /seen.
@@ -319,6 +346,19 @@
                 popupActive = false;
             });
         };
+
+        // Démarrer la transition et le timer en synchronisation via double rAF.
+        // Le double rAF garantit que le navigateur a calculé le style initial (width:100%)
+        // avant de déclencher la transition. Timer et transition démarrent au même tick.
+        if (_delayMs > 0) {
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    var bar = document.getElementById('infopopup-progress-bar');
+                    if (bar) bar.style.width = '0%';
+                    autoCloseTimer = setTimeout(close, _delayMs);
+                });
+            });
+        }
 
         // ── Bind des boutons d'envoi de réponse (close disponible) ───────────
         bindReplyButtons(backdrop, close);
@@ -408,7 +448,7 @@
             if (path === lastCheckedPath) return;
             lastCheckedPath = path;
             checkForUnseenMessages();
-        }, _settings.popupDelayMs);
+        }, 800);  // Délai fixe avant affichage — indépendant de popupDelayMs (durée du countdown)
     }
 
     function initObserver() {

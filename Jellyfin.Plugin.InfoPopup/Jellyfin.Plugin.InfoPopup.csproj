@@ -27,6 +27,13 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <!-- Icône du plugin (visible dans le tableau de bord Jellyfin) -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\assets\icon.png">
+      <LogicalName>Jellyfin.Plugin.InfoPopup.thumb.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
   <!-- Ressources web embarquées dans l'assembly -->
   <ItemGroup>
     <EmbeddedResource Include="Web\configurationpage.html" />

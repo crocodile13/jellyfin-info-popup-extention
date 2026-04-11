@@ -64,6 +64,19 @@ public class InfoPopupController : ControllerBase
     private async Task<bool> IsAdminAsync() =>
         (await _authorizationService.AuthorizeAsync(User, "RequiresElevation")).Succeeded;
 
+    /// <summary>
+    /// Vérifie qu'un identifiant de route est un GUID valide et non vide.
+    /// </summary>
+    private static bool IsValidId(string? id) =>
+        !string.IsNullOrWhiteSpace(id) && Guid.TryParse(id, out _);
+
+    /// <summary>
+    /// Vérifie que tous les éléments d'une liste d'IDs utilisateurs sont des GUIDs valides.
+    /// Retourne false si la liste contient au moins un ID invalide.
+    /// </summary>
+    private static bool AreValidUserIds(IEnumerable<string> ids) =>
+        ids.All(uid => !string.IsNullOrWhiteSpace(uid) && Guid.TryParse(uid, out _));
+
     private static MessageSummary ToSummary(PopupMessage m) => new()
     {
         Id = m.Id,
@@ -156,6 +169,7 @@ public class InfoPopupController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<MessageDetail>> GetMessage([FromRoute] string id)
     {
+        if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
         var msg = _store.GetById(id);
         if (msg is null) return NotFound();
 
@@ -194,6 +208,9 @@ public class InfoPopupController : ControllerBase
     public async Task<ActionResult<MessageDetail>> CreateMessage([FromBody] CreateMessageRequest request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        if (request.TargetUserIds.Count > 0 && !AreValidUserIds(request.TargetUserIds))
+            return BadRequest(new { error = "Un ou plusieurs TargetUserIds ne sont pas des GUIDs valides." });
 
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -255,7 +272,11 @@ public class InfoPopupController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<MessageDetail>> UpdateMessage([FromRoute] string id, [FromBody] UpdateMessageRequest request)
     {
+        if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
         if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        if (request.TargetUserIds.Count > 0 && !AreValidUserIds(request.TargetUserIds))
+            return BadRequest(new { error = "Un ou plusieurs TargetUserIds ne sont pas des GUIDs valides." });
 
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -301,6 +322,7 @@ public class InfoPopupController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> SoftDeleteMessage([FromRoute] string id)
     {
+        if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
@@ -567,6 +589,9 @@ public class InfoPopupController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ReplyDto>> SubmitReply([FromRoute] string id, [FromBody] SubmitReplyRequest request)
     {
+        if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
@@ -626,6 +651,7 @@ public class InfoPopupController : ControllerBase
     [Authorize(Policy = "RequiresElevation")]
     public ActionResult<IEnumerable<ReplyDto>> GetMessageReplies([FromRoute] string id)
     {
+        if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
         var msg = _store.GetById(id);
         if (msg is null) return NotFound();
         var replies = _replyStore.GetByMessageId(id).Select(ToReplyDto);
@@ -684,6 +710,7 @@ public class InfoPopupController : ControllerBase
     [Authorize(Policy = "RequiresElevation")]
     public IActionResult DeleteReply([FromRoute] string replyId)
     {
+        if (!IsValidId(replyId)) return BadRequest(new { error = "Format d'identifiant invalide." });
         var deleted = _replyStore.DeleteReply(replyId);
         if (!deleted) return NotFound();
         _logger.LogInformation("InfoPopup: réponse {ReplyId} supprimée", replyId);
@@ -695,6 +722,7 @@ public class InfoPopupController : ControllerBase
     [Authorize(Policy = "RequiresElevation")]
     public IActionResult DeleteMessageReplies([FromRoute] string id)
     {
+        if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
         var count = _replyStore.DeleteByMessageIds(new[] { id });
         _logger.LogInformation("InfoPopup: {Count} réponse(s) supprimée(s) pour le message {MessageId}", count, id);
         return Ok(new { deleted = count });
@@ -768,6 +796,7 @@ public class InfoPopupController : ControllerBase
         [FromRoute] string userId,
         [FromBody] UpdatePermissionsRequest request)
     {
+        if (!IsValidId(userId)) return BadRequest(new { error = "Format d'identifiant utilisateur invalide." });
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
         var perm = new UserPermission

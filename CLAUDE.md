@@ -177,7 +177,9 @@ Both mechanisms are idempotent and stop once a reliable source (`html.lang`) is 
 `Plugin.cs` implements `IHasWebPages` and returns a `PluginPageInfo` with `EnableInMainMenu = true`, `MenuSection = "server"`, `MenuIcon = "notifications"`. Jellyfin reads `GET /System/Configuration/Pages` and automatically adds the entry to the sidebar. No JS injection needed for the sidebar itself.
 
 ### Client settings (v3.3+)
-`ip-popup.js` calls `GET /InfoPopup/client-settings` at startup (before starting the MutationObserver). This endpoint is `[AllowAnonymous]` and returns `PopupEnabled`, `PopupDelayMs`, `MaxMessagesInPopup`, `AllowReplies`, `HistoryEnabled`. These values replace hard-coded constants. Default values are used if the call fails. The popup delay (`_settings.popupDelayMs`) replaces the hard-coded `800ms` in `schedulePopupCheck`.
+`ip-popup.js` calls `GET /InfoPopup/client-settings` at startup (before starting the MutationObserver). This endpoint is `[AllowAnonymous]` and returns `PopupEnabled`, `PopupDelayMs`, `MaxMessagesInPopup`, `AllowReplies`, `HistoryEnabled`. These values replace hard-coded constants. Default values are used if the call fails.
+
+**`PopupDelayMs` semantics (v3.6+)**: this setting is the **auto-close countdown duration** in ms, displayed as an animated progress bar in the popup. `0` = no auto-close (user must click Close manually). The delay before the popup *appears* after navigation is hardcoded at `800ms` in `schedulePopupCheck` — it is **no longer driven by `PopupDelayMs`**. Default: `0` (infinite display).
 
 ### Admin page tab system (v3.3+)
 `configurationpage.html` has three tabs: **Messages** (existing content), **Paramètres** (settings form), **Réponses** (reply viewer). `initTabs(page)` in `ip-admin.js` handles tab switching (show/hide panels). `initSettingsTab(page)` loads `GET /InfoPopup/settings` and binds the save button. `loadReplies(page)` is called when the Réponses tab is opened.
@@ -186,7 +188,7 @@ Both mechanisms are idempotent and stop once a reliable source (`html.lang`) is 
 `ReplyStoreService` persists replies in `infopopup_replies.json` (same architecture as `SeenTrackerService`: memory cache, `ReaderWriterLockSlim`, `ReadStore()`/`WriteStore()`). Cascade delete: when a message is deleted via `POST /InfoPopup/messages/delete`, `ReplyStoreService.DeleteByMessageIds()` is called in the controller — NOT in `MessageStore` (to avoid circular dependency). Reply zone is added to the popup if `_settings.allowReplies === true`. Users can reply multiple times to the same message. `POST /InfoPopup/messages/{id}/reply` returns 403 if `AllowReplies = false`.
 
 ### Login detection: MutationObserver only
-`document.body` observed with `{ childList: true, subtree: true }` + `hashchange` and `popstate` listeners. `lastCheckedPath`, `checkScheduled` and `setTimeout(_settings.popupDelayMs)` deduplicate calls.
+`document.body` observed with `{ childList: true, subtree: true }` + `hashchange` and `popstate` listeners. `lastCheckedPath`, `checkScheduled` and `setTimeout(800)` (fixed 800ms) deduplicate calls.
 **Mandatory guards**: `schedulePopupCheck` returns immediately if `#infoPopupConfigPage` is in the DOM, if `popupActive === true`, or if `_settings.popupEnabled === false`.
 
 ### View tracking: 100% server-side
@@ -428,7 +430,8 @@ The script applies these transformations before embedding in `manifest.json`:
 - **`apiFetch` returns a raw `Response`, not parsed JSON**: always chain `.then(function(res){ return res.json(); })` before consuming data. Missing this call causes `then(function(data){...})` to receive the Response object, not the parsed payload.
 - **`GET /InfoPopup/client-settings` is `[AllowAnonymous]`**: only expose non-sensitive boolean/int settings. Never add user data or admin-only config to this endpoint. Called by `ip-popup.js` before the observer starts.
 - **Cascade delete for replies**: when a message is deleted via `POST /InfoPopup/messages/delete`, `_replyStore.DeleteByMessageIds(request.Ids)` must be called in `InfoPopupController.DeleteMessages` — NOT inside `MessageStore` (avoids circular service dependency).
-- **`PopupDelayMs` is no longer hardcoded**: `schedulePopupCheck` uses `_settings.popupDelayMs` (default 800ms). If you see `setTimeout(xxx, 800)` in ip-popup.js, it's a regression — use the setting.
+- **`PopupDelayMs` is the auto-close countdown (v3.6+)**: `_settings.popupDelayMs` controls the countdown progress bar duration and auto-close timer in the popup. `schedulePopupCheck` uses a hardcoded `800ms` delay (not `popupDelayMs`). If you see `setTimeout(xxx, _settings.popupDelayMs)` in `schedulePopupCheck`, it's a regression — it must be hardcoded `800`.
+- **Progress bar countdown**: `#infopopup-progress-wrap` + `#infopopup-progress-bar` are inserted as first child of `#infopopup-dialog` when `popupDelayMs > 0`. CSS uses `transition-property:width; transition-timing-function:linear` with `transition-duration` set inline. Timer and transition are synchronized via double `requestAnimationFrame`. `clearTimeout(autoCloseTimer)` is called on manual close to cancel.
 - **`_rateLimitMs` is no longer hardcoded in ip-admin.js**: `canPublish()` reads `_rateLimitMs` (updated from settings). Never re-introduce `var RATE_LIMIT_MS = 2000`.
 - **Tab system**: `initTabs(page)` and `initSettingsTab(page)` must be called at the top of `initConfigPage`, after `injectStyles()` and `applyStaticTranslations()`. Missing these calls means tabs don't function and settings aren't loaded.
 - **`ReplyStoreService` cache**: same pattern as `SeenTrackerService` — invalidate `_cache` only on write. Do not read the JSON file directly; always go through `ReadStore()`.

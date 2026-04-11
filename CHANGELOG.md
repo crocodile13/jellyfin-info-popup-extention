@@ -6,6 +6,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.6.0.0] — 2026-04-11
+
+### Added
+- **Barre de progression countdown** — la durée d'affichage de la popup (ms) déclenche une barre de progression élégante qui se vide avant fermeture automatique. 0 = infini (fermeture manuelle uniquement).
+- **Icône plugin embarquée** — `GetThumbImage()` implémenté dans `Plugin.cs` : l'icône est intégrée dans le DLL et visible dans le tableau de bord Jellyfin sans dépendance réseau.
+
+### Changed
+- **Sémantique de `PopupDelayMs`** — ce paramètre contrôle désormais la durée d'affichage avant fermeture auto (0 = infini). Le délai avant apparition reste 800 ms fixe. Valeur par défaut : 0 (infini).
+- **Label du paramètre** — renommé "Durée d'affichage avant fermeture automatique (ms, 0 = infini)" dans les 8 langues.
+
+### Fixed
+- **Validation client systématique** — titre > 200 car., message > 10 000 car., réponse vide ou > 2 000 car. : erreurs claires avant tout envoi réseau. Paramètres settings : contrôle de plage avant POST.
+- **Validation serveur renforcée** — `IsValidId()` + `AreValidUserIds()` sur tous les endpoints avec paramètre de route ou liste d'IDs. `[Required][MaxLength]` sur `SubmitReplyRequest.Body`.
+
+---
+
 ## [3.5.0.0] — 2026-04-11
 
 ### Added

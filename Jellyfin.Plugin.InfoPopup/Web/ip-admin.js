@@ -481,12 +481,21 @@
         var body  = bodyEl  ? bodyEl.value         : '';
         var valid = true;
 
+        var TITLE_MAX = 200;
+        var BODY_MAX  = 10000;
+
         if (!title) {
             if (titleErr) { titleErr.textContent = t('val_title_required'); titleErr.style.display = 'block'; }
+            valid = false;
+        } else if (title.length > TITLE_MAX) {
+            if (titleErr) { titleErr.textContent = t('val_title_too_long', TITLE_MAX); titleErr.style.display = 'block'; }
             valid = false;
         }
         if (!body.trim()) {
             if (bodyErr) { bodyErr.textContent = t('val_body_required'); bodyErr.style.display = 'block'; }
+            valid = false;
+        } else if (body.length > BODY_MAX) {
+            if (bodyErr) { bodyErr.textContent = t('val_body_too_long', BODY_MAX); bodyErr.style.display = 'block'; }
             valid = false;
         }
         if (!valid) return;
@@ -1182,16 +1191,42 @@
             var inpRetUser  = page.querySelector('#ip-set-ret-user');
             var toastEl     = page.querySelector('#ip-settings-toast');
 
+            var delayVal    = inpDelay    ? parseInt(inpDelay.value,    10) : 0;
+            var maxVal      = inpMax      ? parseInt(inpMax.value,      10) : 5;
+            var replyLenVal = inpReplyLen ? parseInt(inpReplyLen.value, 10) : 500;
+            var rateVal     = inpRate     ? parseInt(inpRate.value,     10) : 2000;
+            var retAdminVal = inpRetAdmin ? parseInt(inpRetAdmin.value,  10) : 0;
+            var retUserVal  = inpRetUser  ? parseInt(inpRetUser.value,   10) : 0;
+
+            // Validation côté client : bloque avant envoi si valeurs hors plage ou NaN.
+            var settingsValid = true;
+            var settingsToastEl = page.querySelector('#ip-settings-toast');
+            function showSettingsErr(msg) {
+                if (settingsToastEl) {
+                    settingsToastEl.textContent = msg;
+                    settingsToastEl.className = 'ip-toast-err';
+                    settingsToastEl.style.display = 'block';
+                    setTimeout(function() { settingsToastEl.style.display = 'none'; }, 4000);
+                }
+            }
+            if (isNaN(delayVal)    || delayVal    < 0     || delayVal    > 30000) settingsValid = false;
+            if (isNaN(maxVal)      || maxVal      < 1     || maxVal      > 50)    settingsValid = false;
+            if (isNaN(replyLenVal) || replyLenVal < 10    || replyLenVal > 5000)  settingsValid = false;
+            if (isNaN(rateVal)     || rateVal     < 0     || rateVal     > 60000) settingsValid = false;
+            if (isNaN(retAdminVal) || retAdminVal < 0     || retAdminVal > 3650)  settingsValid = false;
+            if (isNaN(retUserVal)  || retUserVal  < 0     || retUserVal  > 3650)  settingsValid = false;
+            if (!settingsValid) { showSettingsErr(t('val_settings_invalid')); return; }
+
             var body = {
-                popupEnabled:               chkEnabled  ? chkEnabled.checked                : true,
-                popupDelayMs:               inpDelay    ? parseInt(inpDelay.value, 10)      : 800,
-                maxMessagesInPopup:         inpMax      ? parseInt(inpMax.value, 10)        : 5,
-                historyEnabled:             chkHistory  ? chkHistory.checked                : true,
-                allowReplies:               chkReplies  ? chkReplies.checked                : false,
-                replyMaxLength:             inpReplyLen ? parseInt(inpReplyLen.value, 10)   : 500,
-                rateLimitMs:                inpRate     ? parseInt(inpRate.value, 10)       : 2000,
-                adminMessageRetentionDays:  inpRetAdmin ? parseInt(inpRetAdmin.value, 10)   : 0,
-                userMessageRetentionDays:   inpRetUser  ? parseInt(inpRetUser.value, 10)    : 0
+                popupEnabled:               chkEnabled  ? chkEnabled.checked : true,
+                popupDelayMs:               delayVal,
+                maxMessagesInPopup:         maxVal,
+                historyEnabled:             chkHistory  ? chkHistory.checked  : true,
+                allowReplies:               chkReplies  ? chkReplies.checked  : false,
+                replyMaxLength:             replyLenVal,
+                rateLimitMs:                rateVal,
+                adminMessageRetentionDays:  retAdminVal,
+                userMessageRetentionDays:   retUserVal
             };
 
             saveBtn.disabled = true;

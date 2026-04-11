@@ -121,7 +121,7 @@
             // ── Param\u00e8tres ───────────────────────────────────────────────────
             set_title:              'Param\u00e8tres',
             set_popup_enabled:      'Activer la popup',
-            set_popup_delay:        'D\u00e9lai d\u2019affichage (ms)',
+            set_popup_delay:        'Dur\u00e9e d\u2019affichage avant fermeture automatique (ms, 0\u00a0=\u00a0infini)',
             set_max_messages:       'Maximum de messages simultan\u00e9s',
             set_history_enabled:    'Afficher l\u2019historique dans la popup',
             set_allow_replies:      'Autoriser les r\u00e9ponses utilisateurs',
@@ -199,6 +199,13 @@
             // ── Validation utilisateur ───────────────────────────────────────
             err_title_required:     'Le titre est obligatoire.',
             err_body_required:      'Le message est obligatoire.',
+
+            // ── Validation longueurs (3.6.0.0) ───────────────────────────────
+            val_title_too_long:     'Le titre dépasse la limite de {0} caractères.',
+            val_body_too_long:      'Le message dépasse la limite de {0} caractères.',
+            val_reply_empty:        'La réponse ne peut pas être vide.',
+            val_reply_too_long:     'La réponse dépasse la limite de {0} caractères.',
+            val_settings_invalid:   'Paramètres invalides — vérifiez les valeurs saisies.',
 
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -298,7 +305,7 @@
             // ── Settings ─────────────────────────────────────────────────────
             set_title:              'Settings',
             set_popup_enabled:      'Enable popup',
-            set_popup_delay:        'Display delay (ms)',
+            set_popup_delay:        'Auto-close delay (ms, 0\u00a0=\u00a0infinite)',
             set_max_messages:       'Maximum simultaneous messages',
             set_history_enabled:    'Show history in popup',
             set_allow_replies:      'Allow user replies',
@@ -376,6 +383,13 @@
             // ── User validation ──────────────────────────────────────────────
             err_title_required:     'Title is required.',
             err_body_required:      'Message body is required.',
+
+            // ── Validation lengths (3.6.0.0) ─────────────────────────────────
+            val_title_too_long:     'Title exceeds the {0}-character limit.',
+            val_body_too_long:      'Message body exceeds the {0}-character limit.',
+            val_reply_empty:        'Reply cannot be empty.',
+            val_reply_too_long:     'Reply exceeds the {0}-character limit.',
+            val_settings_invalid:   'Invalid settings — please check the values entered.',
 
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -475,7 +489,7 @@
             // ── Configuraci\u00f3n ──────────────────────────────────────────────
             set_title:              'Configuraci\u00f3n',
             set_popup_enabled:      'Activar popup',
-            set_popup_delay:        'Retraso de visualizaci\u00f3n (ms)',
+            set_popup_delay:        'Retraso de cierre autom\u00e1tico (ms, 0\u00a0=\u00a0infinito)',
             set_max_messages:       'M\u00e1ximo de mensajes simult\u00e1neos',
             set_history_enabled:    'Mostrar historial en popup',
             set_allow_replies:      'Permitir respuestas',
@@ -553,6 +567,13 @@
             // ── Validaci\u00f3n usuario ────────────────────────────────────────────
             err_title_required:     'El t\u00edtulo es obligatorio.',
             err_body_required:      'El mensaje es obligatorio.',
+
+            // ── Validaci\u00f3n de longitud (3.6.0.0) ─────────────────────────────
+            val_title_too_long:     'El t\u00edtulo supera el l\u00edmite de {0} caracteres.',
+            val_body_too_long:      'El mensaje supera el l\u00edmite de {0} caracteres.',
+            val_reply_empty:        'La respuesta no puede estar vac\u00eda.',
+            val_reply_too_long:     'La respuesta supera el l\u00edmite de {0} caracteres.',
+            val_settings_invalid:   'Par\u00e1metros inv\u00e1lidos \u2014 verifique los valores introducidos.',
 
             // ── Fechas ───────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -652,7 +673,7 @@
             // ── Einstellungen ─────────────────────────────────────────────────
             set_title:              'Einstellungen',
             set_popup_enabled:      'Popup aktivieren',
-            set_popup_delay:        'Anzeigeverzögerung (ms)',
+            set_popup_delay:        'Automatisches Schlie\u00dfen (ms, 0\u00a0=\u00a0unendlich)',
             set_max_messages:       'Maximale gleichzeitige Nachrichten',
             set_history_enabled:    'Verlauf im Popup anzeigen',
             set_allow_replies:      'Antworten erlauben',
@@ -730,6 +751,13 @@
             // ── Benutzervalidierung ──────────────────────────────────────────
             err_title_required:     'Titel ist erforderlich.',
             err_body_required:      'Nachrichtentext ist erforderlich.',
+
+            // ── L\u00e4ngenvalidierung (3.6.0.0) ──────────────────────────────────
+            val_title_too_long:     'Der Titel \u00fcberschreitet das Limit von {0} Zeichen.',
+            val_body_too_long:      'Die Nachricht \u00fcberschreitet das Limit von {0} Zeichen.',
+            val_reply_empty:        'Die Antwort darf nicht leer sein.',
+            val_reply_too_long:     'Die Antwort \u00fcberschreitet das Limit von {0} Zeichen.',
+            val_settings_invalid:   'Ung\u00fcltige Einstellungen \u2014 bitte \u00fcberpr\u00fcfen Sie die eingegebenen Werte.',
 
             // ── Datum ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -829,7 +857,7 @@
             // ── Configura\u00e7\u00f5es ─────────────────────────────────────────────
             set_title:              'Configura\u00e7\u00f5es',
             set_popup_enabled:      'Ativar popup',
-            set_popup_delay:        'Atraso de exibi\u00e7\u00e3o (ms)',
+            set_popup_delay:        'Fechamento autom\u00e1tico (ms, 0\u00a0=\u00a0infinito)',
             set_max_messages:       'M\u00e1ximo de mensagens simult\u00e2neas',
             set_history_enabled:    'Mostrar hist\u00f3rico no popup',
             set_allow_replies:      'Permitir respostas',
@@ -907,6 +935,13 @@
             // ── Valida\u00e7\u00e3o do usu\u00e1rio ─────────────────────────────────────────
             err_title_required:     'O t\u00edtulo \u00e9 obrigat\u00f3rio.',
             err_body_required:      'O corpo da mensagem \u00e9 obrigat\u00f3rio.',
+
+            // ── Valida\u00e7\u00e3o de comprimento (3.6.0.0) ───────────────────────────
+            val_title_too_long:     'O t\u00edtulo ultrapassa o limite de {0} caracteres.',
+            val_body_too_long:      'A mensagem ultrapassa o limite de {0} caracteres.',
+            val_reply_empty:        'A resposta n\u00e3o pode estar vazia.',
+            val_reply_too_long:     'A resposta ultrapassa o limite de {0} caracteres.',
+            val_settings_invalid:   'Configura\u00e7\u00f5es inv\u00e1lidas \u2014 verifique os valores inseridos.',
 
             // ── Datas ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -1006,7 +1041,7 @@
             // ── Impostazioni ──────────────────────────────────────────────────
             set_title:              'Impostazioni',
             set_popup_enabled:      'Abilita popup',
-            set_popup_delay:        'Ritardo visualizzazione (ms)',
+            set_popup_delay:        'Chiusura automatica (ms, 0\u00a0=\u00a0infinito)',
             set_max_messages:       'Massimo messaggi simultanei',
             set_history_enabled:    'Mostra cronologia nel popup',
             set_allow_replies:      'Consenti risposte',
@@ -1084,6 +1119,13 @@
             // ── Validazione utente ───────────────────────────────────────────
             err_title_required:     'Il titolo \u00e8 obbligatorio.',
             err_body_required:      'Il corpo del messaggio \u00e8 obbligatorio.',
+
+            // ── Validazione lunghezza (3.6.0.0) ─────────────────────────────
+            val_title_too_long:     'Il titolo supera il limite di {0} caratteri.',
+            val_body_too_long:      'Il messaggio supera il limite di {0} caratteri.',
+            val_reply_empty:        'La risposta non pu\u00f2 essere vuota.',
+            val_reply_too_long:     'La risposta supera il limite di {0} caratteri.',
+            val_settings_invalid:   'Impostazioni non valide \u2014 controllare i valori inseriti.',
 
             // ── Date ─────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -1183,7 +1225,7 @@
             // ── 設定 ──────────────────────────────────────────────────────────
             set_title:              '\u8a2d\u5b9a',
             set_popup_enabled:      '\u30dd\u30c3\u30d7\u30a2\u30c3\u30d7\u3092\u6709\u52b9\u306b\u3059\u308b',
-            set_popup_delay:        '\u8868\u793a\u9045\u5ef6\uff08ms\uff09',
+            set_popup_delay:        '\u81ea\u52d5\u9589\u3058\u308b\u307e\u3067\u306e\u6642\u9593\uff08ms\u30010=\u7121\u9650\uff09',
             set_max_messages:       '\u540c\u6642\u6700\u5927\u30e1\u30c3\u30bb\u30fc\u30b8\u6570',
             set_history_enabled:    '\u30dd\u30c3\u30d7\u30a2\u30c3\u30d7\u3067\u5c65\u6b74\u3092\u8868\u793a',
             set_allow_replies:      '\u8fd4\u4fe1\u3092\u8a31\u53ef',
@@ -1261,6 +1303,13 @@
             // ── ユーザー検証 ──────────────────────────────────────────────────
             err_title_required:     '\u30bf\u30a4\u30c8\u30eb\u306f\u5fc5\u9808\u3067\u3059\u3002',
             err_body_required:      '\u30e1\u30c3\u30bb\u30fc\u30b8\u672c\u6587\u306f\u5fc5\u9808\u3067\u3059\u3002',
+
+            // ── 長さバリデーション (3.6.0.0) ───────────────────────────────────
+            val_title_too_long:     '\u30bf\u30a4\u30c8\u30eb\u304c{0}\u6587\u5b57\u306e\u5236\u9650\u3092\u8d85\u3048\u3066\u3044\u307e\u3059\u3002',
+            val_body_too_long:      '\u30e1\u30c3\u30bb\u30fc\u30b8\u304c{0}\u6587\u5b57\u306e\u5236\u9650\u3092\u8d85\u3048\u3066\u3044\u307e\u3059\u3002',
+            val_reply_empty:        '\u8fd4\u4fe1\u306f\u7a7a\u306b\u3067\u304d\u307e\u305b\u3093\u3002',
+            val_reply_too_long:     '\u8fd4\u4fe1\u304c{0}\u6587\u5b57\u306e\u5236\u9650\u3092\u8d85\u3048\u3066\u3044\u307e\u3059\u3002',
+            val_settings_invalid:   '\u8a2d\u5b9a\u304c\u7121\u52b9\u3067\u3059\u2014\u5165\u529b\u5024\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
 
             // ── 日付 ─────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -1360,7 +1409,7 @@
             // ── 设置 ──────────────────────────────────────────────────────────
             set_title:              '\u8bbe\u7f6e',
             set_popup_enabled:      '\u542f\u7528\u5f39\u7a97',
-            set_popup_delay:        '\u663e\u793a\u5ef6\u8fdf\uff08ms\uff09',
+            set_popup_delay:        '\u81ea\u52a8\u5173\u95ed\u5ef6\u8fdf\uff08ms\uff0c0=\u65e0\u9650\uff09',
             set_max_messages:       '\u6700\u5927\u540c\u65f6\u6d88\u606f\u6570',
             set_history_enabled:    '\u5728\u5f39\u7a97\u4e2d\u663e\u793a\u5386\u53f2',
             set_allow_replies:      '\u5141\u8bb8\u7528\u6237\u56de\u590d',
@@ -1438,6 +1487,13 @@
             // ── 用户验证 ──────────────────────────────────────────────────────
             err_title_required:     '\u6807\u9898\u4e3a\u5fc5\u586b\u9879\u3002',
             err_body_required:      '\u6d88\u606f\u5185\u5bb9\u4e3a\u5fc5\u586b\u9879\u3002',
+
+            // ── 长度验证 (3.6.0.0) ────────────────────────────────────────────
+            val_title_too_long:     '\u6807\u9898\u8d85\u8fc7{0}\u5b57\u7b26\u9650\u5236\u3002',
+            val_body_too_long:      '\u6d88\u606f\u8d85\u8fc7{0}\u5b57\u7b26\u9650\u5236\u3002',
+            val_reply_empty:        '\u56de\u590d\u4e0d\u80fd\u4e3a\u7a7a\u3002',
+            val_reply_too_long:     '\u56de\u590d\u8d85\u8fc7{0}\u5b57\u7b26\u9650\u5236\u3002',
+            val_settings_invalid:   '\u8bbe\u7f6e\u65e0\u6548\u2014\u8bf7\u68c0\u67e5\u8f93\u5165\u7684\u5024\u3002',
 
             // ── 日期 ──────────────────────────────────────────────────────────
             date_suffix:         'UTC'

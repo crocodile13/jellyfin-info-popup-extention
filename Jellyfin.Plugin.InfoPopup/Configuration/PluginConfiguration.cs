@@ -13,8 +13,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Activer ou désactiver la popup pour tous les utilisateurs.</summary>
     public bool PopupEnabled { get; set; } = true;
 
-    /// <summary>Délai en millisecondes avant affichage de la popup après navigation.</summary>
-    public int PopupDelayMs { get; set; } = 800;
+    /// <summary>
+    /// Durée d'affichage de la popup en millisecondes avant fermeture automatique.
+    /// 0 = pas de fermeture automatique (l'utilisateur ferme manuellement).
+    /// </summary>
+    public int PopupDelayMs { get; set; } = 0;
 
     /// <summary>Nombre maximum de messages non-vus affichés simultanément dans la popup.</summary>
     public int MaxMessagesInPopup { get; set; } = 5;
