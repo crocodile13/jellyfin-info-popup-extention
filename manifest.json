@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.6.0.0",
+        "changelog": "Added\n- Barre de progression countdown — la durée d'affichage de la popup (ms) déclenche une barre de progression élégante qui se vide avant fermeture automatique. 0 = infini (fermeture manuelle uniquement).\n- Icône plugin embarquée — GetThumbImage() implémenté dans Plugin.cs : l'icône est intégrée dans le DLL et visible dans le tableau de bord Jellyfin sans dépendance réseau.\nChanged\n- Sémantique de PopupDelayMs — ce paramètre contrôle désormais la durée d'affichage avant fermeture auto (0 = infini). Le délai avant apparition reste 800 ms fixe. Valeur par défaut : 0 (infini).\n- Label du paramètre — renommé \"Durée d'affichage avant fermeture automatique (ms, 0 = infini)\" dans les 8 langues.\nFixed\n- Validation client systématique — titre > 200 car., message > 10 000 car., réponse vide ou > 2 000 car. : erreurs claires avant tout envoi réseau. Paramètres settings : contrôle de plage avant POST.\n- Validation serveur renforcée — IsValidId() + AreValidUserIds() sur tous les endpoints avec paramètre de route ou liste d'IDs. [Required][MaxLength] sur SubmitReplyRequest.Body.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.6.0.0/infopopup_3.6.0.0.zip",
+        "checksum": "f278ef223bc8f87a02576fa05e0f1779",
+        "timestamp": "2026-04-11T19:20:43Z"
+      },
+      {
         "version": "3.5.0.0",
         "changelog": "Added\n- Système de droits par utilisateur — 4ème onglet admin \"Droits\" pour configurer par user : envoi, réponse, modification/suppression de ses messages ou ceux des autres, limites journalières.\n- Page sidebar utilisateur — entrée \"Messages\" dans la barre latérale pour tous les users : boîte de réception et onglet d'envoi (si droits accordés). Même design que la page admin.\n- Soft-delete messages — les suppressions via droits utilisateurs marquent le message comme supprimé (visible admin avec indicateur) sans le retirer définitivement.\n- Historique d'éditions — chaque modification d'un message enregistre l'ancienne version (auteur, date, contenu). Indicateur visible en admin.\n- Une réponse par user par message — le serveur retourne 409 si l'utilisateur a déjà répondu. La popup se ferme automatiquement après envoi.\n- Rate limiting journalier — limite configurable par user : max messages/jour et max réponses/jour (0 = illimité).\n- Rétention des messages — délai de conservation configurable séparément pour messages admin et messages utilisateurs (jours, 0 = infini).\n- Réponses routées — les réponses sont adressées à l'expéditeur du message. L'admin voit tout ; les users voient leurs réponses reçues via /replies/mine.\n- i18n étendue — 35 nouvelles clés dans les 8 langues.",
         "targetAbi": "10.11.0.0",
