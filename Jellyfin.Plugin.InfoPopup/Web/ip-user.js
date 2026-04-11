@@ -228,6 +228,15 @@
         applyUserPageTranslations(page);
         initUserTabs(page);
 
+        // Bloquer les raccourcis globaux Jellyfin lors de la frappe dans la page.
+        page.addEventListener('keydown', function (e) {
+            var tg = e.target.tagName;
+            if ((tg === 'INPUT' || tg === 'TEXTAREA' || e.target.isContentEditable)
+                    && e.key !== 'Escape' && e.key !== 'Tab') {
+                e.stopPropagation();
+            }
+        });
+
         // Charger les permissions pour afficher/masquer l'onglet Envoyer
         apiFetch('/InfoPopup/permissions/me')
             .then(function (res) { return res.json(); })
