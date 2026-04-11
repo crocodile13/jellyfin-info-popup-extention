@@ -26,6 +26,10 @@
             <span class="material-icons" style="font-size:1rem;vertical-align:middle;">reply</span>
             <span id="ip-tab-replies-lbl">R&#233;ponses</span>
         </button>
+        <button class="ip-tab-btn" id="ip-tab-permissions" type="button">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">manage_accounts</span>
+            <span id="ip-tab-permissions-lbl">Droits</span>
+        </button>
     </div>
 
     <!-- ── Panneau Messages ────────────────────────────────────────────── -->
@@ -186,6 +190,16 @@
                 <input id="ip-set-rate" type="number" class="emby-input" min="0" max="60000" step="500">
             </div>
 
+            <div class="inputContainer">
+                <label id="ip-set-ret-admin-lbl" class="inputLabel" for="ip-set-ret-admin">Conservation messages admin (jours, 0=infini)</label>
+                <input id="ip-set-ret-admin" type="number" class="emby-input" min="0" max="3650" step="1">
+            </div>
+
+            <div class="inputContainer">
+                <label id="ip-set-ret-user-lbl" class="inputLabel" for="ip-set-ret-user">Conservation messages utilisateurs (jours, 0=infini)</label>
+                <input id="ip-set-ret-user" type="number" class="emby-input" min="0" max="3650" step="1">
+            </div>
+
             <div style="margin-top:24px;display:flex;align-items:center;gap:14px;">
                 <button id="ip-save-settings-btn" class="raised button-submit emby-button" type="button">
                     <span id="ip-save-settings-lbl">Enregistrer les param&#232;tres</span>
@@ -202,6 +216,19 @@
         </div>
         <div id="ip-replies-list">
             <!-- rempli dynamiquement par loadReplies() -->
+        </div>
+    </div>
+
+    <!-- ── Panneau Droits ────────────────────────────────────────────── -->
+    <div id="ip-panel-permissions" style="display:none;">
+        <div class="detailSection">
+            <h3 id="ip-perm-title" class="sectionTitle">Gestion des droits</h3>
+            <p style="opacity:.6;font-size:.88rem;margin-bottom:16px;" id="ip-perm-hint">
+                Les droits s&#8217;appliquent aux utilisateurs non-administrateurs uniquement.
+            </p>
+            <div id="ip-perm-container">
+                <p style="opacity:.55;">Chargement des utilisateurs...</p>
+            </div>
         </div>
     </div>
 

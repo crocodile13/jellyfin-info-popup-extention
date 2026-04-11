@@ -10,6 +10,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- **Système de droits par utilisateur** — 4ème onglet admin "Droits" pour configurer par user : envoi, réponse, modification/suppression de ses messages ou ceux des autres, limites journalières.
+- **Page sidebar utilisateur** — entrée "Messages" dans la barre latérale pour tous les users : boîte de réception et onglet d'envoi (si droits accordés). Même design que la page admin.
+- **Soft-delete messages** — les suppressions via droits utilisateurs marquent le message comme supprimé (visible admin avec indicateur) sans le retirer définitivement.
+- **Historique d'éditions** — chaque modification d'un message enregistre l'ancienne version (auteur, date, contenu). Indicateur visible en admin.
+- **Une réponse par user par message** — le serveur retourne 409 si l'utilisateur a déjà répondu. La popup se ferme automatiquement après envoi.
+- **Rate limiting journalier** — limite configurable par user : max messages/jour et max réponses/jour (0 = illimité).
+- **Rétention des messages** — délai de conservation configurable séparément pour messages admin et messages utilisateurs (jours, 0 = infini).
+- **Réponses routées** — les réponses sont adressées à l'expéditeur du message. L'admin voit tout ; les users voient leurs réponses reçues via `/replies/mine`.
+- **i18n étendue** — 35 nouvelles clés dans les 8 langues.
+
+---
+
+## [3.3.0.0] — 2026-04-11
+
+### Added
+
 - **Entrée sidebar Jellyfin** — le plugin apparaît directement dans la barre de navigation latérale (section "server", icône `notifications`). `Plugin.cs` expose `EnableInMainMenu = true` via `IHasWebPages`.
 - **Onglet Paramètres** — nouvel onglet dans la page admin pour configurer : activation popup, délai d'affichage, max messages simultanés, historique, réponses utilisateurs, longueur max réponse, délai anti-spam.
 - **Système de réponses utilisateurs** — les utilisateurs peuvent répondre aux messages popup (activable dans Paramètres). Les réponses sont stockées dans `infopopup_replies.json` et consultables dans un onglet "Réponses" de la page admin.

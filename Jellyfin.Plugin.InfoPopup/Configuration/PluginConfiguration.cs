@@ -30,4 +30,16 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Délai minimum en millisecondes entre deux publications d'un administrateur.</summary>
     public int RateLimitMs { get; set; } = 2000;
+
+    /// <summary>
+    /// Durée de conservation des messages envoyés par les admins (jours).
+    /// 0 = pas de nettoyage automatique.
+    /// </summary>
+    public int AdminMessageRetentionDays { get; set; } = 0;
+
+    /// <summary>
+    /// Durée de conservation des messages envoyés par les utilisateurs (jours).
+    /// 0 = pas de nettoyage automatique.
+    /// </summary>
+    public int UserMessageRetentionDays { get; set; } = 30;
 }

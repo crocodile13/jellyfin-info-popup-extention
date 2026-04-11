@@ -149,6 +149,57 @@
             toast_reply_deleted:     '\u2713 R\u00e9ponse supprim\u00e9e.',
             toast_err_reply_delete:  'Erreur de suppression\u00a0: {0}',
 
+            // ── Onglet Droits ────────────────────────────────────────────────
+            tab_permissions:        'Droits',
+            perm_section_title:     'Gestion des droits',
+            perm_col_user:          'Utilisateur',
+            perm_col_send:          'Envoyer',
+            perm_col_reply:         'R\u00e9pondre',
+            perm_col_edit_own:      'Modifier ses msg',
+            perm_col_delete_own:    'Suppr. ses msg',
+            perm_col_edit_others:   'Modifier les autres',
+            perm_col_delete_others: 'Suppr. les autres',
+            perm_col_max_msgs:      'Max msgs/j',
+            perm_col_max_replies:   'Max r\u00e9p./j',
+            perm_col_actions:       'Actions',
+            perm_save_row:          'Enregistrer',
+            perm_saved_row:         'Enregistr\u00e9 \u2713',
+            perm_save_err:          'Erreur',
+            perm_loading:           'Chargement...',
+            perm_no_users:          'Aucun utilisateur.',
+            perm_hint_0:            '0 = illimit\u00e9',
+
+            // ── Page utilisateur ─────────────────────────────────────────────
+            user_page_title:        'Mes messages',
+            user_tab_inbox:         'Re\u00e7us',
+            user_tab_send:          'Envoyer',
+            user_inbox_empty:       'Aucun message re\u00e7u.',
+            user_inbox_loading:     'Chargement...',
+            user_sent_title:        'Mes messages envoy\u00e9s',
+            user_sent_empty:        'Aucun message envoy\u00e9.',
+            user_compose_title:     'Nouveau message',
+            user_publish_btn:       'Envoyer le message',
+
+            // ── Badges message ───────────────────────────────────────────────
+            msg_deleted_label:      '(supprim\u00e9)',
+            msg_edited_label:       '(modifi\u00e9 {0}\u00d7)',
+
+            // ── Popup r\u00e9ponse ─────────────────────────────────────────────────
+            reply_auto_close:       'R\u00e9ponse envoy\u00e9e.',
+            reply_already_sent:     'Vous avez d\u00e9j\u00e0 r\u00e9pondu.',
+            rate_limit_msg:         'Limite journali\u00e8re atteinte.',
+
+            // ── R\u00e9tention ──────────────────────────────────────────────────────
+            ret_admin_days_lbl:     'Conservation messages admin (jours, 0=infini)',
+            ret_user_days_lbl:      'Conservation messages utilisateurs (jours, 0=infini)',
+
+            // ── Filtre r\u00e9ponses ────────────────────────────────────────────────
+            replies_filter_lbl:     'Filtrer\u00a0:',
+
+            // ── Validation utilisateur ───────────────────────────────────────
+            err_title_required:     'Le titre est obligatoire.',
+            err_body_required:      'Le message est obligatoire.',
+
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
         },
@@ -274,6 +325,57 @@
             tbl_col_reply_body:      'Reply',
             toast_reply_deleted:     '\u2713 Reply deleted.',
             toast_err_reply_delete:  'Delete error: {0}',
+
+            // ── Permissions tab ──────────────────────────────────────────────
+            tab_permissions:        'Permissions',
+            perm_section_title:     'User Permissions',
+            perm_col_user:          'User',
+            perm_col_send:          'Send',
+            perm_col_reply:         'Reply',
+            perm_col_edit_own:      'Edit own',
+            perm_col_delete_own:    'Delete own',
+            perm_col_edit_others:   'Edit others',
+            perm_col_delete_others: 'Delete others',
+            perm_col_max_msgs:      'Max msgs/day',
+            perm_col_max_replies:   'Max replies/day',
+            perm_col_actions:       'Actions',
+            perm_save_row:          'Save',
+            perm_saved_row:         'Saved \u2713',
+            perm_save_err:          'Error',
+            perm_loading:           'Loading...',
+            perm_no_users:          'No users.',
+            perm_hint_0:            '0 = unlimited',
+
+            // ── User page ────────────────────────────────────────────────────
+            user_page_title:        'My Messages',
+            user_tab_inbox:         'Inbox',
+            user_tab_send:          'Send',
+            user_inbox_empty:       'No messages received.',
+            user_inbox_loading:     'Loading...',
+            user_sent_title:        'My Sent Messages',
+            user_sent_empty:        'No messages sent.',
+            user_compose_title:     'New message',
+            user_publish_btn:       'Send message',
+
+            // ── Message badges ───────────────────────────────────────────────
+            msg_deleted_label:      '(deleted)',
+            msg_edited_label:       '(edited {0}\u00d7)',
+
+            // ── Popup reply ──────────────────────────────────────────────────
+            reply_auto_close:       'Reply sent.',
+            reply_already_sent:     'You already replied.',
+            rate_limit_msg:         'Daily limit reached.',
+
+            // ── Retention ────────────────────────────────────────────────────
+            ret_admin_days_lbl:     'Admin message retention (days, 0=\u221e)',
+            ret_user_days_lbl:      'User message retention (days, 0=\u221e)',
+
+            // ── Replies filter ───────────────────────────────────────────────
+            replies_filter_lbl:     'Filter:',
+
+            // ── User validation ──────────────────────────────────────────────
+            err_title_required:     'Title is required.',
+            err_body_required:      'Message body is required.',
 
             // ── Dates ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -401,6 +503,57 @@
             toast_reply_deleted:     '\u2713 Respuesta eliminada.',
             toast_err_reply_delete:  'Error al eliminar: {0}',
 
+            // ── Pesta\u00f1a Permisos ─────────────────────────────────────────────
+            tab_permissions:        'Permisos',
+            perm_section_title:     'Gesti\u00f3n de permisos',
+            perm_col_user:          'Usuario',
+            perm_col_send:          'Enviar',
+            perm_col_reply:         'Responder',
+            perm_col_edit_own:      'Editar propios',
+            perm_col_delete_own:    'Eliminar propios',
+            perm_col_edit_others:   'Editar otros',
+            perm_col_delete_others: 'Eliminar otros',
+            perm_col_max_msgs:      'M\u00e1x msgs/d\u00eda',
+            perm_col_max_replies:   'M\u00e1x resp./d\u00eda',
+            perm_col_actions:       'Acciones',
+            perm_save_row:          'Guardar',
+            perm_saved_row:         'Guardado \u2713',
+            perm_save_err:          'Error',
+            perm_loading:           'Cargando...',
+            perm_no_users:          'Sin usuarios.',
+            perm_hint_0:            '0 = ilimitado',
+
+            // ── P\u00e1gina de usuario ────────────────────────────────────────────
+            user_page_title:        'Mis mensajes',
+            user_tab_inbox:         'Recibidos',
+            user_tab_send:          'Enviar',
+            user_inbox_empty:       'No hay mensajes recibidos.',
+            user_inbox_loading:     'Cargando...',
+            user_sent_title:        'Mis mensajes enviados',
+            user_sent_empty:        'No hay mensajes enviados.',
+            user_compose_title:     'Nuevo mensaje',
+            user_publish_btn:       'Enviar mensaje',
+
+            // ── Insignias de mensaje ─────────────────────────────────────────
+            msg_deleted_label:      '(eliminado)',
+            msg_edited_label:       '(editado {0}\u00d7)',
+
+            // ── Respuesta en popup ───────────────────────────────────────────
+            reply_auto_close:       'Respuesta enviada.',
+            reply_already_sent:     'Ya has respondido.',
+            rate_limit_msg:         'L\u00edmite diario alcanzado.',
+
+            // ── Retenci\u00f3n ──────────────────────────────────────────────────────
+            ret_admin_days_lbl:     'Retenci\u00f3n mensajes admin (d\u00edas, 0=ilimitado)',
+            ret_user_days_lbl:      'Retenci\u00f3n mensajes usuarios (d\u00edas, 0=ilimitado)',
+
+            // ── Filtro respuestas ────────────────────────────────────────────
+            replies_filter_lbl:     'Filtrar:',
+
+            // ── Validaci\u00f3n usuario ────────────────────────────────────────────
+            err_title_required:     'El t\u00edtulo es obligatorio.',
+            err_body_required:      'El mensaje es obligatorio.',
+
             // ── Fechas ───────────────────────────────────────────────────────
             date_suffix:         'UTC'
         },
@@ -526,6 +679,57 @@
             tbl_col_reply_body:      'Antwort',
             toast_reply_deleted:     '\u2713 Antwort gelöscht.',
             toast_err_reply_delete:  'Löschfehler: {0}',
+
+            // ── Tab Berechtigungen ───────────────────────────────────────────
+            tab_permissions:        'Berechtigungen',
+            perm_section_title:     'Benutzerverwaltung',
+            perm_col_user:          'Benutzer',
+            perm_col_send:          'Senden',
+            perm_col_reply:         'Antworten',
+            perm_col_edit_own:      'Eigene bearbeiten',
+            perm_col_delete_own:    'Eigene l\u00f6schen',
+            perm_col_edit_others:   'Andere bearbeiten',
+            perm_col_delete_others: 'Andere l\u00f6schen',
+            perm_col_max_msgs:      'Max Nachr./Tag',
+            perm_col_max_replies:   'Max Antw./Tag',
+            perm_col_actions:       'Aktionen',
+            perm_save_row:          'Speichern',
+            perm_saved_row:         'Gespeichert \u2713',
+            perm_save_err:          'Fehler',
+            perm_loading:           'Wird geladen...',
+            perm_no_users:          'Keine Benutzer.',
+            perm_hint_0:            '0 = unbegrenzt',
+
+            // ── Benutzerseite ────────────────────────────────────────────────
+            user_page_title:        'Meine Nachrichten',
+            user_tab_inbox:         'Posteingang',
+            user_tab_send:          'Senden',
+            user_inbox_empty:       'Keine Nachrichten empfangen.',
+            user_inbox_loading:     'Wird geladen...',
+            user_sent_title:        'Meine gesendeten Nachrichten',
+            user_sent_empty:        'Keine Nachrichten gesendet.',
+            user_compose_title:     'Neue Nachricht',
+            user_publish_btn:       'Nachricht senden',
+
+            // ── Nachrichten-Badges ───────────────────────────────────────────
+            msg_deleted_label:      '(gel\u00f6scht)',
+            msg_edited_label:       '({0}\u00d7 bearbeitet)',
+
+            // ── Popup-Antwort ────────────────────────────────────────────────
+            reply_auto_close:       'Antwort gesendet.',
+            reply_already_sent:     'Du hast bereits geantwortet.',
+            rate_limit_msg:         'Tageslimit erreicht.',
+
+            // ── Aufbewahrung ─────────────────────────────────────────────────
+            ret_admin_days_lbl:     'Admin-Nachrichtenaufbewahrung (Tage, 0=unbegrenzt)',
+            ret_user_days_lbl:      'Benutzer-Nachrichtenaufbewahrung (Tage, 0=unbegrenzt)',
+
+            // ── Antworten-Filter ─────────────────────────────────────────────
+            replies_filter_lbl:     'Filtern:',
+
+            // ── Benutzervalidierung ──────────────────────────────────────────
+            err_title_required:     'Titel ist erforderlich.',
+            err_body_required:      'Nachrichtentext ist erforderlich.',
 
             // ── Datum ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -653,6 +857,57 @@
             toast_reply_deleted:     '\u2713 Resposta apagada.',
             toast_err_reply_delete:  'Erro ao apagar: {0}',
 
+            // ── Aba Permiss\u00f5es ─────────────────────────────────────────────
+            tab_permissions:        'Permiss\u00f5es',
+            perm_section_title:     'Gest\u00e3o de permiss\u00f5es',
+            perm_col_user:          'Usu\u00e1rio',
+            perm_col_send:          'Enviar',
+            perm_col_reply:         'Responder',
+            perm_col_edit_own:      'Editar pr\u00f3prios',
+            perm_col_delete_own:    'Excluir pr\u00f3prios',
+            perm_col_edit_others:   'Editar outros',
+            perm_col_delete_others: 'Excluir outros',
+            perm_col_max_msgs:      'M\u00e1x msgs/dia',
+            perm_col_max_replies:   'M\u00e1x resp./dia',
+            perm_col_actions:       'A\u00e7\u00f5es',
+            perm_save_row:          'Salvar',
+            perm_saved_row:         'Salvo \u2713',
+            perm_save_err:          'Erro',
+            perm_loading:           'Carregando...',
+            perm_no_users:          'Nenhum usu\u00e1rio.',
+            perm_hint_0:            '0 = ilimitado',
+
+            // ── P\u00e1gina do usu\u00e1rio ─────────────────────────────────────────────
+            user_page_title:        'Minhas mensagens',
+            user_tab_inbox:         'Recebidos',
+            user_tab_send:          'Enviar',
+            user_inbox_empty:       'Nenhuma mensagem recebida.',
+            user_inbox_loading:     'Carregando...',
+            user_sent_title:        'Minhas mensagens enviadas',
+            user_sent_empty:        'Nenhuma mensagem enviada.',
+            user_compose_title:     'Nova mensagem',
+            user_publish_btn:       'Enviar mensagem',
+
+            // ── Badges de mensagem ───────────────────────────────────────────
+            msg_deleted_label:      '(exclu\u00eddo)',
+            msg_edited_label:       '(editado {0}\u00d7)',
+
+            // ── Resposta no popup ────────────────────────────────────────────
+            reply_auto_close:       'Resposta enviada.',
+            reply_already_sent:     'Voc\u00ea j\u00e1 respondeu.',
+            rate_limit_msg:         'Limite di\u00e1rio atingido.',
+
+            // ── Reten\u00e7\u00e3o ──────────────────────────────────────────────────────
+            ret_admin_days_lbl:     'Reten\u00e7\u00e3o de mensagens admin (dias, 0=infinito)',
+            ret_user_days_lbl:      'Reten\u00e7\u00e3o de mensagens de usu\u00e1rios (dias, 0=infinito)',
+
+            // ── Filtro de respostas ──────────────────────────────────────────
+            replies_filter_lbl:     'Filtrar:',
+
+            // ── Valida\u00e7\u00e3o do usu\u00e1rio ─────────────────────────────────────────
+            err_title_required:     'O t\u00edtulo \u00e9 obrigat\u00f3rio.',
+            err_body_required:      'O corpo da mensagem \u00e9 obrigat\u00f3rio.',
+
             // ── Datas ────────────────────────────────────────────────────────
             date_suffix:         'UTC'
         },
@@ -778,6 +1033,57 @@
             tbl_col_reply_body:      'Risposta',
             toast_reply_deleted:     '\u2713 Risposta eliminata.',
             toast_err_reply_delete:  'Errore eliminazione: {0}',
+
+            // ── Scheda Permessi ──────────────────────────────────────────────
+            tab_permissions:        'Permessi',
+            perm_section_title:     'Gestione permessi',
+            perm_col_user:          'Utente',
+            perm_col_send:          'Invia',
+            perm_col_reply:         'Rispondi',
+            perm_col_edit_own:      'Modifica propri',
+            perm_col_delete_own:    'Elimina propri',
+            perm_col_edit_others:   'Modifica altri',
+            perm_col_delete_others: 'Elimina altri',
+            perm_col_max_msgs:      'Max msg/giorno',
+            perm_col_max_replies:   'Max risp./giorno',
+            perm_col_actions:       'Azioni',
+            perm_save_row:          'Salva',
+            perm_saved_row:         'Salvato \u2713',
+            perm_save_err:          'Errore',
+            perm_loading:           'Caricamento...',
+            perm_no_users:          'Nessun utente.',
+            perm_hint_0:            '0 = illimitato',
+
+            // ── Pagina utente ────────────────────────────────────────────────
+            user_page_title:        'I miei messaggi',
+            user_tab_inbox:         'Ricevuti',
+            user_tab_send:          'Invia',
+            user_inbox_empty:       'Nessun messaggio ricevuto.',
+            user_inbox_loading:     'Caricamento...',
+            user_sent_title:        'I miei messaggi inviati',
+            user_sent_empty:        'Nessun messaggio inviato.',
+            user_compose_title:     'Nuovo messaggio',
+            user_publish_btn:       'Invia messaggio',
+
+            // ── Badge messaggio ──────────────────────────────────────────────
+            msg_deleted_label:      '(eliminato)',
+            msg_edited_label:       '(modificato {0}\u00d7)',
+
+            // ── Risposta popup ───────────────────────────────────────────────
+            reply_auto_close:       'Risposta inviata.',
+            reply_already_sent:     'Hai gi\u00e0 risposto.',
+            rate_limit_msg:         'Limite giornaliero raggiunto.',
+
+            // ── Conservazione ────────────────────────────────────────────────
+            ret_admin_days_lbl:     'Conservazione messaggi admin (giorni, 0=infinito)',
+            ret_user_days_lbl:      'Conservazione messaggi utenti (giorni, 0=infinito)',
+
+            // ── Filtro risposte ──────────────────────────────────────────────
+            replies_filter_lbl:     'Filtra:',
+
+            // ── Validazione utente ───────────────────────────────────────────
+            err_title_required:     'Il titolo \u00e8 obbligatorio.',
+            err_body_required:      'Il corpo del messaggio \u00e8 obbligatorio.',
 
             // ── Date ─────────────────────────────────────────────────────────
             date_suffix:         'UTC'
@@ -905,6 +1211,57 @@
             toast_reply_deleted:     '\u2713 \u8fd4\u4fe1\u3092\u524a\u9664\u3057\u307e\u3057\u305f\u3002',
             toast_err_reply_delete:  '\u524a\u9664\u30a8\u30e9\u30fc: {0}',
 
+            // ── 権限タブ ──────────────────────────────────────────────────────
+            tab_permissions:        '\u6a29\u9650',
+            perm_section_title:     '\u30e6\u30fc\u30b6\u30fc\u6a29\u9650\u7ba1\u7406',
+            perm_col_user:          '\u30e6\u30fc\u30b6\u30fc',
+            perm_col_send:          '\u9001\u4fe1',
+            perm_col_reply:         '\u8fd4\u4fe1',
+            perm_col_edit_own:      '\u81ea\u5206\u306e\u7de8\u96c6',
+            perm_col_delete_own:    '\u81ea\u5206\u306e\u524a\u9664',
+            perm_col_edit_others:   '\u4ed6\u8005\u306e\u7de8\u96c6',
+            perm_col_delete_others: '\u4ed6\u8005\u306e\u524a\u9664',
+            perm_col_max_msgs:      '\u6700\u5927\u4ef6\u6570/\u65e5',
+            perm_col_max_replies:   '\u6700\u5927\u8fd4\u4fe1/\u65e5',
+            perm_col_actions:       '\u64cd\u4f5c',
+            perm_save_row:          '\u4fdd\u5b58',
+            perm_saved_row:         '\u4fdd\u5b58\u6e08\u307f \u2713',
+            perm_save_err:          '\u30a8\u30e9\u30fc',
+            perm_loading:           '\u8aad\u307f\u8fbc\u307f\u4e2d...',
+            perm_no_users:          '\u30e6\u30fc\u30b6\u30fc\u304c\u3044\u307e\u305b\u3093\u3002',
+            perm_hint_0:            '0 = \u7121\u5236\u9650',
+
+            // ── ユーザーページ ────────────────────────────────────────────────
+            user_page_title:        '\u30de\u30a4\u30e1\u30c3\u30bb\u30fc\u30b8',
+            user_tab_inbox:         '\u53d7\u4fe1\u30c8\u30ec\u30a4',
+            user_tab_send:          '\u9001\u4fe1',
+            user_inbox_empty:       '\u30e1\u30c3\u30bb\u30fc\u30b8\u306f\u3042\u308a\u307e\u305b\u3093\u3002',
+            user_inbox_loading:     '\u8aad\u307f\u8fbc\u307f\u4e2d...',
+            user_sent_title:        '\u9001\u4fe1\u6e08\u307f\u30e1\u30c3\u30bb\u30fc\u30b8',
+            user_sent_empty:        '\u9001\u4fe1\u6e08\u307f\u30e1\u30c3\u30bb\u30fc\u30b8\u306f\u3042\u308a\u307e\u305b\u3093\u3002',
+            user_compose_title:     '\u65b0\u898f\u30e1\u30c3\u30bb\u30fc\u30b8',
+            user_publish_btn:       '\u30e1\u30c3\u30bb\u30fc\u30b8\u3092\u9001\u308b',
+
+            // ── メッセージバッジ ──────────────────────────────────────────────
+            msg_deleted_label:      '(\u524a\u9664\u6e08\u307f)',
+            msg_edited_label:       '({0}\u56de\u7de8\u96c6)',
+
+            // ── ポップアップ返信 ──────────────────────────────────────────────
+            reply_auto_close:       '\u8fd4\u4fe1\u3057\u307e\u3057\u305f\u3002',
+            reply_already_sent:     '\u3059\u3067\u306b\u8fd4\u4fe1\u3057\u307e\u3057\u305f\u3002',
+            rate_limit_msg:         '\u65e5\u6b21\u5236\u9650\u306b\u9054\u3057\u307e\u3057\u305f\u3002',
+
+            // ── 保持期間 ──────────────────────────────────────────────────────
+            ret_admin_days_lbl:     '\u7ba1\u7406\u8005\u30e1\u30c3\u30bb\u30fc\u30b8\u4fdd\u6301\u671f\u9593\uff08\u65e5\u30010=\u7121\u5236\u9650\uff09',
+            ret_user_days_lbl:      '\u30e6\u30fc\u30b6\u30fc\u30e1\u30c3\u30bb\u30fc\u30b8\u4fdd\u6301\u671f\u9593\uff08\u65e5\u30010=\u7121\u5236\u9650\uff09',
+
+            // ── 返信フィルター ────────────────────────────────────────────────
+            replies_filter_lbl:     '\u30d5\u30a3\u30eb\u30bf\u30fc:',
+
+            // ── ユーザー検証 ──────────────────────────────────────────────────
+            err_title_required:     '\u30bf\u30a4\u30c8\u30eb\u306f\u5fc5\u9808\u3067\u3059\u3002',
+            err_body_required:      '\u30e1\u30c3\u30bb\u30fc\u30b8\u672c\u6587\u306f\u5fc5\u9808\u3067\u3059\u3002',
+
             // ── 日付 ─────────────────────────────────────────────────────────
             date_suffix:         'UTC'
         },
@@ -1030,6 +1387,57 @@
             tbl_col_reply_body:      '\u56de\u590d',
             toast_reply_deleted:     '\u2713 \u56de\u590d\u5df2\u5220\u9664\u3002',
             toast_err_reply_delete:  '\u5220\u9664\u9519\u8bef\uff1a{0}',
+
+            // ── 权限标签页 ────────────────────────────────────────────────────
+            tab_permissions:        '\u6743\u9650',
+            perm_section_title:     '\u7528\u6237\u6743\u9650\u7ba1\u7406',
+            perm_col_user:          '\u7528\u6237',
+            perm_col_send:          '\u53d1\u9001',
+            perm_col_reply:         '\u56de\u590d',
+            perm_col_edit_own:      '\u7f16\u8f91\u81ea\u5df1\u7684',
+            perm_col_delete_own:    '\u5220\u9664\u81ea\u5df1\u7684',
+            perm_col_edit_others:   '\u7f16\u8f91\u4ed6\u4eba\u7684',
+            perm_col_delete_others: '\u5220\u9664\u4ed6\u4eba\u7684',
+            perm_col_max_msgs:      '\u6700\u591a\u6d88\u606f/\u5929',
+            perm_col_max_replies:   '\u6700\u591a\u56de\u590d/\u5929',
+            perm_col_actions:       '\u64cd\u4f5c',
+            perm_save_row:          '\u4fdd\u5b58',
+            perm_saved_row:         '\u5df2\u4fdd\u5b58 \u2713',
+            perm_save_err:          '\u9519\u8bef',
+            perm_loading:           '\u52a0\u8f7d\u4e2d...',
+            perm_no_users:          '\u6ca1\u6709\u7528\u6237\u3002',
+            perm_hint_0:            '0 = \u4e0d\u9650\u5236',
+
+            // ── 用户页面 ──────────────────────────────────────────────────────
+            user_page_title:        '\u6211\u7684\u6d88\u606f',
+            user_tab_inbox:         '\u6536\u4ef6\u7b71',
+            user_tab_send:          '\u53d1\u9001',
+            user_inbox_empty:       '\u6ca1\u6709\u6536\u5230\u6d88\u606f\u3002',
+            user_inbox_loading:     '\u52a0\u8f7d\u4e2d...',
+            user_sent_title:        '\u6211\u5df2\u53d1\u9001\u7684\u6d88\u606f',
+            user_sent_empty:        '\u6ca1\u6709\u5df2\u53d1\u9001\u7684\u6d88\u606f\u3002',
+            user_compose_title:     '\u65b0\u6d88\u606f',
+            user_publish_btn:       '\u53d1\u9001\u6d88\u606f',
+
+            // ── 消息标签 ──────────────────────────────────────────────────────
+            msg_deleted_label:      '(\u5df2\u5220\u9664)',
+            msg_edited_label:       '(\u5df2\u7f16\u8f91 {0}\u6b21)',
+
+            // ── 弹窗回复 ──────────────────────────────────────────────────────
+            reply_auto_close:       '\u56de\u590d\u5df2\u53d1\u9001\u3002',
+            reply_already_sent:     '\u60a8\u5df2\u7ecf\u56de\u590d\u8fc7\u3002',
+            rate_limit_msg:         '\u5df2\u8fbe\u5230\u6bcf\u65e5\u9650\u5236\u3002',
+
+            // ── 保留期限 ──────────────────────────────────────────────────────
+            ret_admin_days_lbl:     '\u7ba1\u7406\u5458\u6d88\u606f\u4fdd\u7559\uff08\u5929\uff0c0=\u65e0\u9650\uff09',
+            ret_user_days_lbl:      '\u7528\u6237\u6d88\u606f\u4fdd\u7559\uff08\u5929\uff0c0=\u65e0\u9650\uff09',
+
+            // ── 回复过滤 ──────────────────────────────────────────────────────
+            replies_filter_lbl:     '\u8fc7\u6ee4\uff1a',
+
+            // ── 用户验证 ──────────────────────────────────────────────────────
+            err_title_required:     '\u6807\u9898\u4e3a\u5fc5\u586b\u9879\u3002',
+            err_body_required:      '\u6d88\u606f\u5185\u5bb9\u4e3a\u5fc5\u586b\u9879\u3002',
 
             // ── 日期 ──────────────────────────────────────────────────────────
             date_suffix:         'UTC'

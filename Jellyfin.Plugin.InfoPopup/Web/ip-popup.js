@@ -177,33 +177,45 @@
     /**
      * Bind les boutons d'envoi de réponse dans le container donné.
      * Appelé après que le DOM de la popup soit construit.
+     * @param {Element} container — élément racine de la popup (backdrop)
+     * @param {Function} close    — fonction de fermeture de la popup
      */
-    function bindReplyButtons(container) {
+    function bindReplyButtons(container, close) {
         container.querySelectorAll('[data-reply-btn]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var msgId    = btn.getAttribute('data-reply-btn');
                 var textarea = container.querySelector('[data-reply-for="' + msgId + '"]');
                 var okSpan   = container.querySelector('[data-reply-ok="' + msgId + '"]');
+                var replyArea = btn.closest('.ip-reply-area');
                 if (!textarea || !textarea.value.trim()) return;
                 btn.disabled = true;
                 apiFetch('/InfoPopup/messages/' + encodeURIComponent(msgId) + '/reply', {
                     method: 'POST',
                     body: JSON.stringify({ body: textarea.value.trim() })
-                }).then(function () {
+                }).then(function (res) {
+                    if (res.status === 409) {
+                        // Déjà répondu : remplacer la zone de réponse par un message
+                        if (replyArea) {
+                            replyArea.innerHTML = '';
+                            var done = document.createElement('div');
+                            done.className   = 'ip-reply-done';
+                            done.textContent = t('reply_already_sent');
+                            replyArea.appendChild(done);
+                        }
+                        return;
+                    }
                     textarea.value = '';
                     if (okSpan) {
-                        okSpan.textContent  = t('reply_sent');
+                        okSpan.textContent   = t('reply_auto_close');
                         okSpan.style.display = '';
-                        setTimeout(function () {
-                            okSpan.style.display = 'none';
-                            btn.disabled = false;
-                        }, 3000);
-                    } else {
-                        btn.disabled = false;
                     }
+                    // Auto-fermeture après 1.5s
+                    setTimeout(function () {
+                        if (typeof close === 'function') close();
+                    }, 1500);
                 }).catch(function (err) {
                     if (okSpan) {
-                        okSpan.textContent  = t('reply_err', err && err.message ? err.message : String(err));
+                        okSpan.textContent   = t('reply_err', err && err.message ? err.message : String(err));
                         okSpan.style.display = '';
                     }
                     btn.disabled = false;
@@ -216,10 +228,17 @@
     // Affichage de la popup
     // ════════════════════════════════════════════════════════════════════════
 
-    function showPopup(unseenMessages, historyMessages, allUnseenFull) {
+    function showPopup(unseenMessages, historyMessages, allUnseenFull, popupPermissions) {
         if (popupActive) return;
         popupActive = true;
         ns.injectStyles();
+
+        // Droits utilisateur : canReply depuis popupPermissions (API) ou fallback settings
+        var canReply = (popupPermissions && popupPermissions.canReply !== undefined)
+            ? popupPermissions.canReply
+            : ((popupPermissions && popupPermissions.CanReply !== undefined)
+                ? popupPermissions.CanReply
+                : _settings.allowReplies);
 
         // allUnseenFull contient tous les IDs à marquer comme vus (y compris ceux
         // non affichés si maxMessagesInPopup a tronqué la liste).
@@ -250,7 +269,7 @@
             var body = document.createElement('div');
             body.id  = 'infopopup-body';
             body.innerHTML = renderBody(unseenMessages[0].body || unseenMessages[0].Body || '');
-            if (_settings.allowReplies) {
+            if (canReply) {
                 body.appendChild(buildReplyArea(unseenMessages[0].id || unseenMessages[0].Id || ''));
             }
             dialog.appendChild(body);
@@ -269,7 +288,7 @@
                 cardBody.innerHTML = renderBody(msg.body || msg.Body || '');
                 card.appendChild(cardTitle);
                 card.appendChild(cardBody);
-                if (_settings.allowReplies) {
+                if (canReply) {
                     card.appendChild(buildReplyArea(msgId));
                 }
                 msgsContainer.appendChild(card);
@@ -292,9 +311,6 @@
         document.body.appendChild(backdrop);
         closeBtn.focus();
 
-        // ── Bind des boutons d'envoi de réponse ──────────────────────────────
-        bindReplyButtons(backdrop);
-
         var close = function () {
             backdrop.remove();
             // popupActive reste true jusqu'à confirmation serveur (R4).
@@ -303,6 +319,9 @@
                 popupActive = false;
             });
         };
+
+        // ── Bind des boutons d'envoi de réponse (close disponible) ───────────
+        bindReplyButtons(backdrop, close);
 
         closeBtn.addEventListener('click', close);
         header.querySelector('.ip-close-btn').addEventListener('click', close);
@@ -351,11 +370,20 @@
                 var unseen  = data.unseen  || data.Unseen  || [];
                 var history = data.history || data.History || [];
                 if (!unseen.length) return;
+
+                // Extraire les permissions utilisateur retournées par popup-data
+                var permsRaw = data.permissions || data.Permissions || {};
+                var popupPermissions = {
+                    canReply: permsRaw.canReply !== undefined
+                        ? permsRaw.canReply
+                        : (permsRaw.CanReply !== undefined ? permsRaw.CanReply : _settings.allowReplies)
+                };
+
                 // Limiter le nombre de messages affichés simultanément.
                 // Le marquage comme "vu" porte sur TOUS les messages reçus.
                 var allUnseenFull = unseen;
                 var visible = unseen.slice(0, _settings.maxMessagesInPopup);
-                showPopup(visible, history, allUnseenFull);
+                showPopup(visible, history, allUnseenFull, popupPermissions);
             })
             .catch(function () {
                 // Silencieux : session expirée, réseau KO, aucun message non vu.
@@ -389,6 +417,7 @@
             new MutationObserver(function () {
                 schedulePopupCheck();
                 ns.checkConfigPage();
+                ns.checkUserPage();
             }).observe(document.body, { childList: true, subtree: true });
 
             window.addEventListener('hashchange', schedulePopupCheck);
@@ -396,6 +425,7 @@
 
             schedulePopupCheck();
             ns.checkConfigPage();
+            ns.checkUserPage();
         });
     }
 

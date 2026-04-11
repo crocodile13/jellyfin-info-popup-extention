@@ -90,13 +90,22 @@ public class ReplyStoreService
     /// <summary>
     /// Ajoute une réponse d'un utilisateur à un message.
     /// Valide la longueur maximale depuis la configuration du plugin.
+    /// Un utilisateur ne peut répondre qu'une seule fois à un message donné.
     /// </summary>
     /// <param name="messageId">ID du message auquel l'utilisateur répond.</param>
     /// <param name="userId">ID Jellyfin de l'utilisateur.</param>
     /// <param name="body">Contenu de la réponse.</param>
+    /// <param name="recipientUserId">ID Jellyfin du destinataire de la réponse (SentByUserId du message).</param>
+    /// <param name="maxRepliesPerDay">Limite journalière de réponses. 0 = illimité.</param>
     /// <returns>La réponse créée.</returns>
     /// <exception cref="ArgumentException">Si le corps est vide ou dépasse la longueur maximale.</exception>
-    public MessageReply AddReply(string messageId, string userId, string body)
+    /// <exception cref="InvalidOperationException">Si l'utilisateur a déjà répondu ou atteint sa limite journalière.</exception>
+    public MessageReply AddReply(
+        string messageId,
+        string userId,
+        string body,
+        string recipientUserId = "",
+        int maxRepliesPerDay = 0)
     {
         if (string.IsNullOrWhiteSpace(body))
             throw new ArgumentException("Le corps de la réponse ne peut pas être vide.", nameof(body));
@@ -111,13 +120,28 @@ public class ReplyStoreService
             MessageId = messageId,
             UserId = userId,
             Body = body,
-            RepliedAt = DateTime.UtcNow
+            RepliedAt = DateTime.UtcNow,
+            RecipientUserId = recipientUserId
         };
 
         _lock.EnterWriteLock();
         try
         {
             var store = ReadStore();
+
+            // Un utilisateur ne peut répondre qu'une seule fois à un message donné.
+            if (store.Replies.Any(r => r.MessageId == messageId && r.UserId == userId))
+                throw new InvalidOperationException("Vous avez déjà répondu à ce message.");
+
+            // Vérifier la limite journalière de réponses.
+            if (maxRepliesPerDay > 0)
+            {
+                var today = DateTime.UtcNow.Date;
+                var countToday = store.Replies.Count(r => r.UserId == userId && r.RepliedAt >= today);
+                if (countToday >= maxRepliesPerDay)
+                    throw new InvalidOperationException("Limite journalière de réponses atteinte.");
+            }
+
             store.Replies.Add(reply);
             WriteStore(store);
             _logger.LogInformation(
@@ -127,6 +151,42 @@ public class ReplyStoreService
         finally { _lock.ExitWriteLock(); }
 
         return reply;
+    }
+
+    /// <summary>
+    /// Vérifie si un utilisateur a déjà répondu à un message donné.
+    /// </summary>
+    /// <param name="messageId">ID du message.</param>
+    /// <param name="userId">ID Jellyfin de l'utilisateur.</param>
+    /// <returns><c>true</c> si l'utilisateur a déjà répondu, <c>false</c> sinon.</returns>
+    public bool HasUserReplied(string messageId, string userId)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            var store = ReadStore();
+            return store.Replies.Any(r => r.MessageId == messageId && r.UserId == userId);
+        }
+        finally { _lock.ExitReadLock(); }
+    }
+
+    /// <summary>
+    /// Retourne toutes les réponses reçues par un utilisateur (destinataire),
+    /// triées par date ascendante.
+    /// </summary>
+    /// <param name="recipientUserId">ID Jellyfin de l'utilisateur destinataire.</param>
+    public List<MessageReply> GetByRecipient(string recipientUserId)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            var store = ReadStore();
+            return store.Replies
+                .Where(r => r.RecipientUserId == recipientUserId)
+                .OrderBy(r => r.RepliedAt)
+                .ToList();
+        }
+        finally { _lock.ExitReadLock(); }
     }
 
     /// <summary>

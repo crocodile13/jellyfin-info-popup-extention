@@ -169,7 +169,28 @@
             '.ip-reply-del-btn{align-self:start;margin-top:2px;background:none;border:1px solid rgba(220,50,50,.4);border-radius:4px;color:#f66;padding:3px 10px;font-size:.8rem;cursor:pointer;white-space:nowrap;transition:background .15s}',
             '.ip-reply-del-btn:hover{background:rgba(220,50,50,.18)}',
             '.ip-replies-del-all{background:none;border:1px solid rgba(220,50,50,.4);border-radius:4px;color:#f66;padding:4px 12px;font-size:.82rem;cursor:pointer;transition:background .15s}',
-            '.ip-replies-del-all:hover{background:rgba(220,50,50,.18)}'
+            '.ip-replies-del-all:hover{background:rgba(220,50,50,.18)}',
+            // ── Permissions tab ───────────────────────────────────────────────
+            '.ip-perm-table{width:100%;border-collapse:collapse;font-size:.85rem}',
+            '.ip-perm-table th,.ip-perm-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.08);text-align:center;vertical-align:middle}',
+            '.ip-perm-table th:first-child,.ip-perm-table td:first-child{text-align:left;min-width:120px}',
+            '.ip-perm-table tr:hover td{background:rgba(255,255,255,.04)}',
+            '.ip-perm-table input[type="number"]{width:56px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:4px;color:inherit;padding:2px 4px;text-align:center}',
+            '.ip-perm-save-btn{font-size:.78rem;padding:3px 10px}',
+            '.ip-perm-save-ok{font-size:.78rem;color:#4caf50;margin-left:6px}',
+            '.ip-perm-save-err{font-size:.78rem;color:#cf6679;margin-left:6px}',
+            // ── Deleted message indicator ─────────────────────────────────────
+            '.ip-msg-deleted{opacity:.45;text-decoration:line-through}',
+            '.ip-msg-deleted-badge{display:inline-block;font-size:.72rem;color:#cf6679;border:1px solid rgba(207,102,121,.4);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:middle}',
+            '.ip-msg-edited-badge{display:inline-block;font-size:.72rem;color:rgba(255,200,80,.8);border:1px solid rgba(255,200,80,.3);border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:middle}',
+            // ── User page ─────────────────────────────────────────────────────
+            '#infoPopupUserPage .ip-user-msg-card{border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:14px 16px;margin-bottom:10px;background:rgba(255,255,255,.03)}',
+            '#infoPopupUserPage .ip-user-msg-title{font-weight:600;margin-bottom:4px;font-size:1rem}',
+            '#infoPopupUserPage .ip-user-msg-meta{font-size:.78rem;opacity:.55;margin-bottom:8px}',
+            '#infoPopupUserPage .ip-user-msg-body{font-size:.9rem;line-height:1.5}',
+            '#infoPopupUserPage .ip-user-unseen-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--theme-accent-color,#00a4dc);margin-right:6px;vertical-align:middle}',
+            // ── Reply already-sent state ──────────────────────────────────────
+            '.ip-reply-done{font-size:.82rem;opacity:.6;font-style:italic;padding:6px 0}'
         ].join('\n');
         document.head.appendChild(s);
     }

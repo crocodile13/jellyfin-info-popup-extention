@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
-    <Version>3.4.0.0</Version>
+    <Version>3.5.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +36,8 @@
     <EmbeddedResource Include="Web\ip-styles.js" />
     <EmbeddedResource Include="Web\ip-admin.js" />
     <EmbeddedResource Include="Web\ip-popup.js" />
+    <EmbeddedResource Include="Web\ip-user.js" />
+    <EmbeddedResource Include="Web\usermessagespage.html" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,72 @@
+<div id="infoPopupUserPage" data-role="page" class="page libraryPage">
+<div class="padded-left padded-right padded-bottom-page">
+
+    <div class="detailSection">
+        <h2 class="sectionTitle">
+            <span class="material-icons" style="vertical-align:middle;margin-right:8px;">notifications_active</span>
+            <span id="ip-user-page-title">Mes messages</span>
+        </h2>
+    </div>
+
+    <!-- Barre d'onglets -->
+    <div class="ip-tab-bar" id="ip-user-tabs">
+        <button class="ip-tab-btn ip-tab-active" id="ip-user-tab-inbox" type="button">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">inbox</span>
+            <span id="ip-user-tab-inbox-lbl">Re&#231;us</span>
+        </button>
+        <button class="ip-tab-btn" id="ip-user-tab-send" type="button" style="display:none;">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">send</span>
+            <span id="ip-user-tab-send-lbl">Envoyer</span>
+        </button>
+    </div>
+
+    <!-- Panel Re&#231;us -->
+    <div id="ip-user-panel-inbox">
+        <div id="ip-user-inbox-list">
+            <p style="opacity:.55;" id="ip-user-inbox-loading">Chargement...</p>
+        </div>
+    </div>
+
+    <!-- Panel Envoyer (affich&#233; seulement si CanSendMessages) -->
+    <div id="ip-user-panel-send" style="display:none;">
+
+        <!-- Formulaire de composition -->
+        <div class="detailSection">
+            <h3 id="ip-user-compose-title" class="sectionTitle">Nouveau message</h3>
+
+            <div class="inputContainer">
+                <label id="ip-user-title-label" class="inputLabel inputLabelUnfocused" for="ip-user-title">Titre *</label>
+                <input id="ip-user-title" type="text" class="emby-input" maxlength="200" autocomplete="off"/>
+                <div id="ip-user-title-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
+            </div>
+
+            <div class="inputContainer" style="margin-top:16px;">
+                <label id="ip-user-body-label" class="inputLabel" for="ip-user-body"
+                       style="display:block;margin-bottom:8px;">Message *</label>
+                <textarea id="ip-user-body" class="emby-textarea" maxlength="10000" rows="7"
+                          placeholder="Saisir le contenu..."
+                          style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+                <div id="ip-user-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
+            </div>
+
+            <div style="margin-top:20px;display:flex;align-items:center;gap:12px;">
+                <button id="ip-user-publish-btn" class="raised button-submit emby-button" type="button">
+                    <span id="ip-user-publish-lbl">Envoyer le message</span>
+                </button>
+                <div id="ip-user-toast" style="display:none;padding:8px 14px;border-radius:4px;font-size:.9rem;"></div>
+            </div>
+        </div>
+
+        <!-- Historique des messages envoy&#233;s -->
+        <div class="detailSection" style="margin-top:32px;">
+            <h3 id="ip-user-sent-title" class="sectionTitle">Mes messages envoy&#233;s</h3>
+            <div id="ip-user-sent-list">
+                <p style="opacity:.55;" id="ip-user-sent-empty">Aucun message envoy&#233;.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<script src="/InfoPopup/client.js"></script>

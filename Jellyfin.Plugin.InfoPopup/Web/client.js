@@ -10,6 +10,7 @@
  *   3. ip-styles.js  — injection CSS idempotente dans <head>
  *   4. ip-admin.js   — page de configuration administrateur
  *   5. ip-popup.js   — popup utilisateur + MutationObserver (auto-démarre)
+ *   6. ip-user.js    — page utilisateur sidebar (boîte de réception + envoi)
  *
  * Guard window.__infoPopupLoaded : empêche toute double exécution (SPA).
  */
@@ -24,7 +25,8 @@
         '/InfoPopup/ip-utils.js',
         '/InfoPopup/ip-styles.js',
         '/InfoPopup/ip-admin.js',
-        '/InfoPopup/ip-popup.js'
+        '/InfoPopup/ip-popup.js',
+        '/InfoPopup/ip-user.js'
     ];
 
     /**

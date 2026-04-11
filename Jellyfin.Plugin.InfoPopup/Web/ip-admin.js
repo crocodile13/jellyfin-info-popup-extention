@@ -359,15 +359,27 @@
             var title         = msg.title         || msg.Title         || '';
             var publishedAt   = msg.publishedAt   || msg.PublishedAt   || '';
             var targetUserIds = msg.targetUserIds || msg.TargetUserIds || [];
+            var isDeleted     = msg.isDeleted     || msg.IsDeleted     || false;
+            var editCount     = msg.editHistoryCount || msg.EditHistoryCount || 0;
 
             var tr = document.createElement('tr');
             tr.dataset.id = id;
+            if (isDeleted) tr.classList.add('ip-msg-deleted');
 
             var targetBadge = targetUserIds.length === 0
                 ? '<span class="ip-badge ip-badge-all">' + escHtml(t('tbl_badge_all')) + '</span>'
                 : '<span class="ip-badge ip-badge-partial" title="' + escHtml(resolveUserNames(targetUserIds)) + '">' +
                   targetUserIds.length + '\u00a0' +
                   escHtml(t(targetUserIds.length > 1 ? 'tbl_user_plural' : 'tbl_user_singular')) + '</span>';
+
+            // Badges deleted / edited
+            var titleBadges = '';
+            if (isDeleted) {
+                titleBadges += '<span class="ip-msg-deleted-badge">' + escHtml(t('msg_deleted_label')) + '</span>';
+            }
+            if (editCount > 0) {
+                titleBadges += '<span class="ip-msg-edited-badge">' + escHtml(t('msg_edited_label', editCount)) + '</span>';
+            }
 
             tr.innerHTML =
                 '<td class="ip-col-check">' +
@@ -376,6 +388,7 @@
                 '</td>' +
                 '<td class="ip-col-title ip-col-title-toggle">' +
                 '<span class="ip-row-title-text">' + escHtml(title) + '</span>' +
+                titleBadges +
                 '<span class="ip-row-chev">\u25b6</span>' +
                 '</td>' +
                 '<td class="ip-col-target">' + targetBadge + '</td>' +
@@ -927,14 +940,159 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
+    // Onglet Droits (permissions)
+    // ════════════════════════════════════════════════════════════════════════
+
+    function buildPermRow(page, u) {
+        var tr = document.createElement('tr');
+        var boolFields = [
+            { key: 'canSendMessages',       val: u.canSendMessages       || u.CanSendMessages       || false },
+            { key: 'canReply',              val: u.canReply              || u.CanReply              || false },
+            { key: 'canEditOwnMessages',    val: u.canEditOwnMessages    || u.CanEditOwnMessages    || false },
+            { key: 'canDeleteOwnMessages',  val: u.canDeleteOwnMessages  || u.CanDeleteOwnMessages  || false },
+            { key: 'canEditOthersMessages',   val: u.canEditOthersMessages   || u.CanEditOthersMessages   || false },
+            { key: 'canDeleteOthersMessages', val: u.canDeleteOthersMessages || u.CanDeleteOthersMessages || false }
+        ];
+        var userId   = u.userId   || u.UserId   || '';
+        var userName = u.userName || u.UserName || userId;
+
+        // col username
+        var tdName = document.createElement('td');
+        tdName.textContent = userName;
+        tr.appendChild(tdName);
+
+        // col checkboxes
+        var checkboxMap = {};
+        boolFields.forEach(function(f) {
+            var td  = document.createElement('td');
+            var chk = document.createElement('input');
+            chk.type    = 'checkbox';
+            chk.checked = f.val;
+            chk.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);';
+            checkboxMap[f.key] = chk;
+            td.appendChild(chk);
+            tr.appendChild(td);
+        });
+
+        // col maxMessagesPerDay
+        var tdMsgs  = document.createElement('td');
+        var inpMsgs = document.createElement('input');
+        inpMsgs.type  = 'number';
+        inpMsgs.min   = '0';
+        inpMsgs.max   = '1000';
+        inpMsgs.value = String(u.maxMessagesPerDay !== undefined ? u.maxMessagesPerDay : (u.MaxMessagesPerDay !== undefined ? u.MaxMessagesPerDay : 5));
+        tdMsgs.appendChild(inpMsgs);
+        tr.appendChild(tdMsgs);
+
+        // col maxRepliesPerDay
+        var tdRep  = document.createElement('td');
+        var inpRep = document.createElement('input');
+        inpRep.type  = 'number';
+        inpRep.min   = '0';
+        inpRep.max   = '1000';
+        inpRep.value = String(u.maxRepliesPerDay !== undefined ? u.maxRepliesPerDay : (u.MaxRepliesPerDay !== undefined ? u.MaxRepliesPerDay : 10));
+        tdRep.appendChild(inpRep);
+        tr.appendChild(tdRep);
+
+        // col actions
+        var tdAct      = document.createElement('td');
+        var saveBtn    = document.createElement('button');
+        saveBtn.type      = 'button';
+        saveBtn.className = 'raised emby-button ip-perm-save-btn';
+        saveBtn.textContent = t('perm_save_row');
+        var statusSpan = document.createElement('span');
+        statusSpan.style.display = 'none';
+
+        saveBtn.addEventListener('click', function() {
+            saveBtn.disabled = true;
+            statusSpan.style.display = 'none';
+            var payload = {
+                canSendMessages:         checkboxMap.canSendMessages.checked,
+                canReply:                checkboxMap.canReply.checked,
+                canEditOwnMessages:      checkboxMap.canEditOwnMessages.checked,
+                canDeleteOwnMessages:    checkboxMap.canDeleteOwnMessages.checked,
+                canEditOthersMessages:   checkboxMap.canEditOthersMessages.checked,
+                canDeleteOthersMessages: checkboxMap.canDeleteOthersMessages.checked,
+                maxMessagesPerDay: parseInt(inpMsgs.value, 10) || 0,
+                maxRepliesPerDay:  parseInt(inpRep.value, 10)  || 0
+            };
+            apiFetch('/InfoPopup/permissions/' + encodeURIComponent(userId), {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            }).then(function() {
+                statusSpan.className    = 'ip-perm-save-ok';
+                statusSpan.textContent  = t('perm_saved_row');
+                statusSpan.style.display = '';
+                setTimeout(function() { statusSpan.style.display = 'none'; saveBtn.disabled = false; }, 2500);
+            }).catch(function() {
+                statusSpan.className    = 'ip-perm-save-err';
+                statusSpan.textContent  = t('perm_save_err');
+                statusSpan.style.display = '';
+                saveBtn.disabled = false;
+            });
+        });
+
+        tdAct.appendChild(saveBtn);
+        tdAct.appendChild(statusSpan);
+        tr.appendChild(tdAct);
+        return tr;
+    }
+
+    function loadPermissions(page) {
+        var container = page.querySelector('#ip-perm-container');
+        if (!container) return;
+        container.innerHTML = '<p style="opacity:.55;">' + escHtml(t('perm_loading')) + '</p>';
+        apiFetch('/InfoPopup/permissions')
+            .then(function(res) { return res.json(); })
+            .then(function(users) {
+                if (!users || !users.length) {
+                    container.innerHTML = '<p style="opacity:.55;">' + escHtml(t('perm_no_users')) + '</p>';
+                    return;
+                }
+                var cols = [
+                    'perm_col_user', 'perm_col_send', 'perm_col_reply',
+                    'perm_col_edit_own', 'perm_col_delete_own',
+                    'perm_col_edit_others', 'perm_col_delete_others',
+                    'perm_col_max_msgs', 'perm_col_max_replies', 'perm_col_actions'
+                ];
+                var table = document.createElement('table');
+                table.className = 'ip-perm-table';
+                var thead   = document.createElement('thead');
+                var headRow = document.createElement('tr');
+                cols.forEach(function(k) {
+                    var th = document.createElement('th');
+                    th.textContent = t(k);
+                    headRow.appendChild(th);
+                });
+                thead.appendChild(headRow);
+                table.appendChild(thead);
+                var tbody = document.createElement('tbody');
+                users.forEach(function(u) {
+                    tbody.appendChild(buildPermRow(page, u));
+                });
+                table.appendChild(tbody);
+                container.innerHTML = '';
+                container.appendChild(table);
+                var hint = document.createElement('p');
+                hint.style.cssText = 'opacity:.5;font-size:.78rem;margin-top:8px;';
+                hint.textContent = t('perm_hint_0');
+                container.appendChild(hint);
+            })
+            .catch(function() {
+                container.innerHTML = '<p style="color:#cf6679;">' + escHtml(t('perm_save_err')) + '</p>';
+            });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // Onglets
     // ════════════════════════════════════════════════════════════════════════
 
     function initTabs(page) {
         var tabs = [
-            { btnId: 'ip-tab-messages',  panelId: 'ip-panel-messages' },
-            { btnId: 'ip-tab-settings',  panelId: 'ip-panel-settings' },
-            { btnId: 'ip-tab-replies',   panelId: 'ip-panel-replies'  }
+            { btnId: 'ip-tab-messages',    panelId: 'ip-panel-messages'    },
+            { btnId: 'ip-tab-settings',    panelId: 'ip-panel-settings'    },
+            { btnId: 'ip-tab-replies',     panelId: 'ip-panel-replies'     },
+            { btnId: 'ip-tab-permissions', panelId: 'ip-panel-permissions' }
         ];
         tabs.forEach(function(tab) {
             var btn = page.querySelector('#' + tab.btnId);
@@ -951,6 +1109,8 @@
                 if (panel) { panel.style.display = ''; }
                 // Charger les réponses quand on clique sur l'onglet Réponses
                 if (tab.btnId === 'ip-tab-replies') { loadReplies(page); }
+                // Charger les permissions quand on clique sur l'onglet Droits
+                if (tab.btnId === 'ip-tab-permissions') { loadPermissions(page); }
             });
         });
     }
@@ -964,23 +1124,27 @@
             .then(function(res) { return res.json(); })
             .then(function(data) {
             var cfg = data || {};
-            var chkEnabled = page.querySelector('#ip-set-enabled');
-            var inpDelay   = page.querySelector('#ip-set-delay');
-            var inpMax     = page.querySelector('#ip-set-max');
-            var chkHistory = page.querySelector('#ip-set-history');
-            var chkReplies = page.querySelector('#ip-set-replies');
-            var inpReplyLen= page.querySelector('#ip-set-reply-len');
-            var inpRate    = page.querySelector('#ip-set-rate');
-            var replyWrap  = page.querySelector('#ip-set-reply-len-wrap');
+            var chkEnabled  = page.querySelector('#ip-set-enabled');
+            var inpDelay    = page.querySelector('#ip-set-delay');
+            var inpMax      = page.querySelector('#ip-set-max');
+            var chkHistory  = page.querySelector('#ip-set-history');
+            var chkReplies  = page.querySelector('#ip-set-replies');
+            var inpReplyLen = page.querySelector('#ip-set-reply-len');
+            var inpRate     = page.querySelector('#ip-set-rate');
+            var inpRetAdmin = page.querySelector('#ip-set-ret-admin');
+            var inpRetUser  = page.querySelector('#ip-set-ret-user');
+            var replyWrap   = page.querySelector('#ip-set-reply-len-wrap');
 
             // Compatibilité camelCase / PascalCase
-            var popupEnabled = cfg.popupEnabled !== undefined ? cfg.popupEnabled : (cfg.PopupEnabled !== undefined ? cfg.PopupEnabled : true);
-            var popupDelay   = cfg.popupDelayMs !== undefined ? cfg.popupDelayMs : (cfg.PopupDelayMs !== undefined ? cfg.PopupDelayMs : 800);
-            var maxMsgs      = cfg.maxMessagesInPopup !== undefined ? cfg.maxMessagesInPopup : (cfg.MaxMessagesInPopup !== undefined ? cfg.MaxMessagesInPopup : 5);
-            var histEnabled  = cfg.historyEnabled !== undefined ? cfg.historyEnabled : (cfg.HistoryEnabled !== undefined ? cfg.HistoryEnabled : true);
-            var allowReplies = cfg.allowReplies !== undefined ? cfg.allowReplies : (cfg.AllowReplies !== undefined ? cfg.AllowReplies : false);
-            var replyMaxLen  = cfg.replyMaxLength !== undefined ? cfg.replyMaxLength : (cfg.ReplyMaxLength !== undefined ? cfg.ReplyMaxLength : 500);
-            var rateLimit    = cfg.rateLimitMs !== undefined ? cfg.rateLimitMs : (cfg.RateLimitMs !== undefined ? cfg.RateLimitMs : 2000);
+            var popupEnabled    = cfg.popupEnabled         !== undefined ? cfg.popupEnabled         : (cfg.PopupEnabled         !== undefined ? cfg.PopupEnabled         : true);
+            var popupDelay      = cfg.popupDelayMs         !== undefined ? cfg.popupDelayMs         : (cfg.PopupDelayMs         !== undefined ? cfg.PopupDelayMs         : 800);
+            var maxMsgs         = cfg.maxMessagesInPopup   !== undefined ? cfg.maxMessagesInPopup   : (cfg.MaxMessagesInPopup   !== undefined ? cfg.MaxMessagesInPopup   : 5);
+            var histEnabled     = cfg.historyEnabled       !== undefined ? cfg.historyEnabled       : (cfg.HistoryEnabled       !== undefined ? cfg.HistoryEnabled       : true);
+            var allowReplies    = cfg.allowReplies         !== undefined ? cfg.allowReplies         : (cfg.AllowReplies         !== undefined ? cfg.AllowReplies         : false);
+            var replyMaxLen     = cfg.replyMaxLength       !== undefined ? cfg.replyMaxLength       : (cfg.ReplyMaxLength       !== undefined ? cfg.ReplyMaxLength       : 500);
+            var rateLimit       = cfg.rateLimitMs          !== undefined ? cfg.rateLimitMs          : (cfg.RateLimitMs          !== undefined ? cfg.RateLimitMs          : 2000);
+            var retAdminDays    = cfg.adminMessageRetentionDays !== undefined ? cfg.adminMessageRetentionDays : (cfg.AdminMessageRetentionDays !== undefined ? cfg.AdminMessageRetentionDays : 0);
+            var retUserDays     = cfg.userMessageRetentionDays  !== undefined ? cfg.userMessageRetentionDays  : (cfg.UserMessageRetentionDays  !== undefined ? cfg.UserMessageRetentionDays  : 0);
 
             if (chkEnabled)  chkEnabled.checked  = popupEnabled;
             if (inpDelay)    inpDelay.value       = popupDelay;
@@ -989,6 +1153,8 @@
             if (chkReplies)  chkReplies.checked   = allowReplies;
             if (inpReplyLen) inpReplyLen.value     = replyMaxLen;
             if (inpRate)     inpRate.value         = rateLimit;
+            if (inpRetAdmin) inpRetAdmin.value     = retAdminDays;
+            if (inpRetUser)  inpRetUser.value      = retUserDays;
             if (replyWrap)   replyWrap.style.display = allowReplies ? '' : 'none';
 
             // Sync _rateLimitMs pour canPublish()
@@ -1005,23 +1171,27 @@
         var saveBtn = page.querySelector('#ip-save-settings-btn');
         if (!saveBtn) return;
         saveBtn.addEventListener('click', function() {
-            var chkEnabled = page.querySelector('#ip-set-enabled');
-            var inpDelay   = page.querySelector('#ip-set-delay');
-            var inpMax     = page.querySelector('#ip-set-max');
-            var chkHistory = page.querySelector('#ip-set-history');
-            var chkReplies = page.querySelector('#ip-set-replies');
-            var inpReplyLen= page.querySelector('#ip-set-reply-len');
-            var inpRate    = page.querySelector('#ip-set-rate');
-            var toastEl    = page.querySelector('#ip-settings-toast');
+            var chkEnabled  = page.querySelector('#ip-set-enabled');
+            var inpDelay    = page.querySelector('#ip-set-delay');
+            var inpMax      = page.querySelector('#ip-set-max');
+            var chkHistory  = page.querySelector('#ip-set-history');
+            var chkReplies  = page.querySelector('#ip-set-replies');
+            var inpReplyLen = page.querySelector('#ip-set-reply-len');
+            var inpRate     = page.querySelector('#ip-set-rate');
+            var inpRetAdmin = page.querySelector('#ip-set-ret-admin');
+            var inpRetUser  = page.querySelector('#ip-set-ret-user');
+            var toastEl     = page.querySelector('#ip-settings-toast');
 
             var body = {
-                popupEnabled:       chkEnabled  ? chkEnabled.checked              : true,
-                popupDelayMs:       inpDelay    ? parseInt(inpDelay.value, 10)    : 800,
-                maxMessagesInPopup: inpMax      ? parseInt(inpMax.value, 10)      : 5,
-                historyEnabled:     chkHistory  ? chkHistory.checked              : true,
-                allowReplies:       chkReplies  ? chkReplies.checked              : false,
-                replyMaxLength:     inpReplyLen ? parseInt(inpReplyLen.value, 10) : 500,
-                rateLimitMs:        inpRate     ? parseInt(inpRate.value, 10)     : 2000
+                popupEnabled:               chkEnabled  ? chkEnabled.checked                : true,
+                popupDelayMs:               inpDelay    ? parseInt(inpDelay.value, 10)      : 800,
+                maxMessagesInPopup:         inpMax      ? parseInt(inpMax.value, 10)        : 5,
+                historyEnabled:             chkHistory  ? chkHistory.checked                : true,
+                allowReplies:               chkReplies  ? chkReplies.checked                : false,
+                replyMaxLength:             inpReplyLen ? parseInt(inpReplyLen.value, 10)   : 500,
+                rateLimitMs:                inpRate     ? parseInt(inpRate.value, 10)       : 2000,
+                adminMessageRetentionDays:  inpRetAdmin ? parseInt(inpRetAdmin.value, 10)   : 0,
+                userMessageRetentionDays:   inpRetUser  ? parseInt(inpRetUser.value, 10)    : 0
             };
 
             saveBtn.disabled = true;
@@ -1074,56 +1244,98 @@
                             return;
                         }
                         listEl.innerHTML = '';
-                        groups.forEach(function(group) {
-                            var messageId    = group.messageId    || group.MessageId    || '';
-                            var messageTitle = group.messageTitle || group.MessageTitle || messageId;
-                            var replies      = group.replies      || group.Replies      || [];
-                            var count = replies.length;
 
-                            var groupDiv = document.createElement('div');
-                            groupDiv.className = 'ip-replies-group';
+                        // ── Filtre par message ────────────────────────────────
+                        var filterWrap = document.createElement('div');
+                        filterWrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:16px;';
+                        var filterLbl = document.createElement('label');
+                        filterLbl.textContent = t('replies_filter_lbl');
+                        filterLbl.style.cssText = 'font-size:.88rem;opacity:.7;';
+                        var filterSel = document.createElement('select');
+                        filterSel.style.cssText = 'background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:4px;color:inherit;padding:4px 8px;font-size:.88rem;';
+                        var optAll = document.createElement('option');
+                        optAll.value = '';
+                        optAll.textContent = '— ' + t('tbl_badge_all') + ' —';
+                        filterSel.appendChild(optAll);
+                        groups.forEach(function(g) {
+                            var opt = document.createElement('option');
+                            opt.value = g.messageId || g.MessageId || '';
+                            opt.textContent = g.messageTitle || g.MessageTitle || opt.value;
+                            filterSel.appendChild(opt);
+                        });
+                        filterWrap.appendChild(filterLbl);
+                        filterWrap.appendChild(filterSel);
+                        listEl.appendChild(filterWrap);
 
-                            var header = document.createElement('div');
-                            header.className = 'ip-replies-group-header';
-                            header.innerHTML =
-                                '<span>' + escHtml(messageTitle) + ' <span style="opacity:.5;font-size:.82rem;font-weight:400">(' + count + ')</span></span>' +
-                                '<button class="ip-replies-del-all" data-msgid="' + escHtml(messageId) + '" type="button">' + escHtml(t('replies_delete_all')) + '</button>';
-                            groupDiv.appendChild(header);
+                        var groupsContainer = document.createElement('div');
+                        listEl.appendChild(groupsContainer);
 
-                            header.querySelector('.ip-replies-del-all').addEventListener('click', function() {
-                                var mid = this.getAttribute('data-msgid');
-                                apiFetch('/InfoPopup/messages/' + encodeURIComponent(mid) + '/replies/delete', { method: 'POST' })
-                                    .then(function() { loadReplies(page); })
-                                    .catch(function(err) { showToast(page, t('toast_err_reply_delete', err.message || err), true); });
-                            });
+                        // Rendre tous les groupes
+                        function renderGroups(filterMsgId) {
+                            groupsContainer.innerHTML = '';
+                            groups.forEach(function(group) {
+                                var messageId    = group.messageId    || group.MessageId    || '';
+                                var messageTitle = group.messageTitle || group.MessageTitle || messageId;
+                                var replies      = group.replies      || group.Replies      || [];
 
-                            replies.forEach(function(r) {
-                                var replyId  = r.id       || r.Id       || '';
-                                var userName = r.userName || r.UserName || r.userId || r.UserId || '';
-                                var body     = r.body     || r.Body     || '';
-                                var date     = formatDate(r.repliedAt || r.RepliedAt || '');
+                                // Appliquer le filtre
+                                if (filterMsgId && messageId !== filterMsgId) return;
 
-                                var row = document.createElement('div');
-                                row.className = 'ip-reply-row';
-                                row.innerHTML =
-                                    '<div>' +
-                                        '<div class="ip-reply-row-meta">' + escHtml(userName) + ' \u2014 ' + escHtml(date) + '</div>' +
-                                        '<div class="ip-reply-row-body">' + escHtml(body) + '</div>' +
-                                    '</div>' +
-                                    '<button class="ip-reply-del-btn" data-replyid="' + escHtml(replyId) + '" type="button">' + escHtml(t('replies_delete_one')) + '</button>';
+                                var count = replies.length;
+                                var groupDiv = document.createElement('div');
+                                groupDiv.className = 'ip-replies-group';
 
-                                row.querySelector('.ip-reply-del-btn').addEventListener('click', function() {
-                                    var rid = this.getAttribute('data-replyid');
-                                    apiFetch('/InfoPopup/replies/' + encodeURIComponent(rid), { method: 'DELETE' })
+                                var header = document.createElement('div');
+                                header.className = 'ip-replies-group-header';
+                                header.innerHTML =
+                                    '<span>' + escHtml(messageTitle) + ' <span style="opacity:.5;font-size:.82rem;font-weight:400">(' + count + ')</span></span>' +
+                                    '<button class="ip-replies-del-all" data-msgid="' + escHtml(messageId) + '" type="button">' + escHtml(t('replies_delete_all')) + '</button>';
+                                groupDiv.appendChild(header);
+
+                                header.querySelector('.ip-replies-del-all').addEventListener('click', function() {
+                                    var mid = this.getAttribute('data-msgid');
+                                    apiFetch('/InfoPopup/messages/' + encodeURIComponent(mid) + '/replies/delete', { method: 'POST' })
                                         .then(function() { loadReplies(page); })
                                         .catch(function(err) { showToast(page, t('toast_err_reply_delete', err.message || err), true); });
                                 });
 
-                                groupDiv.appendChild(row);
-                            });
+                                replies.forEach(function(r) {
+                                    var replyId  = r.id       || r.Id       || '';
+                                    var userName = r.userName || r.UserName || r.userId || r.UserId || '';
+                                    var body     = r.body     || r.Body     || '';
+                                    var date     = formatDate(r.repliedAt || r.RepliedAt || '');
 
-                            listEl.appendChild(groupDiv);
+                                    var row = document.createElement('div');
+                                    row.className = 'ip-reply-row';
+                                    row.innerHTML =
+                                        '<div>' +
+                                            '<div class="ip-reply-row-meta">' + escHtml(userName) + ' \u2014 ' + escHtml(date) + '</div>' +
+                                            '<div class="ip-reply-row-body">' + escHtml(body) + '</div>' +
+                                        '</div>' +
+                                        '<button class="ip-reply-del-btn" data-replyid="' + escHtml(replyId) + '" type="button">' + escHtml(t('replies_delete_one')) + '</button>';
+
+                                    row.querySelector('.ip-reply-del-btn').addEventListener('click', function() {
+                                        var rid = this.getAttribute('data-replyid');
+                                        apiFetch('/InfoPopup/replies/' + encodeURIComponent(rid), { method: 'DELETE' })
+                                            .then(function() { loadReplies(page); })
+                                            .catch(function(err) { showToast(page, t('toast_err_reply_delete', err.message || err), true); });
+                                    });
+
+                                    groupDiv.appendChild(row);
+                                });
+
+                                groupsContainer.appendChild(groupDiv);
+                            });
+                        }
+
+                        // Rendu initial (sans filtre)
+                        renderGroups('');
+
+                        // Appliquer le filtre au changement
+                        filterSel.addEventListener('change', function() {
+                            renderGroups(filterSel.value);
                         });
+
                     }).catch(function(err) {
                         listEl.innerHTML = '<div style="color:#f66">' + escHtml(t('toast_err_reply_delete', err.message || err)) + '</div>';
                     });
@@ -1170,7 +1382,13 @@
             '#ip-set-rate-lbl':         'set_rate_limit',
             '#ip-save-settings-lbl':    'set_save',
             // ── Réponses ───────────────────────────────────────────────────
-            '#ip-replies-disabled-hint-lbl': 'replies_disabled_hint'
+            '#ip-replies-disabled-hint-lbl': 'replies_disabled_hint',
+            // ── Droits ─────────────────────────────────────────────────────
+            '#ip-tab-permissions-lbl':  'tab_permissions',
+            '#ip-perm-title':           'perm_section_title',
+            // ── Rétention ──────────────────────────────────────────────────
+            '#ip-set-ret-admin-lbl':    'ret_admin_days_lbl',
+            '#ip-set-ret-user-lbl':     'ret_user_days_lbl'
         };
         Object.keys(map).forEach(function (sel) {
             var el = page.querySelector(sel);

@@ -15,8 +15,12 @@ public class MessageStore
     private readonly ILogger<MessageStore> _logger;
     private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.NoRecursion);
 
-    /// <summary>Initialise le store.</summary>
-    public MessageStore(ILogger<MessageStore> logger) => _logger = logger;
+    /// <summary>Initialise le store et déclenche le nettoyage des messages expirés.</summary>
+    public MessageStore(ILogger<MessageStore> logger)
+    {
+        _logger = logger;
+        CleanupRetention();
+    }
 
     /// <summary>
     /// Accède à la configuration du plugin.
@@ -60,10 +64,16 @@ public class MessageStore
     /// </summary>
     /// <param name="title">Titre du message.</param>
     /// <param name="body">Corps texte brut.</param>
-    /// <param name="publishedBy">ID Jellyfin de l'admin.</param>
+    /// <param name="publishedBy">ID Jellyfin de l'expéditeur (admin ou user autorisé).</param>
     /// <param name="targetUserIds">IDs ciblés. Null ou vide = tous les utilisateurs.</param>
+    /// <param name="isSentByAdmin">True si l'expéditeur est admin (détermine la règle de rétention).</param>
     /// <exception cref="ArgumentException">Si titre/corps vide ou trop long.</exception>
-    public PopupMessage Create(string title, string body, string publishedBy, List<string>? targetUserIds = null)
+    public PopupMessage Create(
+        string title,
+        string body,
+        string publishedBy,
+        List<string>? targetUserIds = null,
+        bool isSentByAdmin = true)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Le titre ne peut pas être vide.", nameof(title));
@@ -81,6 +91,8 @@ public class MessageStore
             Body = body,
             PublishedAt = DateTime.UtcNow,
             PublishedBy = publishedBy,
+            SentByUserId = publishedBy,
+            IsSentByAdmin = isSentByAdmin,
             TargetUserIds = targetUserIds?.Count > 0 ? new List<string>(targetUserIds) : new List<string>()
         };
 
@@ -97,8 +109,8 @@ public class MessageStore
                 ? $"{message.TargetUserIds.Count} utilisateur(s) ciblé(s)"
                 : "tous les utilisateurs";
             _logger.LogInformation(
-                "InfoPopup: message publié '{Title}' par {UserId} → {Target}",
-                message.Title, publishedBy, targetInfo);
+                "InfoPopup: message publié '{Title}' par {UserId} (admin={IsAdmin}) → {Target}",
+                message.Title, publishedBy, isSentByAdmin, targetInfo);
         }
         finally { _lock.ExitWriteLock(); }
 
@@ -107,6 +119,7 @@ public class MessageStore
 
     /// <summary>
     /// Met à jour le titre, le corps et le ciblage d'un message existant sans changer son ID.
+    /// Ajoute une entrée dans l'historique de modifications avant d'écraser les valeurs.
     /// Le suivi des vues est préservé : un message modifié ne se réaffiche pas
     /// aux utilisateurs qui l'avaient déjà vu.
     /// </summary>
@@ -114,12 +127,18 @@ public class MessageStore
     /// <param name="title">Nouveau titre.</param>
     /// <param name="body">Nouveau corps.</param>
     /// <param name="targetUserIds">Nouveaux IDs cibles. Null ou vide = tous les utilisateurs.</param>
+    /// <param name="editedByUserId">ID Jellyfin de l'utilisateur effectuant la modification.</param>
     /// <returns>
     /// Un snapshot du message mis à jour, ou <c>null</c> si l'ID est introuvable.
     /// Le snapshot est capturé à l'intérieur du lock pour éviter toute race condition
     /// (TOCTOU) entre la mise à jour et la lecture du résultat par l'appelant.
     /// </returns>
-    public PopupMessage? Update(string id, string title, string body, List<string>? targetUserIds = null)
+    public PopupMessage? Update(
+        string id,
+        string title,
+        string body,
+        List<string>? targetUserIds = null,
+        string editedByUserId = "")
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Le titre ne peut pas être vide.", nameof(title));
@@ -136,6 +155,16 @@ public class MessageStore
             var cfg = GetConfig();
             var msg = cfg.Messages.FirstOrDefault(m => m.Id == id);
             if (msg is null) return null;
+
+            // Enregistrer l'ancienne version dans l'historique avant écrasement.
+            msg.EditHistory.Add(new MessageEditEntry
+            {
+                EditedAt = DateTime.UtcNow,
+                EditedByUserId = editedByUserId,
+                OldTitle = msg.Title,
+                OldBody = msg.Body
+            });
+
             msg.Title = title.Trim();
             msg.Body = body;
             msg.TargetUserIds = targetUserIds?.Count > 0
@@ -147,8 +176,8 @@ public class MessageStore
                 ? $"{msg.TargetUserIds.Count} utilisateur(s) ciblé(s)"
                 : "tous les utilisateurs";
             _logger.LogInformation(
-                "InfoPopup: message '{Id}' mis à jour — titre : '{Title}', cible : {Target}",
-                id, msg.Title, targetInfo);
+                "InfoPopup: message '{Id}' mis à jour par {EditedBy} — titre : '{Title}', cible : {Target}",
+                id, editedByUserId, msg.Title, targetInfo);
 
             // Retourner un snapshot immutable capturé dans le lock.
             // Évite la TOCTOU qu'aurait causé un second appel à GetById() depuis le controller.
@@ -159,7 +188,13 @@ public class MessageStore
                 Body = msg.Body,
                 PublishedAt = msg.PublishedAt,
                 PublishedBy = msg.PublishedBy,
-                TargetUserIds = new List<string>(msg.TargetUserIds)
+                SentByUserId = msg.SentByUserId,
+                IsSentByAdmin = msg.IsSentByAdmin,
+                IsDeleted = msg.IsDeleted,
+                DeletedAt = msg.DeletedAt,
+                DeletedByUserId = msg.DeletedByUserId,
+                TargetUserIds = new List<string>(msg.TargetUserIds),
+                EditHistory = new List<MessageEditEntry>(msg.EditHistory)
             };
         }
         finally { _lock.ExitWriteLock(); }
@@ -185,6 +220,100 @@ public class MessageStore
             if (deleted > 0) SaveConfig();
             _logger.LogInformation("InfoPopup: {Count} message(s) supprimé(s) définitivement", deleted);
             return deleted;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    /// <summary>
+    /// Effectue un soft-delete d'un message : le message reste en base mais est masqué
+    /// pour les utilisateurs. Reste visible en admin avec un marqueur IsDeleted.
+    /// </summary>
+    /// <param name="id">ID du message à soft-supprimer.</param>
+    /// <param name="deletedByUserId">ID Jellyfin de l'utilisateur effectuant la suppression.</param>
+    /// <returns><c>true</c> si le message a été trouvé et soft-supprimé, <c>false</c> si introuvable ou déjà supprimé.</returns>
+    public bool SoftDelete(string id, string deletedByUserId)
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var cfg = GetConfig();
+            var msg = cfg.Messages.FirstOrDefault(m => m.Id == id);
+            if (msg is null || msg.IsDeleted) return false;
+
+            msg.IsDeleted = true;
+            msg.DeletedAt = DateTime.UtcNow;
+            msg.DeletedByUserId = deletedByUserId;
+            SaveConfig();
+
+            _logger.LogInformation(
+                "InfoPopup: message '{Id}' soft-deleté par {UserId}",
+                id, deletedByUserId);
+            return true;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    /// <summary>
+    /// Compte les messages envoyés par un utilisateur aujourd'hui (non supprimés).
+    /// Utilisé pour vérifier la limite journalière de messages.
+    /// </summary>
+    /// <param name="userId">ID Jellyfin de l'utilisateur.</param>
+    /// <returns>Nombre de messages publiés aujourd'hui par cet utilisateur.</returns>
+    public int GetUserMessageCountToday(string userId)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            var cfg = GetConfig();
+            var today = DateTime.UtcNow.Date;
+            return cfg.Messages.Count(m =>
+                m.SentByUserId == userId
+                && !m.IsDeleted
+                && m.PublishedAt >= today);
+        }
+        finally { _lock.ExitReadLock(); }
+    }
+
+    /// <summary>
+    /// Nettoie les messages expirés selon les règles de rétention configurées.
+    /// Hard-delete (suppression définitive) des messages dont la date de publication
+    /// est antérieure à la durée de rétention configurée.
+    /// Appelé automatiquement depuis le constructeur au démarrage du plugin.
+    /// </summary>
+    public void CleanupRetention()
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var cfg = GetConfig();
+            var now = DateTime.UtcNow;
+            var before = cfg.Messages.Count;
+
+            if (cfg.AdminMessageRetentionDays > 0)
+            {
+                var cutoff = now - TimeSpan.FromDays(cfg.AdminMessageRetentionDays);
+                cfg.Messages.RemoveAll(m =>
+                    m.IsSentByAdmin
+                    && !m.IsDeleted
+                    && m.PublishedAt < cutoff);
+            }
+
+            if (cfg.UserMessageRetentionDays > 0)
+            {
+                var cutoff = now - TimeSpan.FromDays(cfg.UserMessageRetentionDays);
+                // Soft-deleted inclus pour les messages utilisateurs
+                cfg.Messages.RemoveAll(m =>
+                    !m.IsSentByAdmin
+                    && m.PublishedAt < cutoff);
+            }
+
+            var deleted = before - cfg.Messages.Count;
+            if (deleted > 0)
+            {
+                SaveConfig();
+                _logger.LogInformation(
+                    "InfoPopup: {Count} message(s) supprimé(s) par rétention au démarrage", deleted);
+            }
         }
         finally { _lock.ExitWriteLock(); }
     }

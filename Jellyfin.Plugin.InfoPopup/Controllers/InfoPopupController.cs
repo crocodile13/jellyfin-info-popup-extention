@@ -24,6 +24,7 @@ public class InfoPopupController : ControllerBase
     private readonly MessageStore _store;
     private readonly SeenTrackerService _seen;
     private readonly ReplyStoreService _replyStore;
+    private readonly PermissionService _permService;
     private readonly IUserManager _userManager;
     private readonly ILogger<InfoPopupController> _logger;
     private readonly IAuthorizationService _authorizationService;
@@ -33,6 +34,7 @@ public class InfoPopupController : ControllerBase
         MessageStore store,
         SeenTrackerService seen,
         ReplyStoreService replyStore,
+        PermissionService permService,
         IUserManager userManager,
         ILogger<InfoPopupController> logger,
         IAuthorizationService authorizationService)
@@ -40,6 +42,7 @@ public class InfoPopupController : ControllerBase
         _store = store;
         _seen = seen;
         _replyStore = replyStore;
+        _permService = permService;
         _userManager = userManager;
         _logger = logger;
         _authorizationService = authorizationService;
@@ -66,7 +69,10 @@ public class InfoPopupController : ControllerBase
         Id = m.Id,
         Title = m.Title,
         PublishedAt = m.PublishedAt,
-        TargetUserIds = m.TargetUserIds
+        TargetUserIds = m.TargetUserIds,
+        SentByUserId = m.SentByUserId,
+        IsDeleted = m.IsDeleted,
+        DeletedAt = m.DeletedAt
     };
 
     private static MessageDetail ToDetail(PopupMessage m) => new()
@@ -74,15 +80,46 @@ public class InfoPopupController : ControllerBase
         Id = m.Id,
         Title = m.Title,
         Body = m.Body,
-        PublishedAt = m.PublishedAt
+        PublishedAt = m.PublishedAt,
+        SentByUserId = m.SentByUserId,
+        IsDeleted = m.IsDeleted,
+        EditHistoryCount = m.EditHistory.Count
     };
+
+    /// <summary>Construit un UserPermissionDto depuis un UserPermission, en résolvant le nom d'utilisateur.</summary>
+    private UserPermissionDto ToPermissionDto(UserPermission p)
+    {
+        string userName;
+        try
+        {
+            var u = _userManager.GetUserById(Guid.Parse(p.UserId));
+            userName = u?.Username ?? p.UserId[..Math.Min(8, p.UserId.Length)] + "…";
+        }
+        catch
+        {
+            userName = p.UserId[..Math.Min(8, p.UserId.Length)] + "…";
+        }
+        return new UserPermissionDto
+        {
+            UserId = p.UserId,
+            UserName = userName,
+            CanSendMessages = p.CanSendMessages,
+            CanReply = p.CanReply,
+            CanEditOwnMessages = p.CanEditOwnMessages,
+            CanDeleteOwnMessages = p.CanDeleteOwnMessages,
+            CanEditOthersMessages = p.CanEditOthersMessages,
+            CanDeleteOthersMessages = p.CanDeleteOthersMessages,
+            MaxMessagesPerDay = p.MaxMessagesPerDay,
+            MaxRepliesPerDay = p.MaxRepliesPerDay
+        };
+    }
 
     // GET /InfoPopup/messages ────────────────────────────────────────────────────────
 
     /// <summary>
     /// Liste des messages.
     /// Admins : tous les messages (pour la page de configuration).
-    /// Utilisateurs : uniquement les messages qui leur sont destinés.
+    /// Utilisateurs : uniquement les messages qui leur sont destinés et non soft-deletés.
     /// </summary>
     [HttpGet("messages")]
     [Authorize]
@@ -99,6 +136,7 @@ public class InfoPopupController : ControllerBase
         if (userId is null) return Unauthorized();
 
         return Ok(all
+            .Where(m => !m.IsDeleted)
             .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
             .Select(ToSummary));
     }
@@ -108,7 +146,7 @@ public class InfoPopupController : ControllerBase
     /// <summary>
     /// Détail complet d'un message (avec body).
     /// Admins : n'importe quel message.
-    /// Utilisateurs : uniquement si ciblés par ce message.
+    /// Utilisateurs : uniquement si ciblés par ce message et non soft-deleté.
     /// Retourne 404 (pas 403) pour ne pas révéler l'existence d'un message non ciblé.
     /// </summary>
     [HttpGet("messages/{id}")]
@@ -121,10 +159,15 @@ public class InfoPopupController : ControllerBase
         var msg = _store.GetById(id);
         if (msg is null) return NotFound();
 
-        if (!await IsAdminAsync())
+        var isAdmin = await IsAdminAsync();
+
+        if (!isAdmin)
         {
             var userId = GetUserId();
             if (userId is null) return Unauthorized();
+
+            // Masquer les messages soft-deletés aux utilisateurs.
+            if (msg.IsDeleted) return NotFound();
 
             // 404 et non 403 : ne pas révéler l'existence d'un message non ciblé.
             if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId))
@@ -134,20 +177,42 @@ public class InfoPopupController : ControllerBase
         return Ok(ToDetail(msg));
     }
 
-    // POST /InfoPopup/messages ─── ADMIN ONLY ────────────────────────────────────────
+    // POST /InfoPopup/messages ────────────────────────────────────────────────────────
 
-    /// <summary>Publie un nouveau message popup. Réservé aux administrateurs.</summary>
+    /// <summary>
+    /// Publie un nouveau message popup.
+    /// Admins : toujours autorisés.
+    /// Utilisateurs : nécessite CanSendMessages et respecter MaxMessagesPerDay.
+    /// </summary>
     [HttpPost("messages")]
-    [Authorize(Policy = "RequiresElevation")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<MessageDetail> CreateMessage([FromBody] CreateMessageRequest request)
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<MessageDetail>> CreateMessage([FromBody] CreateMessageRequest request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var userId = GetUserId() ?? string.Empty;
+
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var isAdmin = await IsAdminAsync();
+
+        if (!isAdmin)
+        {
+            var perm = _permService.GetOrDefault(userId);
+            if (!perm.CanSendMessages) return Forbid();
+
+            var cfg2 = Plugin.Instance!.Configuration;
+            if (perm.MaxMessagesPerDay > 0 && _store.GetUserMessageCountToday(userId) >= perm.MaxMessagesPerDay)
+                return StatusCode(429, new { error = "Limite journalière de messages atteinte." });
+        }
+
         try
         {
-            var msg = _store.Create(request.Title, request.Body, userId, request.TargetUserIds);
+            var msg = _store.Create(request.Title, request.Body, userId, request.TargetUserIds, isSentByAdmin: isAdmin);
             return CreatedAtAction(nameof(GetMessage), new { id = msg.Id }, ToDetail(msg));
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
@@ -173,29 +238,106 @@ public class InfoPopupController : ControllerBase
         return Ok(new { deleted });
     }
 
-    // PUT /InfoPopup/messages/{id} ── ADMIN ONLY ─────────────────────────────────────
+    // PUT /InfoPopup/messages/{id} ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Met à jour le titre et le corps d'un message existant. Réservé aux administrateurs.
+    /// Met à jour le titre, le corps et le ciblage d'un message existant.
+    /// Admins : peuvent modifier tout message.
+    /// Utilisateurs : nécessite CanEditOwnMessages (message propre) ou CanEditOthersMessages (message d'un autre).
     /// L'ID est conservé : les utilisateurs qui avaient déjà vu ce message ne le reverront pas.
     /// </summary>
     [HttpPut("messages/{id}")]
-    [Authorize(Policy = "RequiresElevation")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<MessageDetail> UpdateMessage([FromRoute] string id, [FromBody] UpdateMessageRequest request)
+    public async Task<ActionResult<MessageDetail>> UpdateMessage([FromRoute] string id, [FromBody] UpdateMessageRequest request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var isAdmin = await IsAdminAsync();
+
+        if (!isAdmin)
+        {
+            var msg0 = _store.GetById(id);
+            if (msg0 is null) return NotFound(new { error = "Message introuvable." });
+
+            var perm = _permService.GetOrDefault(userId);
+            bool isOwner = msg0.SentByUserId == userId;
+
+            if (isOwner && !perm.CanEditOwnMessages) return Forbid();
+            if (!isOwner && !perm.CanEditOthersMessages) return Forbid();
+        }
+
         try
         {
             // Update() retourne un snapshot capturé dans le lock : élimine la TOCTOU
             // qu'aurait causé un second appel à GetById() après Update().
-            var updated = _store.Update(id, request.Title, request.Body, request.TargetUserIds);
+            var updated = _store.Update(id, request.Title, request.Body, request.TargetUserIds, editedByUserId: userId!);
             if (updated is null) return NotFound(new { error = "Message introuvable." });
             return Ok(ToDetail(updated));
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    // POST /InfoPopup/messages/{id}/soft-delete ────────────────────────────────────────
+
+    /// <summary>
+    /// Soft-delete d'un message par un utilisateur (ou admin).
+    /// Le message reste en base mais est masqué pour tous les utilisateurs.
+    /// Admins : peuvent soft-supprimer tout message.
+    /// Utilisateurs : nécessite CanDeleteOwnMessages (message propre) ou CanDeleteOthersMessages.
+    /// </summary>
+    [HttpPost("messages/{id}/soft-delete")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> SoftDeleteMessage([FromRoute] string id)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var isAdmin = await IsAdminAsync();
+        var msg = _store.GetById(id);
+        if (msg is null) return NotFound();
+
+        if (!isAdmin)
+        {
+            var perm = _permService.GetOrDefault(userId);
+            bool isOwner = msg.SentByUserId == userId;
+
+            if (isOwner && !perm.CanDeleteOwnMessages) return Forbid();
+            if (!isOwner && !perm.CanDeleteOthersMessages) return Forbid();
+        }
+
+        var ok = _store.SoftDelete(id, userId!);
+        return ok ? Ok() : NotFound();
+    }
+
+    // GET /InfoPopup/messages/sent ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Retourne les messages envoyés par l'utilisateur courant (toutes cibles confondues).
+    /// </summary>
+    [HttpGet("messages/sent")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IEnumerable<MessageSummary>>> GetSentMessages()
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var all = _store.GetAll();
+        var sent = all.Where(m => m.SentByUserId == userId).Select(ToSummary);
+        return Ok(sent);
     }
 
     // GET /InfoPopup/popup-data ───────────────────────────────────────────────────────
@@ -205,23 +347,51 @@ public class InfoPopupController : ControllerBase
 
     /// <summary>
     /// Données complètes pour la popup utilisateur en un seul appel API :
-    /// messages non vus avec corps complet + historique en résumé (corps chargé au clic).
+    /// messages non vus avec corps complet + historique en résumé (corps chargé au clic)
+    /// + droits effectifs de l'utilisateur.
+    /// Les messages soft-deletés sont exclus des résultats utilisateurs.
     /// </summary>
     [HttpGet("popup-data")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public ActionResult<PopupDataResponse> GetPopupData()
+    public async Task<ActionResult<PopupDataResponse>> GetPopupData()
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
         var all = _store.GetAll();
         var targeted = all
+            .Where(m => !m.IsDeleted)
             .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
             .ToList();
 
         var unseenIds = new HashSet<string>(_seen.GetUnseenIds(userId, targeted.Select(m => m.Id)));
+
+        // Construire les droits effectifs.
+        EffectivePermissionsDto perms;
+        if (await IsAdminAsync())
+        {
+            perms = new EffectivePermissionsDto
+            {
+                CanSendMessages = true,
+                CanReply = true,
+                CanEditOwnMessages = true,
+                CanDeleteOwnMessages = true
+            };
+        }
+        else
+        {
+            var p = _permService.GetOrDefault(userId);
+            var cfg = Plugin.Instance!.Configuration;
+            perms = new EffectivePermissionsDto
+            {
+                CanSendMessages = p.CanSendMessages,
+                CanReply = cfg.AllowReplies && p.CanReply,
+                CanEditOwnMessages = p.CanEditOwnMessages,
+                CanDeleteOwnMessages = p.CanDeleteOwnMessages
+            };
+        }
 
         return Ok(new PopupDataResponse
         {
@@ -232,7 +402,8 @@ public class InfoPopupController : ControllerBase
             History = targeted
                 .Where(m => !unseenIds.Contains(m.Id))
                 .Select(ToSummary)
-                .ToList()
+                .ToList(),
+            Permissions = perms
         });
     }
 
@@ -253,6 +424,7 @@ public class InfoPopupController : ControllerBase
 
         var all = _store.GetAll();
         var targeted = all
+            .Where(m => !m.IsDeleted)
             .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
             .ToList();
 
@@ -279,12 +451,6 @@ public class InfoPopupController : ControllerBase
         _seen.MarkAsSeen(userId, request.Ids, _store.GetAll().Select(m => m.Id));
         return NoContent();
     }
-
-    // GET /InfoPopup/{module}.js ─────────────────────────────────────────────────────
-    // Sert les modules JavaScript embarqués dans l'assembly.
-    // client.js est le point d'entrée (injecté par ScriptInjectionMiddleware).
-    // Les modules ip-*.js sont chargés dynamiquement par client.js.
-    // Seuls les noms figurant dans la whitelist sont servis (sécurité).
 
     // ── Reply helper ─────────────────────────────────────────────────────────────────
 
@@ -323,13 +489,15 @@ public class InfoPopupController : ControllerBase
         if (cfg is null) return StatusCode(500);
         return Ok(new PluginSettingsDto
         {
-            PopupEnabled       = cfg.PopupEnabled,
-            PopupDelayMs       = cfg.PopupDelayMs,
-            MaxMessagesInPopup = cfg.MaxMessagesInPopup,
-            AllowReplies       = cfg.AllowReplies,
-            ReplyMaxLength     = cfg.ReplyMaxLength,
-            HistoryEnabled     = cfg.HistoryEnabled,
-            RateLimitMs        = cfg.RateLimitMs
+            PopupEnabled              = cfg.PopupEnabled,
+            PopupDelayMs              = cfg.PopupDelayMs,
+            MaxMessagesInPopup        = cfg.MaxMessagesInPopup,
+            AllowReplies              = cfg.AllowReplies,
+            ReplyMaxLength            = cfg.ReplyMaxLength,
+            HistoryEnabled            = cfg.HistoryEnabled,
+            RateLimitMs               = cfg.RateLimitMs,
+            AdminMessageRetentionDays = cfg.AdminMessageRetentionDays,
+            UserMessageRetentionDays  = cfg.UserMessageRetentionDays
         });
     }
 
@@ -341,24 +509,28 @@ public class InfoPopupController : ControllerBase
         var instance = Plugin.Instance;
         if (instance is null) return StatusCode(500);
         var cfg = instance.Configuration;
-        cfg.PopupEnabled       = dto.PopupEnabled;
-        cfg.PopupDelayMs       = Math.Clamp(dto.PopupDelayMs, 0, 30000);
-        cfg.MaxMessagesInPopup = Math.Clamp(dto.MaxMessagesInPopup, 1, 50);
-        cfg.AllowReplies       = dto.AllowReplies;
-        cfg.ReplyMaxLength     = Math.Clamp(dto.ReplyMaxLength, 10, 5000);
-        cfg.HistoryEnabled     = dto.HistoryEnabled;
-        cfg.RateLimitMs        = Math.Clamp(dto.RateLimitMs, 0, 60000);
+        cfg.PopupEnabled              = dto.PopupEnabled;
+        cfg.PopupDelayMs              = Math.Clamp(dto.PopupDelayMs, 0, 30000);
+        cfg.MaxMessagesInPopup        = Math.Clamp(dto.MaxMessagesInPopup, 1, 50);
+        cfg.AllowReplies              = dto.AllowReplies;
+        cfg.ReplyMaxLength            = Math.Clamp(dto.ReplyMaxLength, 10, 5000);
+        cfg.HistoryEnabled            = dto.HistoryEnabled;
+        cfg.RateLimitMs               = Math.Clamp(dto.RateLimitMs, 0, 60000);
+        cfg.AdminMessageRetentionDays = Math.Max(0, dto.AdminMessageRetentionDays);
+        cfg.UserMessageRetentionDays  = Math.Max(0, dto.UserMessageRetentionDays);
         instance.SaveConfiguration();
         _logger.LogInformation("InfoPopup: paramètres mis à jour par l'administrateur");
         return Ok(new PluginSettingsDto
         {
-            PopupEnabled       = cfg.PopupEnabled,
-            PopupDelayMs       = cfg.PopupDelayMs,
-            MaxMessagesInPopup = cfg.MaxMessagesInPopup,
-            AllowReplies       = cfg.AllowReplies,
-            ReplyMaxLength     = cfg.ReplyMaxLength,
-            HistoryEnabled     = cfg.HistoryEnabled,
-            RateLimitMs        = cfg.RateLimitMs
+            PopupEnabled              = cfg.PopupEnabled,
+            PopupDelayMs              = cfg.PopupDelayMs,
+            MaxMessagesInPopup        = cfg.MaxMessagesInPopup,
+            AllowReplies              = cfg.AllowReplies,
+            ReplyMaxLength            = cfg.ReplyMaxLength,
+            HistoryEnabled            = cfg.HistoryEnabled,
+            RateLimitMs               = cfg.RateLimitMs,
+            AdminMessageRetentionDays = cfg.AdminMessageRetentionDays,
+            UserMessageRetentionDays  = cfg.UserMessageRetentionDays
         });
     }
 
@@ -380,37 +552,72 @@ public class InfoPopupController : ControllerBase
 
     // ── Replies ───────────────────────────────────────────────────────────────────────
 
-    /// <summary>Soumet une réponse à un message. Requiert AllowReplies = true.</summary>
+    /// <summary>
+    /// Soumet une réponse à un message.
+    /// Requiert AllowReplies = true au niveau global ET CanReply pour l'utilisateur.
+    /// Un utilisateur ne peut répondre qu'une seule fois à un message donné.
+    /// </summary>
     [HttpPost("messages/{id}/reply")]
     [Authorize]
-    public ActionResult<ReplyDto> SubmitReply([FromRoute] string id, [FromBody] SubmitReplyRequest request)
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReplyDto>> SubmitReply([FromRoute] string id, [FromBody] SubmitReplyRequest request)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
         var cfg = Plugin.Instance?.Configuration;
-        if (cfg is null || !cfg.AllowReplies)
-            return StatusCode(403, new { error = "Replies are disabled." });
+        if (cfg is null) return StatusCode(500);
 
-        // Vérifier que le message existe et est accessible pour cet utilisateur
+        // Vérifier les droits de réponse.
+        var isAdmin = await IsAdminAsync();
+        if (!isAdmin)
+        {
+            var perm = _permService.GetOrDefault(userId);
+            if (!cfg.AllowReplies || !perm.CanReply)
+                return StatusCode(403, new { error = "Replies are disabled." });
+        }
+        else if (!cfg.AllowReplies)
+        {
+            return StatusCode(403, new { error = "Replies are disabled." });
+        }
+
+        // Vérifier que le message existe et est accessible pour cet utilisateur.
         var msg = _store.GetById(id);
         if (msg is null) return NotFound();
 
-        // Vérifier le ciblage : 404 et non 403 pour ne pas révéler l'existence d'un message non ciblé
-        if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId))
+        // Vérifier le ciblage : 404 et non 403 pour ne pas révéler l'existence d'un message non ciblé.
+        if (!isAdmin && msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId))
             return NotFound();
 
         if (string.IsNullOrWhiteSpace(request.Body))
             return BadRequest(new { error = "Reply body cannot be empty." });
 
+        // Vérification anticipée pour retourner 409 avant d'entrer dans le lock.
+        if (_replyStore.HasUserReplied(id, userId))
+            return Conflict(new { error = "Vous avez déjà répondu à ce message." });
+
+        // Récupérer les paramètres de limite et le destinataire.
+        var userPerm = isAdmin ? null : _permService.GetOrDefault(userId);
+        var maxRepliesPerDay = userPerm?.MaxRepliesPerDay ?? 0;
+        var recipientUserId = msg.SentByUserId ?? string.Empty;
+
         try
         {
-            var reply = _replyStore.AddReply(id, userId, request.Body);
+            var reply = _replyStore.AddReply(id, userId, request.Body, recipientUserId, maxRepliesPerDay);
             return StatusCode(201, ToReplyDto(reply));
         }
         catch (ArgumentException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
         }
     }
 
@@ -425,14 +632,25 @@ public class InfoPopupController : ControllerBase
         return Ok(replies);
     }
 
-    /// <summary>Retourne toutes les réponses groupées par message (admin).</summary>
+    /// <summary>Retourne toutes les réponses groupées par message (admin), avec filtres optionnels.</summary>
     [HttpGet("replies")]
     [Authorize(Policy = "RequiresElevation")]
-    public ActionResult<IEnumerable<MessageRepliesDto>> GetAllReplies()
+    public ActionResult<IEnumerable<MessageRepliesDto>> GetAllReplies(
+        [FromQuery] string? messageId = null,
+        [FromQuery] string? recipientUserId = null,
+        [FromQuery] string? senderUserId = null)
     {
         var allReplies = _replyStore.GetAll();
         var allMessages = _store.GetAll();
         var msgIndex = allMessages.ToDictionary(m => m.Id, m => m.Title ?? string.Empty);
+
+        // Appliquer les filtres optionnels.
+        if (!string.IsNullOrEmpty(messageId))
+            allReplies = allReplies.Where(r => r.MessageId == messageId).ToList();
+        if (!string.IsNullOrEmpty(recipientUserId))
+            allReplies = allReplies.Where(r => r.RecipientUserId == recipientUserId).ToList();
+        if (!string.IsNullOrEmpty(senderUserId))
+            allReplies = allReplies.Where(r => r.UserId == senderUserId).ToList();
 
         var groups = allReplies
             .GroupBy(r => r.MessageId)
@@ -445,6 +663,20 @@ public class InfoPopupController : ControllerBase
             .ToList();
 
         return Ok(groups);
+    }
+
+    /// <summary>Retourne les réponses reçues par l'utilisateur courant (destinataire).</summary>
+    [HttpGet("replies/mine")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public ActionResult<IEnumerable<ReplyDto>> GetMyReplies()
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var replies = _replyStore.GetByRecipient(userId).Select(ToReplyDto);
+        return Ok(replies);
     }
 
     /// <summary>Supprime une réponse individuelle (admin).</summary>
@@ -468,6 +700,93 @@ public class InfoPopupController : ControllerBase
         return Ok(new { deleted = count });
     }
 
+    // ── Permissions ───────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Retourne les droits de tous les utilisateurs Jellyfin non-admin, fusionnés avec
+    /// les entrées existantes dans infopopup_permissions.json.
+    /// </summary>
+    [HttpGet("permissions")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IEnumerable<UserPermissionDto>> GetAllPermissions()
+    {
+        var perms = _permService.GetAll();
+        var users = _userManager.Users.ToList();
+
+        var result = new List<UserPermissionDto>();
+        foreach (var user in users)
+        {
+            var uid = user.Id.ToString();
+            var perm = perms.FirstOrDefault(p => p.UserId == uid) ?? new UserPermission { UserId = uid };
+            var dto = ToPermissionDto(perm);
+            dto.UserName = user.Username;
+            result.Add(dto);
+        }
+
+        return Ok(result.OrderBy(d => d.UserName));
+    }
+
+    /// <summary>Retourne les droits effectifs de l'utilisateur courant.</summary>
+    [HttpGet("permissions/me")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<EffectivePermissionsDto>> GetMyPermissions()
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (await IsAdminAsync())
+            return Ok(new EffectivePermissionsDto
+            {
+                CanSendMessages = true,
+                CanReply = true,
+                CanEditOwnMessages = true,
+                CanDeleteOwnMessages = true
+            });
+
+        var p = _permService.GetOrDefault(userId);
+        var cfg = Plugin.Instance!.Configuration;
+        return Ok(new EffectivePermissionsDto
+        {
+            CanSendMessages = p.CanSendMessages,
+            CanReply = cfg.AllowReplies && p.CanReply,
+            CanEditOwnMessages = p.CanEditOwnMessages,
+            CanDeleteOwnMessages = p.CanDeleteOwnMessages
+        });
+    }
+
+    /// <summary>
+    /// Définit ou remplace les droits d'un utilisateur. Réservé aux administrateurs.
+    /// </summary>
+    [HttpPut("permissions/{userId}")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult<UserPermissionDto> UpdatePermissions(
+        [FromRoute] string userId,
+        [FromBody] UpdatePermissionsRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var perm = new UserPermission
+        {
+            UserId = userId,
+            CanSendMessages = request.CanSendMessages,
+            CanReply = request.CanReply,
+            CanEditOwnMessages = request.CanEditOwnMessages,
+            CanDeleteOwnMessages = request.CanDeleteOwnMessages,
+            CanEditOthersMessages = request.CanEditOthersMessages,
+            CanDeleteOthersMessages = request.CanDeleteOthersMessages,
+            MaxMessagesPerDay = request.MaxMessagesPerDay,
+            MaxRepliesPerDay = request.MaxRepliesPerDay
+        };
+
+        _permService.Upsert(perm);
+        return Ok(ToPermissionDto(perm));
+    }
+
     // ── JS modules ───────────────────────────────────────────────────────────────────
 
     private static readonly System.Collections.Generic.HashSet<string> _allowedModules =
@@ -478,14 +797,15 @@ public class InfoPopupController : ControllerBase
             "ip-utils.js",
             "ip-styles.js",
             "ip-admin.js",
-            "ip-popup.js"
+            "ip-popup.js",
+            "ip-user.js"
         };
 
     /// <summary>
     /// Sert un module JavaScript embarqué dans l'assembly.
-    /// Whitelist : client.js, ip-i18n.js, ip-utils.js, ip-styles.js, ip-admin.js, ip-popup.js.
-    /// Note : le SDK .NET remplace les tirets par des underscores dans les noms de ressources
-    /// embarquées (ip-admin.js → ip_admin.js dans le manifest). La conversion est appliquée ici.
+    /// Whitelist : client.js, ip-i18n.js, ip-utils.js, ip-styles.js, ip-admin.js, ip-popup.js, ip-user.js.
+    /// Note : le SDK .NET préserve les tirets dans les noms de ressources embarquées quand les fichiers
+    /// sont déclarés explicitement via &lt;EmbeddedResource&gt; dans le .csproj.
     /// </summary>
     [HttpGet("{module}.js")]
     [AllowAnonymous]

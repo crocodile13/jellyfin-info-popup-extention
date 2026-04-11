@@ -327,7 +327,7 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 
 ### After
 - Verify rules R1–R10
-- Add the entry to `CHANGELOG.md` — see section 10 for the mandatory format
+- **Write the `CHANGELOG.md` entry for the new version before any release** — see section 10 for the mandatory format. The entry must exist in `CHANGELOG.md` *before* the human runs `make release-*`, because `make gh-release` and `make manifest-update` extract it at release time. A missing or malformed entry means GitHub Release notes and the Jellyfin plugin description will be empty or wrong.
 - Update `README.md` and `CLAUDE.md` if the architecture or a rule changes
 - **Do not** run `make bump-*` or `make release-*` — that is the human's responsibility
 

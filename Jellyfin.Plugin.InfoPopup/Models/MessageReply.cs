@@ -20,6 +20,12 @@ public class MessageReply
 
     /// <summary>Date et heure UTC de la réponse.</summary>
     public DateTime RepliedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// ID Jellyfin de l'utilisateur destinataire de cette réponse (= SentByUserId du message).
+    /// Permet de filtrer les réponses reçues par un utilisateur via GET /InfoPopup/replies/mine.
+    /// </summary>
+    public string RecipientUserId { get; set; } = string.Empty;
 }
 
 /// <summary>Racine du fichier de persistance infopopup_replies.json.</summary>
