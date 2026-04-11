@@ -306,13 +306,51 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 
 ### After
 - Verify rules R1–R10
-- Add the entry to `CHANGELOG.md`
+- Add the entry to `CHANGELOG.md` — see section 10 for the mandatory format
 - Update `README.md` and `CLAUDE.md` if the architecture or a rule changes
 - **Do not** run `make bump-*` or `make release-*` — that is the human's responsibility
 
 ---
 
-## 9. Recurring pitfalls
+## 10. Changelog — mandatory rules
+
+### Format
+
+Every release entry **must** follow this exact format:
+
+```markdown
+## [X.Y.Z.0] — YYYY-MM-DD
+
+### Added / Changed / Fixed / Security / Removed
+- **Short title** — one-sentence explanation.
+```
+
+**Critical constraints:**
+
+| Rule | Why |
+|------|-----|
+| Version in **4 digits** (`X.Y.Z.0`) | `extract_changelog.sh` and `update_manifest.sh` search for `## [X.Y.Z.0]` — 3-digit versions are never found |
+| Entry written **before** `make release-*` | `make gh-release` calls `extract_changelog.sh` at that moment to set GitHub release notes; `make manifest-update` calls `update_manifest.sh` which embeds the entry in `manifest.json` as the Jellyfin description |
+| **≤ 20 lines** of content per entry | `update_manifest.sh` truncates at `head -20` — anything beyond is silently dropped from the Jellyfin description |
+| No trailing blank lines inside the entry | The awk extractor stops at the next `## ` heading; extra blank lines inside the block are harmless but reduce the effective budget |
+
+### Where the changelog appears
+
+1. **GitHub Release notes** — extracted by `scripts/extract_changelog.sh`, injected as `--notes` in `gh release create`.
+2. **Jellyfin plugin description** — extracted by `scripts/update_manifest.sh`, embedded in `manifest.json` as `"description"` (displayed in the Jellyfin Extensions catalogue).
+3. **Repository history** — `CHANGELOG.md` serves as the human-readable release history.
+
+### Procedure before any release
+
+1. Write (or verify) the `## [X.Y.Z.0]` entry in `CHANGELOG.md` for the version being released.
+2. Keep the entry ≤ 20 content lines.
+3. Tell the human the CHANGELOG is ready — they run `make release-*`.
+
+> **Never** write a changelog entry after `make release-*` has run: the GitHub notes and manifest description will already have been set with whatever was in the file at release time.
+
+---
+
+## 11. Recurring pitfalls
 
 - ⛔ **`version.json` — NEVER edit manually.** Use `make bump-patch / bump-minor / bump-major`. The script also updates `<Version>` in the `.csproj`. Any manual edit desynchronizes the two files and will produce a mismatch between the compiled DLL version and the manifest entry.
 - ⛔ **`manifest.json` — NEVER edit manually.** Use `make manifest-update` (included in all `release-*` targets). The MD5 checksum must be computed from the ZIP actually served by GitHub, not the local file. A wrong checksum causes Jellyfin to refuse the installation.
