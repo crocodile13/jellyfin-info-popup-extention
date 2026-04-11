@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Jellyfin.Plugin.InfoPopup.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
@@ -35,12 +34,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
-    }
-
-    /// <inheritdoc />
-    public override Stream? GetThumbImage()
-    {
-        return GetType().Assembly.GetManifestResourceStream("Jellyfin.Plugin.InfoPopup.thumb.png");
     }
 
     /// <inheritdoc />
