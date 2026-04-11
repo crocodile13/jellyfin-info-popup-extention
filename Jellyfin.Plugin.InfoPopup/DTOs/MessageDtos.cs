@@ -180,7 +180,8 @@ public class ClientSettingsDto
 /// <summary>Requête de soumission d'une réponse utilisateur.</summary>
 public class SubmitReplyRequest
 {
-    /// <summary>Contenu de la réponse (non vide, max ReplyMaxLength car.).</summary>
+    /// <summary>Contenu de la réponse (non vide, max 2000 car. — validé aussi par ReplyMaxLength serveur).</summary>
+    [Required][MinLength(1)][MaxLength(2000)]
     public string Body { get; set; } = string.Empty;
 }
 

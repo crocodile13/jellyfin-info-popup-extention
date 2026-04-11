@@ -25,6 +25,9 @@
             '@keyframes ip-fade{from{opacity:0}to{opacity:1}}',
             '#infopopup-dialog{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.12);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.6);max-width:560px;width:calc(100% - 32px);max-height:80vh;overflow-y:auto;display:flex;flex-direction:column;animation:ip-slide .25s cubic-bezier(.4,0,.2,1);font-family:inherit}',
             '@keyframes ip-slide{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}',
+            // ── Barre de progression (countdown auto-close) ─────────────────
+            '#infopopup-progress-wrap{position:sticky;top:0;z-index:2;height:3px;background:rgba(255,255,255,.08);border-radius:8px 8px 0 0;flex-shrink:0;overflow:hidden}',
+            '#infopopup-progress-bar{height:100%;background:var(--theme-accent-color,#00a4dc);border-radius:8px 8px 0 0;width:100%;transition-property:width;transition-timing-function:linear;will-change:width}',
             '#infopopup-header{display:flex;align-items:center;gap:10px;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.1)}',
             '.ip-icon{font-size:1.4rem;flex-shrink:0}',
             '.ip-title{flex:1;font-size:1.1rem;font-weight:600;overflow-wrap:break-word;word-break:break-word}',
