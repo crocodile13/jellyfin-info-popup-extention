@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.2.1.0",
+        "changelog": "\\### Fixed\\\\- **Toolbar WYSIWYG : boutons B/I/U/S sans effet** — `execCommand` s'exécutait après que le clic ait retiré le focus du `contenteditable`, effaçant la sélection. Corrigé via `mousedown + preventDefault()` sur la toolbar pour maintenir la sélection intacte.\\- **Crash sur navigateurs sans lookbehind regex** — Android WebView < 8, Tizen TV, certains Fire TV ne supportent pas les lookbehinds ES2018 (`(?<!...)`). La regex d'italique levait une `SyntaxError` silencieuse cassant tout l'éditeur. Remplacée par une regex ES5 équivalente.\\- **`htmlToMarkdown` : `<span style=\"...\">` Chrome ignorés** — `execCommand` génère parfois des `<span style=\"font-weight:bold\">` au lieu de `<strong>`. Ces spans étaient traversés sans conversion. Ajout de la détection des styles inline `fontWeight`, `fontStyle`, `textDecoration`.\\- **Focus manquant en mode WYSIWYG** — basculer Raw → WYSIWYG ne focusait pas le div éditeur.\\- **i18n `toast_rate_limit` absente dans 6 langues** — ES, DE, PT, IT, JA, ZH manquants.\\\\---\\\\## [3.2.0.0] — 2026-04-10\\\\### Added\\\\- **Éditeur WYSIWYG par défaut** — le texte s'affiche formaté directement (gras, italique, etc.) sans avoir à ouvrir un aperçu séparé.\\- **Raccourcis clavier** : `Ctrl+B` gras · `Ctrl+I` italique · `Ctrl+U` souligné · `Ctrl+Shift+S` barré.\\- **Compteur de caractères** avec indicateurs visuels (warning à 75 %, danger à 90 %).\\- **Rate limiting** — 2 secondes minimum entre deux publications (protection double-clic).\\\\",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.2.1.0/infopopup_3.2.1.0.zip",
+        "checksum": "b821636bf9a31b4d5723aa14fc208595",
+        "timestamp": "2026-04-11T11:31:26Z"
+      },
+      {
         "version": "3.2.0.0",
         "changelog": "\\",
         "targetAbi": "10.11.0.0",
