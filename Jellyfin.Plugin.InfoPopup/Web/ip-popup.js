@@ -29,6 +29,31 @@
     var lastCheckedPath = null;
     var checkScheduled  = false;
 
+    // ── Paramètres client (chargés depuis GET /InfoPopup/client-settings) ────
+    var _settings = {
+        popupEnabled:       true,
+        popupDelayMs:       800,
+        maxMessagesInPopup: 5,
+        allowReplies:       false,
+        historyEnabled:     true
+    };
+
+    function loadClientSettings() {
+        return apiFetch('/InfoPopup/client-settings')
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (!data) return;
+                _settings.popupEnabled       = data.popupEnabled       !== undefined ? data.popupEnabled       : (data.PopupEnabled       !== undefined ? data.PopupEnabled       : true);
+                _settings.popupDelayMs       = data.popupDelayMs       !== undefined ? data.popupDelayMs       : (data.PopupDelayMs       !== undefined ? data.PopupDelayMs       : 800);
+                _settings.maxMessagesInPopup = data.maxMessagesInPopup !== undefined ? data.maxMessagesInPopup : (data.MaxMessagesInPopup !== undefined ? data.MaxMessagesInPopup : 5);
+                _settings.allowReplies       = data.allowReplies       !== undefined ? data.allowReplies       : (data.AllowReplies       !== undefined ? data.AllowReplies       : false);
+                _settings.historyEnabled     = data.historyEnabled     !== undefined ? data.historyEnabled     : (data.HistoryEnabled     !== undefined ? data.HistoryEnabled     : true);
+            })
+            .catch(function () {
+                // Silencieux — les valeurs par défaut de _settings sont utilisées.
+            });
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // Historique accordéon dans la popup
     // ════════════════════════════════════════════════════════════════════════
@@ -111,15 +136,94 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
+    // Zone de réponse utilisateur
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Construit le bloc HTML de la zone de réponse pour un message.
+     * Retourne un Element DOM (pas une string) pour éviter tout risque XSS.
+     */
+    function buildReplyArea(msgId) {
+        var area = document.createElement('div');
+        area.className = 'ip-reply-area';
+
+        var textarea = document.createElement('textarea');
+        textarea.className   = 'ip-reply-textarea';
+        textarea.placeholder = t('reply_placeholder');
+        textarea.maxLength   = 2000;
+        textarea.setAttribute('data-reply-for', msgId);
+
+        var footer = document.createElement('div');
+        footer.className = 'ip-reply-footer';
+
+        var sendBtn = document.createElement('button');
+        sendBtn.className = 'ip-reply-send';
+        sendBtn.type      = 'button';
+        sendBtn.textContent = t('reply_send');
+        sendBtn.setAttribute('data-reply-btn', msgId);
+
+        var okSpan = document.createElement('span');
+        okSpan.className = 'ip-reply-ok';
+        okSpan.setAttribute('data-reply-ok', msgId);
+        okSpan.style.display = 'none';
+
+        footer.appendChild(sendBtn);
+        footer.appendChild(okSpan);
+        area.appendChild(textarea);
+        area.appendChild(footer);
+        return area;
+    }
+
+    /**
+     * Bind les boutons d'envoi de réponse dans le container donné.
+     * Appelé après que le DOM de la popup soit construit.
+     */
+    function bindReplyButtons(container) {
+        container.querySelectorAll('[data-reply-btn]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var msgId    = btn.getAttribute('data-reply-btn');
+                var textarea = container.querySelector('[data-reply-for="' + msgId + '"]');
+                var okSpan   = container.querySelector('[data-reply-ok="' + msgId + '"]');
+                if (!textarea || !textarea.value.trim()) return;
+                btn.disabled = true;
+                apiFetch('/InfoPopup/messages/' + encodeURIComponent(msgId) + '/reply', {
+                    method: 'POST',
+                    body: JSON.stringify({ body: textarea.value.trim() })
+                }).then(function () {
+                    textarea.value = '';
+                    if (okSpan) {
+                        okSpan.textContent  = t('reply_sent');
+                        okSpan.style.display = '';
+                        setTimeout(function () {
+                            okSpan.style.display = 'none';
+                            btn.disabled = false;
+                        }, 3000);
+                    } else {
+                        btn.disabled = false;
+                    }
+                }).catch(function (err) {
+                    if (okSpan) {
+                        okSpan.textContent  = t('reply_err', err && err.message ? err.message : String(err));
+                        okSpan.style.display = '';
+                    }
+                    btn.disabled = false;
+                });
+            });
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // Affichage de la popup
     // ════════════════════════════════════════════════════════════════════════
 
-    function showPopup(unseenMessages, historyMessages) {
+    function showPopup(unseenMessages, historyMessages, allUnseenFull) {
         if (popupActive) return;
         popupActive = true;
         ns.injectStyles();
 
-        var allUnseenIds  = unseenMessages.map(function (m) { return m.id || m.Id || ''; });
+        // allUnseenFull contient tous les IDs à marquer comme vus (y compris ceux
+        // non affichés si maxMessagesInPopup a tronqué la liste).
+        var allUnseenIds = (allUnseenFull || unseenMessages).map(function (m) { return m.id || m.Id || ''; });
         var isSingle      = unseenMessages.length === 1;
         var headerTitle   = isSingle
             ? (unseenMessages[0].title || unseenMessages[0].Title || '')
@@ -146,11 +250,15 @@
             var body = document.createElement('div');
             body.id  = 'infopopup-body';
             body.innerHTML = renderBody(unseenMessages[0].body || unseenMessages[0].Body || '');
+            if (_settings.allowReplies) {
+                body.appendChild(buildReplyArea(unseenMessages[0].id || unseenMessages[0].Id || ''));
+            }
             dialog.appendChild(body);
         } else {
             var msgsContainer = document.createElement('div');
             msgsContainer.id  = 'infopopup-msgs';
             unseenMessages.forEach(function (msg) {
+                var msgId = msg.id || msg.Id || '';
                 var card = document.createElement('div');
                 card.className = 'ip-msg-card';
                 var cardTitle = document.createElement('div');
@@ -161,12 +269,15 @@
                 cardBody.innerHTML = renderBody(msg.body || msg.Body || '');
                 card.appendChild(cardTitle);
                 card.appendChild(cardBody);
+                if (_settings.allowReplies) {
+                    card.appendChild(buildReplyArea(msgId));
+                }
                 msgsContainer.appendChild(card);
             });
             dialog.appendChild(msgsContainer);
         }
 
-        if (historyMessages && historyMessages.length > 0) {
+        if (_settings.historyEnabled && historyMessages && historyMessages.length > 0) {
             dialog.appendChild(buildHistoryBlock(historyMessages));
         }
 
@@ -180,6 +291,9 @@
         backdrop.appendChild(dialog);
         document.body.appendChild(backdrop);
         closeBtn.focus();
+
+        // ── Bind des boutons d'envoi de réponse ──────────────────────────────
+        bindReplyButtons(backdrop);
 
         var close = function () {
             backdrop.remove();
@@ -228,13 +342,20 @@
      *   - l'historique des messages déjà vus en résumé (corps chargé au clic).
      */
     function checkForUnseenMessages() {
+        // Popup désactivée par l'admin → ne rien afficher.
+        if (!_settings.popupEnabled) return;
+
         apiFetch('/InfoPopup/popup-data')
             .then(function (res) { return res.json(); })
             .then(function (data) {
                 var unseen  = data.unseen  || data.Unseen  || [];
                 var history = data.history || data.History || [];
                 if (!unseen.length) return;
-                showPopup(unseen, history);
+                // Limiter le nombre de messages affichés simultanément.
+                // Le marquage comme "vu" porte sur TOUS les messages reçus.
+                var allUnseenFull = unseen;
+                var visible = unseen.slice(0, _settings.maxMessagesInPopup);
+                showPopup(visible, history, allUnseenFull);
             })
             .catch(function () {
                 // Silencieux : session expirée, réseau KO, aucun message non vu.
@@ -259,20 +380,23 @@
             if (path === lastCheckedPath) return;
             lastCheckedPath = path;
             checkForUnseenMessages();
-        }, 800);
+        }, _settings.popupDelayMs);
     }
 
     function initObserver() {
-        new MutationObserver(function () {
+        // Charger les settings en premier (silencieux si échec → valeurs par défaut).
+        loadClientSettings().then(function () {
+            new MutationObserver(function () {
+                schedulePopupCheck();
+                ns.checkConfigPage();
+            }).observe(document.body, { childList: true, subtree: true });
+
+            window.addEventListener('hashchange', schedulePopupCheck);
+            window.addEventListener('popstate',   schedulePopupCheck);
+
             schedulePopupCheck();
             ns.checkConfigPage();
-        }).observe(document.body, { childList: true, subtree: true });
-
-        window.addEventListener('hashchange', schedulePopupCheck);
-        window.addEventListener('popstate',   schedulePopupCheck);
-
-        schedulePopupCheck();
-        ns.checkConfigPage();
+        });
     }
 
     // ── Démarrage ────────────────────────────────────────────────────────────

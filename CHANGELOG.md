@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.3.0.0] — 2026-04-11
+
+### Added
+
+- **Entrée sidebar Jellyfin** — le plugin apparaît directement dans la barre de navigation latérale (section "server", icône `notifications`). `Plugin.cs` expose `EnableInMainMenu = true` via `IHasWebPages`.
+- **Onglet Paramètres** — nouvel onglet dans la page admin pour configurer : activation popup, délai d'affichage, max messages simultanés, historique, réponses utilisateurs, longueur max réponse, délai anti-spam.
+- **Système de réponses utilisateurs** — les utilisateurs peuvent répondre aux messages popup (activable dans Paramètres). Les réponses sont stockées dans `infopopup_replies.json` et consultables dans un onglet "Réponses" de la page admin.
+- **Paramètres dynamiques côté client** — `ip-popup.js` charge `GET /InfoPopup/client-settings` au démarrage pour appliquer `PopupDelayMs`, `MaxMessagesInPopup`, `HistoryEnabled`, `AllowReplies` en temps réel.
+- **Nouveaux endpoints REST** — `GET/POST /InfoPopup/settings`, `GET /InfoPopup/client-settings`, `POST /InfoPopup/messages/{id}/reply`, `GET /InfoPopup/replies`, `DELETE /InfoPopup/replies/{id}`, `POST /InfoPopup/messages/{id}/replies/delete`.
+- **i18n étendue** — 25 nouvelles clés dans les 8 langues (onglets, paramètres, réponses).
+
+---
+
 ## [3.2.2.0] — 2026-04-11
 
 ### Fixed

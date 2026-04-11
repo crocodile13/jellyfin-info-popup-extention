@@ -32,11 +32,12 @@
 
     // ── Rate Limiting ────────────────────────────────────────────────────────
     var lastPublishTime = 0;
-    var RATE_LIMIT_MS = 2000; // 2 secondes entre chaque publication
+    var _rateLimitMs = 2000; // sera mis à jour depuis les settings
+    var _clientSettings = null; // chargé depuis GET /client-settings
 
     function canPublish() {
         var now = Date.now();
-        if (now - lastPublishTime < RATE_LIMIT_MS) {
+        if (now - lastPublishTime < _rateLimitMs) {
             return false;
         }
         lastPublishTime = now;
@@ -926,6 +927,212 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
+    // Onglets
+    // ════════════════════════════════════════════════════════════════════════
+
+    function initTabs(page) {
+        var tabs = [
+            { btnId: 'ip-tab-messages',  panelId: 'ip-panel-messages' },
+            { btnId: 'ip-tab-settings',  panelId: 'ip-panel-settings' },
+            { btnId: 'ip-tab-replies',   panelId: 'ip-panel-replies'  }
+        ];
+        tabs.forEach(function(tab) {
+            var btn = page.querySelector('#' + tab.btnId);
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                tabs.forEach(function(t2) {
+                    var b = page.querySelector('#' + t2.btnId);
+                    var p = page.querySelector('#' + t2.panelId);
+                    if (b) { b.classList.remove('ip-tab-active'); }
+                    if (p) { p.style.display = 'none'; }
+                });
+                btn.classList.add('ip-tab-active');
+                var panel = page.querySelector('#' + tab.panelId);
+                if (panel) { panel.style.display = ''; }
+                // Charger les réponses quand on clique sur l'onglet Réponses
+                if (tab.btnId === 'ip-tab-replies') { loadReplies(page); }
+            });
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Onglet Paramètres
+    // ════════════════════════════════════════════════════════════════════════
+
+    function initSettingsTab(page) {
+        apiFetch('/InfoPopup/settings')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+            var cfg = data || {};
+            var chkEnabled = page.querySelector('#ip-set-enabled');
+            var inpDelay   = page.querySelector('#ip-set-delay');
+            var inpMax     = page.querySelector('#ip-set-max');
+            var chkHistory = page.querySelector('#ip-set-history');
+            var chkReplies = page.querySelector('#ip-set-replies');
+            var inpReplyLen= page.querySelector('#ip-set-reply-len');
+            var inpRate    = page.querySelector('#ip-set-rate');
+            var replyWrap  = page.querySelector('#ip-set-reply-len-wrap');
+
+            // Compatibilité camelCase / PascalCase
+            var popupEnabled = cfg.popupEnabled !== undefined ? cfg.popupEnabled : (cfg.PopupEnabled !== undefined ? cfg.PopupEnabled : true);
+            var popupDelay   = cfg.popupDelayMs !== undefined ? cfg.popupDelayMs : (cfg.PopupDelayMs !== undefined ? cfg.PopupDelayMs : 800);
+            var maxMsgs      = cfg.maxMessagesInPopup !== undefined ? cfg.maxMessagesInPopup : (cfg.MaxMessagesInPopup !== undefined ? cfg.MaxMessagesInPopup : 5);
+            var histEnabled  = cfg.historyEnabled !== undefined ? cfg.historyEnabled : (cfg.HistoryEnabled !== undefined ? cfg.HistoryEnabled : true);
+            var allowReplies = cfg.allowReplies !== undefined ? cfg.allowReplies : (cfg.AllowReplies !== undefined ? cfg.AllowReplies : false);
+            var replyMaxLen  = cfg.replyMaxLength !== undefined ? cfg.replyMaxLength : (cfg.ReplyMaxLength !== undefined ? cfg.ReplyMaxLength : 500);
+            var rateLimit    = cfg.rateLimitMs !== undefined ? cfg.rateLimitMs : (cfg.RateLimitMs !== undefined ? cfg.RateLimitMs : 2000);
+
+            if (chkEnabled)  chkEnabled.checked  = popupEnabled;
+            if (inpDelay)    inpDelay.value       = popupDelay;
+            if (inpMax)      inpMax.value         = maxMsgs;
+            if (chkHistory)  chkHistory.checked   = histEnabled;
+            if (chkReplies)  chkReplies.checked   = allowReplies;
+            if (inpReplyLen) inpReplyLen.value     = replyMaxLen;
+            if (inpRate)     inpRate.value         = rateLimit;
+            if (replyWrap)   replyWrap.style.display = allowReplies ? '' : 'none';
+
+            // Sync _rateLimitMs pour canPublish()
+            _rateLimitMs = rateLimit;
+
+            // Toggle visibilité longueur réponse
+            if (chkReplies) {
+                chkReplies.addEventListener('change', function() {
+                    if (replyWrap) replyWrap.style.display = chkReplies.checked ? '' : 'none';
+                });
+            }
+        }).catch(function() {});
+
+        var saveBtn = page.querySelector('#ip-save-settings-btn');
+        if (!saveBtn) return;
+        saveBtn.addEventListener('click', function() {
+            var chkEnabled = page.querySelector('#ip-set-enabled');
+            var inpDelay   = page.querySelector('#ip-set-delay');
+            var inpMax     = page.querySelector('#ip-set-max');
+            var chkHistory = page.querySelector('#ip-set-history');
+            var chkReplies = page.querySelector('#ip-set-replies');
+            var inpReplyLen= page.querySelector('#ip-set-reply-len');
+            var inpRate    = page.querySelector('#ip-set-rate');
+            var toastEl    = page.querySelector('#ip-settings-toast');
+
+            var body = {
+                popupEnabled:       chkEnabled  ? chkEnabled.checked              : true,
+                popupDelayMs:       inpDelay    ? parseInt(inpDelay.value, 10)    : 800,
+                maxMessagesInPopup: inpMax      ? parseInt(inpMax.value, 10)      : 5,
+                historyEnabled:     chkHistory  ? chkHistory.checked              : true,
+                allowReplies:       chkReplies  ? chkReplies.checked              : false,
+                replyMaxLength:     inpReplyLen ? parseInt(inpReplyLen.value, 10) : 500,
+                rateLimitMs:        inpRate     ? parseInt(inpRate.value, 10)     : 2000
+            };
+
+            saveBtn.disabled = true;
+            apiFetch('/InfoPopup/settings', { method: 'POST', body: JSON.stringify(body) })
+                .then(function(res) { return res.json(); })
+                .then(function(saved) {
+                    _rateLimitMs = saved.rateLimitMs || saved.RateLimitMs || 2000;
+                    if (toastEl) {
+                        toastEl.textContent = t('toast_settings_saved');
+                        toastEl.className = 'ip-toast-ok';
+                        toastEl.style.display = 'block';
+                        setTimeout(function() { toastEl.style.display = 'none'; }, 3000);
+                    }
+                })
+                .catch(function(err) {
+                    if (toastEl) {
+                        toastEl.textContent = t('toast_err_settings', err.message || err);
+                        toastEl.className = 'ip-toast-err';
+                        toastEl.style.display = 'block';
+                        setTimeout(function() { toastEl.style.display = 'none'; }, 4000);
+                    }
+                })
+                .finally(function() { saveBtn.disabled = false; });
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Onglet Réponses (admin)
+    // ════════════════════════════════════════════════════════════════════════
+
+    function loadReplies(page) {
+        var listEl = page.querySelector('#ip-replies-list');
+        var disabledMsg = page.querySelector('#ip-replies-disabled-msg');
+        if (!listEl) return;
+
+        // Vérifier si les réponses sont activées
+        apiFetch('/InfoPopup/client-settings')
+            .then(function(res) { return res.json(); })
+            .then(function(cfg) {
+                var allowReplies = cfg.allowReplies !== undefined ? cfg.allowReplies : (cfg.AllowReplies || false);
+                if (disabledMsg) disabledMsg.style.display = allowReplies ? 'none' : '';
+                if (!allowReplies) { listEl.innerHTML = ''; return; }
+
+                listEl.innerHTML = '<div style="opacity:.6">' + escHtml(t('replies_loading')) + '</div>';
+                apiFetch('/InfoPopup/replies')
+                    .then(function(res2) { return res2.json(); })
+                    .then(function(groups) {
+                        if (!groups || !groups.length) {
+                            listEl.innerHTML = '<div style="opacity:.65;font-style:italic;padding:20px 0">' + escHtml(t('replies_empty')) + '</div>';
+                            return;
+                        }
+                        listEl.innerHTML = '';
+                        groups.forEach(function(group) {
+                            var messageId    = group.messageId    || group.MessageId    || '';
+                            var messageTitle = group.messageTitle || group.MessageTitle || messageId;
+                            var replies      = group.replies      || group.Replies      || [];
+                            var count = replies.length;
+
+                            var groupDiv = document.createElement('div');
+                            groupDiv.className = 'ip-replies-group';
+
+                            var header = document.createElement('div');
+                            header.className = 'ip-replies-group-header';
+                            header.innerHTML =
+                                '<span>' + escHtml(messageTitle) + ' <span style="opacity:.5;font-size:.82rem;font-weight:400">(' + count + ')</span></span>' +
+                                '<button class="ip-replies-del-all" data-msgid="' + escHtml(messageId) + '" type="button">' + escHtml(t('replies_delete_all')) + '</button>';
+                            groupDiv.appendChild(header);
+
+                            header.querySelector('.ip-replies-del-all').addEventListener('click', function() {
+                                var mid = this.getAttribute('data-msgid');
+                                apiFetch('/InfoPopup/messages/' + encodeURIComponent(mid) + '/replies/delete', { method: 'POST' })
+                                    .then(function() { loadReplies(page); })
+                                    .catch(function(err) { showToast(page, t('toast_err_reply_delete', err.message || err), true); });
+                            });
+
+                            replies.forEach(function(r) {
+                                var replyId  = r.id       || r.Id       || '';
+                                var userName = r.userName || r.UserName || r.userId || r.UserId || '';
+                                var body     = r.body     || r.Body     || '';
+                                var date     = formatDate(r.repliedAt || r.RepliedAt || '');
+
+                                var row = document.createElement('div');
+                                row.className = 'ip-reply-row';
+                                row.innerHTML =
+                                    '<div>' +
+                                        '<div class="ip-reply-row-meta">' + escHtml(userName) + ' \u2014 ' + escHtml(date) + '</div>' +
+                                        '<div class="ip-reply-row-body">' + escHtml(body) + '</div>' +
+                                    '</div>' +
+                                    '<button class="ip-reply-del-btn" data-replyid="' + escHtml(replyId) + '" type="button">' + escHtml(t('replies_delete_one')) + '</button>';
+
+                                row.querySelector('.ip-reply-del-btn').addEventListener('click', function() {
+                                    var rid = this.getAttribute('data-replyid');
+                                    apiFetch('/InfoPopup/replies/' + encodeURIComponent(rid), { method: 'DELETE' })
+                                        .then(function() { loadReplies(page); })
+                                        .catch(function(err) { showToast(page, t('toast_err_reply_delete', err.message || err), true); });
+                                });
+
+                                groupDiv.appendChild(row);
+                            });
+
+                            listEl.appendChild(groupDiv);
+                        });
+                    }).catch(function(err) {
+                        listEl.innerHTML = '<div style="color:#f66">' + escHtml(t('toast_err_reply_delete', err.message || err)) + '</div>';
+                    });
+            }).catch(function() {
+                if (disabledMsg) disabledMsg.style.display = '';
+            });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // Initialisation de la page de configuration
     // ════════════════════════════════════════════════════════════════════════
 
@@ -935,18 +1142,35 @@
      */
     function applyStaticTranslations(page) {
         var map = {
-            '#ip-form-section-title': 'cfg_new_message',
-            '#ip-subtitle':           'cfg_subtitle',
-            '#ip-title-label':        'cfg_title_label',
-            '#ip-body-label':         'cfg_body_label',
-            '#ip-recipients-label':   'cfg_recipients',
-            '#ip-publish-btn':        'cfg_publish',
-            '#ip-cancel-edit-btn':    'cfg_cancel_edit',
-            '#ip-history-title':      'cfg_history',
-            '#ip-select-all-label':   'cfg_select_all',
-            '#ip-delete-btn-label':   'cfg_delete_sel',
-            '#ip-empty':              'cfg_no_messages',
-            '#ip-preview-toggle-label': 'preview_toggle_raw'
+            // ── Onglet Messages (existant) ─────────────────────────────────
+            '#ip-form-section-title':   'cfg_new_message',
+            '#ip-subtitle':             'cfg_subtitle',
+            '#ip-title-label':          'cfg_title_label',
+            '#ip-body-label':           'cfg_body_label',
+            '#ip-recipients-label':     'cfg_recipients',
+            '#ip-publish-btn':          'cfg_publish',
+            '#ip-cancel-edit-btn':      'cfg_cancel_edit',
+            '#ip-history-title':        'cfg_history',
+            '#ip-select-all-label':     'cfg_select_all',
+            '#ip-delete-btn-label':     'cfg_delete_sel',
+            '#ip-empty':                'cfg_no_messages',
+            '#ip-preview-toggle-label': 'preview_toggle_raw',
+            // ── Onglets ────────────────────────────────────────────────────
+            '#ip-tab-messages-lbl':     'tab_messages',
+            '#ip-tab-settings-lbl':     'tab_settings',
+            '#ip-tab-replies-lbl':      'tab_replies',
+            // ── Paramètres ─────────────────────────────────────────────────
+            '#ip-set-title':            'set_title',
+            '#ip-set-enabled-lbl':      'set_popup_enabled',
+            '#ip-set-delay-lbl':        'set_popup_delay',
+            '#ip-set-max-lbl':          'set_max_messages',
+            '#ip-set-history-lbl':      'set_history_enabled',
+            '#ip-set-replies-lbl':      'set_allow_replies',
+            '#ip-set-reply-len-lbl':    'set_reply_max_len',
+            '#ip-set-rate-lbl':         'set_rate_limit',
+            '#ip-save-settings-lbl':    'set_save',
+            // ── Réponses ───────────────────────────────────────────────────
+            '#ip-replies-disabled-hint-lbl': 'replies_disabled_hint'
         };
         Object.keys(map).forEach(function (sel) {
             var el = page.querySelector(sel);
@@ -990,6 +1214,8 @@
         page._ipInitDone = true;
         ns.injectStyles();
         applyStaticTranslations(page);
+        initTabs(page);
+        initSettingsTab(page);
 
         var toast = page.querySelector('#ip-toast');
         if (toast) {
@@ -997,7 +1223,7 @@
             toast.setAttribute('role', 'status');
         }
 
-        console.log('InfoPopup: config page init OK (WYSIWYG v2.0)');
+        console.log('InfoPopup: config page init OK (v3.3.0)');
 
         var selectedIds = new Set();
         var editState   = { id: null, onEdit: null };

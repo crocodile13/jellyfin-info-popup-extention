@@ -18,15 +18,16 @@
 | Display name in Jellyfin dashboard | `Info Popup` |
 | REST API route prefix | `/InfoPopup` |
 | View persistence file | `infopopup_seen.json` |
+| Reply persistence file | `infopopup_replies.json` |
 | Client-side CSS prefix and DOM IDs | `.ip-` / `#infopopup-` |
 | JS double-execution guard | `window.__infoPopupLoaded` |
 | .NET log message prefix | `InfoPopup:` |
 | Plugin GUID (immutable) | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
 
 ### Stack
-- Backend: C# / .NET 8, `IBasePlugin`, `ControllerBase`, ASP.NET Core DI
+- Backend: C# / .NET 9, `IBasePlugin`, `ControllerBase`, ASP.NET Core DI
 - Frontend: Vanilla JavaScript ES2020, zero framework, zero external dependency
-- Persistence: XML for messages (`BasePluginConfiguration`) + JSON for views (`infopopup_seen.json`)
+- Persistence: XML for messages/settings (`BasePluginConfiguration`) + JSON for views (`infopopup_seen.json`) + JSON for replies (`infopopup_replies.json`)
 - Build / release: **GNU Make** + Bash scripts + GitHub CLI (`gh`)
 
 ---
@@ -58,9 +59,9 @@ jellyfin-info-popup-extention/
     ├── Plugin.cs
     ├── PluginServiceRegistrator.cs
     ├── Configuration/PluginConfiguration.cs
-    ├── Models/{PopupMessage,SeenRecord}.cs
+    ├── Models/{PopupMessage,SeenRecord,MessageReply}.cs
     ├── DTOs/MessageDtos.cs            ← request/response DTOs (separated from controller)
-    ├── Services/{MessageStore,SeenTrackerService}.cs
+    ├── Services/{MessageStore,SeenTrackerService,ReplyStoreService}.cs
     ├── Controllers/InfoPopupController.cs
     ├── Middleware/{ScriptInjectionMiddleware,ScriptInjectionStartupFilter}.cs
     └── Web/
@@ -164,7 +165,7 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 ### i18n — language detection
 `ip-i18n.js` detects the language from `document.documentElement.lang` (set by Jellyfin Web based on user settings), with `navigator.language` as fallback. Normalized via `normalizeLang()` to one of `'fr'`, `'es'`, `'de'`, `'pt'`, `'it'`, `'ja'`, `'zh'` — falls back to `'en'` for any unrecognized code. `window.__IP.t(key, ...args)` is the single translation entry point. `applyStaticTranslations(page)` in `ip-admin.js` updates all static elements of `configurationpage.html` at init time.
 
-**Supported languages (8 total):** English (`en`, default), French (`fr`), Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Chinese Simplified (`zh`). All 65 translation keys are present in every language dict.
+**Supported languages (8 total):** English (`en`, default), French (`fr`), Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Chinese Simplified (`zh`). All 90 translation keys are present in every language dict (65 original + 25 added in v3.3.0.0).
 
 **Jellyfin 10.11 React Router timing issue** — in 10.11, `document.documentElement.lang` is not set when the module first loads because the `localusersignedin` event fires before the subscriber is registered (confirmed by jellyfin-web PR #4306). Two complementary mechanisms handle this:
 1. **`MutationObserver`** on `document.documentElement`: whenever Jellyfin sets or changes the `lang` attribute (even with a delay), `_lang` and `_dict` are updated immediately.
@@ -172,9 +173,21 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 
 Both mechanisms are idempotent and stop once a reliable source (`html.lang`) is available. Dynamic elements (popup, toasts, table) always use the correct language because they call `t()` after the user is signed in. Static elements from `applyStaticTranslations(page)` are refreshed on each SPA navigation to the config page (`initConfigPage` re-runs).
 
+### Sidebar entry (v3.3+)
+`Plugin.cs` implements `IHasWebPages` and returns a `PluginPageInfo` with `EnableInMainMenu = true`, `MenuSection = "server"`, `MenuIcon = "notifications"`. Jellyfin reads `GET /System/Configuration/Pages` and automatically adds the entry to the sidebar. No JS injection needed for the sidebar itself.
+
+### Client settings (v3.3+)
+`ip-popup.js` calls `GET /InfoPopup/client-settings` at startup (before starting the MutationObserver). This endpoint is `[AllowAnonymous]` and returns `PopupEnabled`, `PopupDelayMs`, `MaxMessagesInPopup`, `AllowReplies`, `HistoryEnabled`. These values replace hard-coded constants. Default values are used if the call fails. The popup delay (`_settings.popupDelayMs`) replaces the hard-coded `800ms` in `schedulePopupCheck`.
+
+### Admin page tab system (v3.3+)
+`configurationpage.html` has three tabs: **Messages** (existing content), **Paramètres** (settings form), **Réponses** (reply viewer). `initTabs(page)` in `ip-admin.js` handles tab switching (show/hide panels). `initSettingsTab(page)` loads `GET /InfoPopup/settings` and binds the save button. `loadReplies(page)` is called when the Réponses tab is opened.
+
+### Reply system (v3.3+)
+`ReplyStoreService` persists replies in `infopopup_replies.json` (same architecture as `SeenTrackerService`: memory cache, `ReaderWriterLockSlim`, `ReadStore()`/`WriteStore()`). Cascade delete: when a message is deleted via `POST /InfoPopup/messages/delete`, `ReplyStoreService.DeleteByMessageIds()` is called in the controller — NOT in `MessageStore` (to avoid circular dependency). Reply zone is added to the popup if `_settings.allowReplies === true`. Users can reply multiple times to the same message. `POST /InfoPopup/messages/{id}/reply` returns 403 if `AllowReplies = false`.
+
 ### Login detection: MutationObserver only
-`document.body` observed with `{ childList: true, subtree: true }` + `hashchange` and `popstate` listeners. `lastCheckedPath`, `checkScheduled` and `setTimeout(800ms)` deduplicate calls.
-**Mandatory guards**: `schedulePopupCheck` returns immediately if `#infoPopupConfigPage` is in the DOM, or if `popupActive === true`.
+`document.body` observed with `{ childList: true, subtree: true }` + `hashchange` and `popstate` listeners. `lastCheckedPath`, `checkScheduled` and `setTimeout(_settings.popupDelayMs)` deduplicate calls.
+**Mandatory guards**: `schedulePopupCheck` returns immediately if `#infoPopupConfigPage` is in the DOM, if `popupActive === true`, or if `_settings.popupEnabled === false`.
 
 ### View tracking: 100% server-side
 `infopopup_seen.json` via `SeenTrackerService`. Never `localStorage` / `sessionStorage` / cookie.
@@ -265,10 +278,18 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 | GET | `/InfoPopup/messages/{id}` | user/admin | Full detail (404 if not targeted and non-admin) |
 | POST | `/InfoPopup/messages` | **admin** | Create a message |
 | PUT | `/InfoPopup/messages/{id}` | **admin** | Edit title, body and targeting (stable ID, views preserved) |
-| POST | `/InfoPopup/messages/delete` | **admin** | Delete (body `{ ids: [...] }`) |
+| POST | `/InfoPopup/messages/delete` | **admin** | Delete (body `{ ids: [...] }`) — cascades to replies |
 | GET | `/InfoPopup/popup-data` | user | Unseen + history in a single call |
 | GET | `/InfoPopup/unseen` | user | Unread messages (compatibility, prefer popup-data) |
 | POST | `/InfoPopup/seen` | user | Mark as seen (body `{ ids: [...] }`) |
+| GET | `/InfoPopup/settings` | **admin** | Read plugin settings (`PluginSettingsDto`) |
+| POST | `/InfoPopup/settings` | **admin** | Save plugin settings (body: `PluginSettingsDto`) |
+| GET | `/InfoPopup/client-settings` | anonymous | Client-safe subset of settings (`ClientSettingsDto`) — called by `ip-popup.js` at startup |
+| POST | `/InfoPopup/messages/{id}/reply` | user | Submit a reply — 403 if `AllowReplies=false`, 404 if message not targeted |
+| GET | `/InfoPopup/messages/{id}/replies` | **admin** | All replies for a message |
+| GET | `/InfoPopup/replies` | **admin** | All replies grouped by message (`List<MessageRepliesDto>`) |
+| DELETE | `/InfoPopup/replies/{replyId}` | **admin** | Delete one reply |
+| POST | `/InfoPopup/messages/{id}/replies/delete` | **admin** | Delete all replies for a message |
 | GET | `/InfoPopup/{module}.js` | anonymous | JS modules — whitelist: `client.js`, `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` |
 
 ---
@@ -403,3 +424,11 @@ The script applies these transformations before embedding in `manifest.json`:
 - **Admin styles in `injectStyles()`**: table, badges, toast, target picker, toolbar, editor-wrap and toggle switch are in `injectStyles()` (in `ip-styles.js`). Never put them back in a `<style>` in `configurationpage.html` — they would disappear on SPA navigation.
 - **`inputLabelUnfocused` incompatible with a toolbar between label and input**: Jellyfin's `inputLabelUnfocused` class uses `position:absolute` to overlay the label on top of the input field (Material Design floating-label pattern). If any element (toolbar, help text, etc.) is placed between the `<label>` and the `<textarea>` inside an `inputContainer`, the label will float over that element instead of the input. Fix: use `position:static;display:block` on the label so it flows normally. **Do not re-add `inputLabelUnfocused` to `#ip-body-label`** — the toolbar between label and textarea makes it incompatible.
 - **`document.addEventListener` in `initConfigPage` leaks on SPA navigation**: never add listeners to `document` (or `window`) inside `initConfigPage()` without removing them. `initConfigPage` is guarded by `page._ipInitDone`, but any global listener added before the guard (or in a code path that bypasses it) accumulates across navigations. `selectionchange` in particular fires dozens of times per second and was removed for this reason. If you need a document-level listener in the admin page, either gate it on `page._ipInitDone` or explicitly track and remove it on page teardown.
+- **`apiFetch` returns a raw `Response`, not parsed JSON**: always chain `.then(function(res){ return res.json(); })` before consuming data. Missing this call causes `then(function(data){...})` to receive the Response object, not the parsed payload.
+- **`GET /InfoPopup/client-settings` is `[AllowAnonymous]`**: only expose non-sensitive boolean/int settings. Never add user data or admin-only config to this endpoint. Called by `ip-popup.js` before the observer starts.
+- **Cascade delete for replies**: when a message is deleted via `POST /InfoPopup/messages/delete`, `_replyStore.DeleteByMessageIds(request.Ids)` must be called in `InfoPopupController.DeleteMessages` — NOT inside `MessageStore` (avoids circular service dependency).
+- **`PopupDelayMs` is no longer hardcoded**: `schedulePopupCheck` uses `_settings.popupDelayMs` (default 800ms). If you see `setTimeout(xxx, 800)` in ip-popup.js, it's a regression — use the setting.
+- **`_rateLimitMs` is no longer hardcoded in ip-admin.js**: `canPublish()` reads `_rateLimitMs` (updated from settings). Never re-introduce `var RATE_LIMIT_MS = 2000`.
+- **Tab system**: `initTabs(page)` and `initSettingsTab(page)` must be called at the top of `initConfigPage`, after `injectStyles()` and `applyStaticTranslations()`. Missing these calls means tabs don't function and settings aren't loaded.
+- **`ReplyStoreService` cache**: same pattern as `SeenTrackerService` — invalidate `_cache` only on write. Do not read the JSON file directly; always go through `ReadStore()`.
+- **i18n key count**: 90 keys total (65 original + 25 added in v3.3.0.0) must be present in all 8 language dicts. When adding a new language or key, verify full parity.

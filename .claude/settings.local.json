@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(make build:*)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "WebSearch",
+      "Bash(gh api:*)",
+      "Bash(curl -s https://raw.githubusercontent.com/MrChip53/jellyfin-plugin-m3ueditor/master/Jellyfin.Plugin.M3UEditor/Plugin.cs)",
+      "Bash(curl -s https://raw.githubusercontent.com/ConfusedPolarBear/intro-skipper/master/ConfusedPolarBear.Plugin.IntroSkipper/Plugin.cs)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Read(//home/claude/.dotnet/**)",
+      "Read(//root/.dotnet/**)",
+      "Bash(python3:*)",
+      "Bash(node:*)"
     ]
   }
 }

@@ -15,6 +15,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<MessageStore>();
         serviceCollection.AddSingleton<SeenTrackerService>();
+        serviceCollection.AddSingleton<ReplyStoreService>();
 
         // Enregistre le filtre de démarrage qui injecte client.js dans index.html.
         // IStartupFilter est traité par ASP.NET Core lors du Configure(), après

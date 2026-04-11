@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.InfoPopup.DTOs;
 using Jellyfin.Plugin.InfoPopup.Models;
 using Jellyfin.Plugin.InfoPopup.Services;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +23,8 @@ public class InfoPopupController : ControllerBase
 {
     private readonly MessageStore _store;
     private readonly SeenTrackerService _seen;
+    private readonly ReplyStoreService _replyStore;
+    private readonly IUserManager _userManager;
     private readonly ILogger<InfoPopupController> _logger;
     private readonly IAuthorizationService _authorizationService;
 
@@ -29,11 +32,15 @@ public class InfoPopupController : ControllerBase
     public InfoPopupController(
         MessageStore store,
         SeenTrackerService seen,
+        ReplyStoreService replyStore,
+        IUserManager userManager,
         ILogger<InfoPopupController> logger,
         IAuthorizationService authorizationService)
     {
         _store = store;
         _seen = seen;
+        _replyStore = replyStore;
+        _userManager = userManager;
         _logger = logger;
         _authorizationService = authorizationService;
     }
@@ -162,6 +169,7 @@ public class InfoPopupController : ControllerBase
         if (!ModelState.IsValid || request.Ids.Count == 0)
             return BadRequest(new { error = "Liste d'IDs vide ou invalide." });
         var deleted = _store.DeleteMany(request.Ids);
+        _replyStore.DeleteByMessageIds(request.Ids);
         return Ok(new { deleted });
     }
 
@@ -277,6 +285,190 @@ public class InfoPopupController : ControllerBase
     // client.js est le point d'entrée (injecté par ScriptInjectionMiddleware).
     // Les modules ip-*.js sont chargés dynamiquement par client.js.
     // Seuls les noms figurant dans la whitelist sont servis (sécurité).
+
+    // ── Reply helper ─────────────────────────────────────────────────────────────────
+
+    /// <summary>Construit un ReplyDto depuis un MessageReply, en résolvant le nom d'utilisateur.</summary>
+    private ReplyDto ToReplyDto(MessageReply r)
+    {
+        string userName;
+        try
+        {
+            var user = _userManager.GetUserById(Guid.Parse(r.UserId));
+            userName = user?.Username ?? r.UserId[..Math.Min(8, r.UserId.Length)] + "…";
+        }
+        catch
+        {
+            userName = r.UserId[..Math.Min(8, r.UserId.Length)] + "…";
+        }
+        return new ReplyDto
+        {
+            Id        = r.Id,
+            MessageId = r.MessageId,
+            UserId    = r.UserId,
+            UserName  = userName,
+            Body      = r.Body,
+            RepliedAt = r.RepliedAt
+        };
+    }
+
+    // ── Settings ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>Retourne les paramètres actuels du plugin.</summary>
+    [HttpGet("settings")]
+    [Authorize(Policy = "RequiresElevation")]
+    public ActionResult<PluginSettingsDto> GetSettings()
+    {
+        var cfg = Plugin.Instance?.Configuration;
+        if (cfg is null) return StatusCode(500);
+        return Ok(new PluginSettingsDto
+        {
+            PopupEnabled       = cfg.PopupEnabled,
+            PopupDelayMs       = cfg.PopupDelayMs,
+            MaxMessagesInPopup = cfg.MaxMessagesInPopup,
+            AllowReplies       = cfg.AllowReplies,
+            ReplyMaxLength     = cfg.ReplyMaxLength,
+            HistoryEnabled     = cfg.HistoryEnabled,
+            RateLimitMs        = cfg.RateLimitMs
+        });
+    }
+
+    /// <summary>Sauvegarde les paramètres du plugin.</summary>
+    [HttpPost("settings")]
+    [Authorize(Policy = "RequiresElevation")]
+    public ActionResult<PluginSettingsDto> SaveSettings([FromBody] PluginSettingsDto dto)
+    {
+        var instance = Plugin.Instance;
+        if (instance is null) return StatusCode(500);
+        var cfg = instance.Configuration;
+        cfg.PopupEnabled       = dto.PopupEnabled;
+        cfg.PopupDelayMs       = Math.Clamp(dto.PopupDelayMs, 0, 30000);
+        cfg.MaxMessagesInPopup = Math.Clamp(dto.MaxMessagesInPopup, 1, 50);
+        cfg.AllowReplies       = dto.AllowReplies;
+        cfg.ReplyMaxLength     = Math.Clamp(dto.ReplyMaxLength, 10, 5000);
+        cfg.HistoryEnabled     = dto.HistoryEnabled;
+        cfg.RateLimitMs        = Math.Clamp(dto.RateLimitMs, 0, 60000);
+        instance.SaveConfiguration();
+        _logger.LogInformation("InfoPopup: paramètres mis à jour par l'administrateur");
+        return Ok(new PluginSettingsDto
+        {
+            PopupEnabled       = cfg.PopupEnabled,
+            PopupDelayMs       = cfg.PopupDelayMs,
+            MaxMessagesInPopup = cfg.MaxMessagesInPopup,
+            AllowReplies       = cfg.AllowReplies,
+            ReplyMaxLength     = cfg.ReplyMaxLength,
+            HistoryEnabled     = cfg.HistoryEnabled,
+            RateLimitMs        = cfg.RateLimitMs
+        });
+    }
+
+    /// <summary>Retourne les paramètres client (sous-ensemble non-sensible, anonyme).</summary>
+    [HttpGet("client-settings")]
+    [AllowAnonymous]
+    public ActionResult<ClientSettingsDto> GetClientSettings()
+    {
+        var cfg = Plugin.Instance?.Configuration;
+        return Ok(new ClientSettingsDto
+        {
+            PopupEnabled       = cfg?.PopupEnabled ?? true,
+            PopupDelayMs       = cfg?.PopupDelayMs ?? 800,
+            MaxMessagesInPopup = cfg?.MaxMessagesInPopup ?? 5,
+            AllowReplies       = cfg?.AllowReplies ?? false,
+            HistoryEnabled     = cfg?.HistoryEnabled ?? true
+        });
+    }
+
+    // ── Replies ───────────────────────────────────────────────────────────────────────
+
+    /// <summary>Soumet une réponse à un message. Requiert AllowReplies = true.</summary>
+    [HttpPost("messages/{id}/reply")]
+    [Authorize]
+    public ActionResult<ReplyDto> SubmitReply([FromRoute] string id, [FromBody] SubmitReplyRequest request)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var cfg = Plugin.Instance?.Configuration;
+        if (cfg is null || !cfg.AllowReplies)
+            return StatusCode(403, new { error = "Replies are disabled." });
+
+        // Vérifier que le message existe et est accessible pour cet utilisateur
+        var msg = _store.GetById(id);
+        if (msg is null) return NotFound();
+
+        // Vérifier le ciblage : 404 et non 403 pour ne pas révéler l'existence d'un message non ciblé
+        if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId))
+            return NotFound();
+
+        if (string.IsNullOrWhiteSpace(request.Body))
+            return BadRequest(new { error = "Reply body cannot be empty." });
+
+        try
+        {
+            var reply = _replyStore.AddReply(id, userId, request.Body);
+            return StatusCode(201, ToReplyDto(reply));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Retourne toutes les réponses à un message (admin).</summary>
+    [HttpGet("messages/{id}/replies")]
+    [Authorize(Policy = "RequiresElevation")]
+    public ActionResult<IEnumerable<ReplyDto>> GetMessageReplies([FromRoute] string id)
+    {
+        var msg = _store.GetById(id);
+        if (msg is null) return NotFound();
+        var replies = _replyStore.GetByMessageId(id).Select(ToReplyDto);
+        return Ok(replies);
+    }
+
+    /// <summary>Retourne toutes les réponses groupées par message (admin).</summary>
+    [HttpGet("replies")]
+    [Authorize(Policy = "RequiresElevation")]
+    public ActionResult<IEnumerable<MessageRepliesDto>> GetAllReplies()
+    {
+        var allReplies = _replyStore.GetAll();
+        var allMessages = _store.GetAll();
+        var msgIndex = allMessages.ToDictionary(m => m.Id, m => m.Title ?? string.Empty);
+
+        var groups = allReplies
+            .GroupBy(r => r.MessageId)
+            .Select(g => new MessageRepliesDto
+            {
+                MessageId    = g.Key,
+                MessageTitle = msgIndex.TryGetValue(g.Key, out var t) ? t : g.Key,
+                Replies      = g.Select(ToReplyDto).ToList()
+            })
+            .ToList();
+
+        return Ok(groups);
+    }
+
+    /// <summary>Supprime une réponse individuelle (admin).</summary>
+    [HttpDelete("replies/{replyId}")]
+    [Authorize(Policy = "RequiresElevation")]
+    public IActionResult DeleteReply([FromRoute] string replyId)
+    {
+        var deleted = _replyStore.DeleteReply(replyId);
+        if (!deleted) return NotFound();
+        _logger.LogInformation("InfoPopup: réponse {ReplyId} supprimée", replyId);
+        return Ok(new { deleted = 1 });
+    }
+
+    /// <summary>Supprime toutes les réponses d'un message (admin).</summary>
+    [HttpPost("messages/{id}/replies/delete")]
+    [Authorize(Policy = "RequiresElevation")]
+    public IActionResult DeleteMessageReplies([FromRoute] string id)
+    {
+        var count = _replyStore.DeleteByMessageIds(new[] { id });
+        _logger.LogInformation("InfoPopup: {Count} réponse(s) supprimée(s) pour le message {MessageId}", count, id);
+        return Ok(new { deleted = count });
+    }
+
+    // ── JS modules ───────────────────────────────────────────────────────────────────
 
     private static readonly System.Collections.Generic.HashSet<string> _allowedModules =
         new(System.StringComparer.OrdinalIgnoreCase)

@@ -46,6 +46,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 Name = "InfoPopupConfigPage",
                 EmbeddedResourcePath = $"{GetType().Namespace}.Web.configurationpage.html",
                 DisplayName = "Info Popup",
+                EnableInMainMenu = true,
                 MenuSection = "server",
                 MenuIcon = "notifications"
             }

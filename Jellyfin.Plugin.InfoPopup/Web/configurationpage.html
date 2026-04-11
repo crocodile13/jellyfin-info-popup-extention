@@ -12,6 +12,25 @@
         </p>
     </div>
 
+    <!-- Barre d'onglets -->
+    <div class="ip-tab-bar" id="ip-tabs">
+        <button class="ip-tab-btn ip-tab-active" id="ip-tab-messages" type="button">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">notifications</span>
+            <span id="ip-tab-messages-lbl">Messages</span>
+        </button>
+        <button class="ip-tab-btn" id="ip-tab-settings" type="button">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">settings</span>
+            <span id="ip-tab-settings-lbl">Param&#232;tres</span>
+        </button>
+        <button class="ip-tab-btn" id="ip-tab-replies" type="button">
+            <span class="material-icons" style="font-size:1rem;vertical-align:middle;">reply</span>
+            <span id="ip-tab-replies-lbl">R&#233;ponses</span>
+        </button>
+    </div>
+
+    <!-- ── Panneau Messages ────────────────────────────────────────────── -->
+    <div id="ip-panel-messages">
+
     <!-- Nouveau message -->
     <div class="detailSection">
         <h3 class="sectionTitle" id="ip-form-section-title">Nouveau message</h3>
@@ -116,6 +135,73 @@
 
         <div id="ip-msg-container">
             <p id="ip-empty" style="opacity:.55;">Aucun message publie pour le moment.</p>
+        </div>
+    </div>
+
+    </div><!-- fin ip-panel-messages -->
+
+    <!-- ── Panneau Param&#232;tres ─────────────────────────────────────────── -->
+    <div id="ip-panel-settings" style="display:none;">
+        <div class="detailSection ip-settings-section">
+            <h3 id="ip-set-title" class="sectionTitle">Param&#232;tres</h3>
+
+            <div class="inputContainer">
+                <label class="ip-check-row">
+                    <input id="ip-set-enabled" type="checkbox">
+                    <span id="ip-set-enabled-lbl">Activer la popup</span>
+                </label>
+            </div>
+
+            <div class="inputContainer">
+                <label id="ip-set-delay-lbl" class="inputLabel" for="ip-set-delay">D&#233;lai d&#8217;affichage (ms)</label>
+                <input id="ip-set-delay" type="number" class="emby-input" min="0" max="30000" step="100">
+            </div>
+
+            <div class="inputContainer">
+                <label id="ip-set-max-lbl" class="inputLabel" for="ip-set-max">Maximum de messages simultan&#233;s</label>
+                <input id="ip-set-max" type="number" class="emby-input" min="1" max="50" step="1">
+            </div>
+
+            <div class="inputContainer">
+                <label class="ip-check-row">
+                    <input id="ip-set-history" type="checkbox">
+                    <span id="ip-set-history-lbl">Afficher l&#8217;historique dans la popup</span>
+                </label>
+            </div>
+
+            <div class="inputContainer">
+                <label class="ip-check-row">
+                    <input id="ip-set-replies" type="checkbox">
+                    <span id="ip-set-replies-lbl">Autoriser les r&#233;ponses utilisateurs</span>
+                </label>
+            </div>
+
+            <div id="ip-set-reply-len-wrap" class="inputContainer" style="display:none;">
+                <label id="ip-set-reply-len-lbl" class="inputLabel" for="ip-set-reply-len">Longueur max. d&#8217;une r&#233;ponse (caract&#232;res)</label>
+                <input id="ip-set-reply-len" type="number" class="emby-input" min="10" max="5000" step="10">
+            </div>
+
+            <div class="inputContainer">
+                <label id="ip-set-rate-lbl" class="inputLabel" for="ip-set-rate">D&#233;lai minimum entre publications (ms)</label>
+                <input id="ip-set-rate" type="number" class="emby-input" min="0" max="60000" step="500">
+            </div>
+
+            <div style="margin-top:24px;display:flex;align-items:center;gap:14px;">
+                <button id="ip-save-settings-btn" class="raised button-submit emby-button" type="button">
+                    <span id="ip-save-settings-lbl">Enregistrer les param&#232;tres</span>
+                </button>
+                <div id="ip-settings-toast" style="display:none;padding:6px 12px;border-radius:4px;font-size:.88rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Panneau R&#233;ponses ───────────────────────────────────────────── -->
+    <div id="ip-panel-replies" style="display:none;">
+        <div id="ip-replies-disabled-msg" style="display:none;opacity:.65;font-style:italic;padding:20px 0;">
+            <span id="ip-replies-disabled-hint-lbl">Activez les r&#233;ponses dans l&#8217;onglet Param&#232;tres.</span>
+        </div>
+        <div id="ip-replies-list">
+            <!-- rempli dynamiquement par loadReplies() -->
         </div>
     </div>
 

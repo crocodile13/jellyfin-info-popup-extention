@@ -140,7 +140,36 @@
             '.ip-toggle-slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.2);border-radius:9px;transition:background .2s}',
             '.ip-toggle-slider::before{content:\'\';position:absolute;height:12px;width:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.4)}',
             '.ip-toggle-switch input:checked+.ip-toggle-slider{background:var(--theme-accent-color,#00a4dc)}',
-            '.ip-toggle-switch input:checked+.ip-toggle-slider::before{transform:translateX(14px)}'
+            '.ip-toggle-switch input:checked+.ip-toggle-slider::before{transform:translateX(14px)}',
+            // ── Onglets ─────────────────────────────────────────────────────
+            '.ip-tab-bar{display:flex;gap:0;border-bottom:2px solid rgba(255,255,255,.12);margin-bottom:24px}',
+            '.ip-tab-btn{background:none;border:none;border-bottom:3px solid transparent;padding:10px 18px;cursor:pointer;color:var(--theme-text-color,#e5e5e5);opacity:.55;font-size:.93rem;display:flex;align-items:center;gap:6px;transition:opacity .15s,border-color .15s;margin-bottom:-2px}',
+            '.ip-tab-btn:hover{opacity:.85}',
+            '.ip-tab-active{opacity:1;border-bottom-color:var(--theme-accent-color,#00a4dc)}',
+            // ── Paramètres ──────────────────────────────────────────────────
+            '.ip-settings-section{max-width:560px}',
+            '.ip-settings-section .inputContainer{margin-bottom:18px}',
+            '.ip-check-row{display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0}',
+            '.ip-check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--theme-accent-color,#00a4dc);flex-shrink:0}',
+            // ── Zone de réponse (popup utilisateur) ─────────────────────────
+            '.ip-reply-area{margin:12px 0 0;border-top:1px solid rgba(255,255,255,.1);padding-top:12px}',
+            '.ip-reply-textarea{width:100%;box-sizing:border-box;min-height:70px;border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:8px 10px;background:rgba(0,0,0,.22);color:var(--theme-text-color,#e5e5e5);font-size:.88rem;resize:vertical;line-height:1.5;font-family:inherit}',
+            '.ip-reply-textarea:focus{border-color:var(--theme-accent-color,#00a4dc);outline:none}',
+            '.ip-reply-footer{display:flex;align-items:center;gap:10px;margin-top:6px}',
+            '.ip-reply-send{background:rgba(0,164,220,.15);border:1px solid rgba(0,164,220,.35);border-radius:4px;color:var(--theme-accent-color,#00a4dc);padding:6px 16px;font-size:.88rem;cursor:pointer;transition:background .15s}',
+            '.ip-reply-send:hover{background:rgba(0,164,220,.28)}',
+            '.ip-reply-send:disabled{opacity:.4;cursor:default}',
+            '.ip-reply-ok{font-size:.82rem;opacity:.65}',
+            // ── Onglet Réponses (page admin) ─────────────────────────────────
+            '.ip-replies-group{margin-bottom:22px;border:1px solid rgba(255,255,255,.08);border-radius:6px;overflow:hidden}',
+            '.ip-replies-group-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(255,255,255,.04);font-weight:600;font-size:.95rem}',
+            '.ip-reply-row{display:grid;grid-template-columns:1fr auto;padding:10px 16px;border-top:1px solid rgba(255,255,255,.06);gap:12px}',
+            '.ip-reply-row-meta{font-size:.78rem;opacity:.55;margin-bottom:3px}',
+            '.ip-reply-row-body{font-size:.9rem;word-break:break-word}',
+            '.ip-reply-del-btn{align-self:start;margin-top:2px;background:none;border:1px solid rgba(220,50,50,.4);border-radius:4px;color:#f66;padding:3px 10px;font-size:.8rem;cursor:pointer;white-space:nowrap;transition:background .15s}',
+            '.ip-reply-del-btn:hover{background:rgba(220,50,50,.18)}',
+            '.ip-replies-del-all{background:none;border:1px solid rgba(220,50,50,.4);border-radius:4px;color:#f66;padding:4px 12px;font-size:.82rem;cursor:pointer;transition:background .15s}',
+            '.ip-replies-del-all:hover{background:rgba(220,50,50,.18)}'
         ].join('\n');
         document.head.appendChild(s);
     }
