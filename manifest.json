@@ -10,11 +10,11 @@
     "versions": [
       {
         "version": "3.4.0.0",
-        "changelog": "Release v3.4.0.0",
+        "changelog": "Added\n- Entrée sidebar Jellyfin — le plugin apparaît directement dans la barre de navigation latérale (section \"server\", icône notifications). Plugin.cs expose EnableInMainMenu = true via IHasWebPages.\n- Onglet Paramètres — nouvel onglet dans la page admin pour configurer : activation popup, délai d'affichage, max messages simultanés, historique, réponses utilisateurs, longueur max réponse, délai anti-spam.\n- Système de réponses utilisateurs — les utilisateurs peuvent répondre aux messages popup (activable dans Paramètres). Les réponses sont stockées dans infopopup_replies.json et consultables dans un onglet \"Réponses\" de la page admin.\n- Paramètres dynamiques côté client — ip-popup.js charge GET /InfoPopup/client-settings au démarrage pour appliquer PopupDelayMs, MaxMessagesInPopup, HistoryEnabled, AllowReplies en temps réel.\n- Nouveaux endpoints REST — GET/POST /InfoPopup/settings, GET /InfoPopup/client-settings, POST /InfoPopup/messages/{id}/reply, GET /InfoPopup/replies, DELETE /InfoPopup/replies/{id}, POST /InfoPopup/messages/{id}/replies/delete.\n- i18n étendue — 25 nouvelles clés dans les 8 langues (onglets, paramètres, réponses).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.4.0.0/infopopup_3.4.0.0.zip",
-        "checksum": "7d666c68bd64ddae10f27e06bcf90222",
-        "timestamp": "2026-04-11T13:26:08Z"
+        "checksum": "f8f01351779b94925483e985e09e0041",
+        "timestamp": "2026-04-11T13:28:37Z"
       },
       {
         "version": "3.2.2.0",
