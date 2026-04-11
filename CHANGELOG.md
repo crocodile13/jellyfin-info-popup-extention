@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.2.2.0] — 2026-04-11
+
+### Fixed
+
+- **Changelog illisible dans Jellyfin** — `update_manifest.sh` injectait du markdown brut (`###`, `**`, backticks, séquences `\n` littérales) dans manifest.json. Jellyfin affichant ce champ en texte brut, le résultat était illisible. Le script convertit désormais automatiquement le contenu en texte propre avant injection.
+- **Extraction multi-version dans manifest.json** — l'expression awk de `update_manifest.sh` utilisait un range pattern qui démarrait et s'arrêtait sur la même ligne de version (car `## [X.Y.Z.0]` matche aussi `^## `), ce qui désactivait immédiatement le filtre et imprimait tout le reste du fichier. Logique alignée sur `extract_changelog.sh`.
+
+---
+
 ## [3.2.1.0] — 2026-04-11
 
 ### Fixed

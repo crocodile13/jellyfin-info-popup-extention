@@ -44,16 +44,34 @@ echo "  Checksum MD5 (GitHub) : $CHECKSUM"
 #
 # IMPORTANT : ne PAS écrire "awk ... | head -20" avec pipefail actif.
 # head -20 ferme le pipe avant qu'awk ait fini de lire → SIGPIPE → exit 141
-# → make: Error 141. On sépare les deux opérations pour éviter le pipe cassé.
+# → make: Error 141. On capture la sortie awk dans une variable, puis on
+# applique head sur la variable → pas de pipe cassé.
+#
+# Le markdown est converti en texte brut car Jellyfin affiche le champ
+# changelog sans rendu markdown (### et ** apparaissent littéralement).
+# Les sauts de ligne sont préservés comme de vrais \n JSON (pas de tr '\n').
 # ---------------------------------------------------------------------------
 CHANGELOG_ENTRY=""
 if [ -f "$CHANGELOG_FILE" ]; then
-    # awk s'arrête seul via "exit" dans l'action → pas de SIGPIPE
+    # awk avec la même logique que extract_changelog.sh :
+    #   - found=1 quand la ligne de version est trouvée (next = on ne l'imprime pas)
+    #   - exit quand une autre ligne ## est rencontrée (version suivante)
+    #   - found{print} imprime uniquement le contenu de la version courante
     CHANGELOG_RAW=$(awk \
-        "/^## \[${VERSION}\]|^## v${VERSION}/"',/^## /{if(found) exit; found=1; next} found{print}' \
-        "$CHANGELOG_FILE" || true)
-    # head appliqué sur la variable déjà capturée → plus de pipe cassé
-    CHANGELOG_ENTRY=$(printf '%s\n' "$CHANGELOG_RAW" | head -20 | tr '\n' '\\n' | sed 's/\\n$//')
+        "BEGIN{found=0}
+         /^## (\[?v?${VERSION//./\\.}\]?)/{ found=1; next }
+         /^## / && found { exit }
+         found { print }" \
+        "$CHANGELOG_FILE" | \
+        sed \
+            -e 's/^### //' \
+            -e 's/\*\*//g' \
+            -e 's/`//g' \
+            -e '/^---$/d' \
+            -e '/^[[:space:]]*$/d' \
+        || true)
+    # head appliqué sur la variable déjà capturée → pas de pipe cassé
+    CHANGELOG_ENTRY=$(printf '%s\n' "$CHANGELOG_RAW" | head -20)
 fi
 if [ -z "$CHANGELOG_ENTRY" ]; then
     CHANGELOG_ENTRY="Release v${VERSION}"
