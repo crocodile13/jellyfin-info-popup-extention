@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.6.2.0",
+        "changelog": "Fixed\n- Page Messages invisible pour les non-admins — MenuSection = \"server\" dans Plugin.cs limitait l'entrée de la barre latérale \"Messages\" aux administrateurs uniquement. Changé en \"plugin\" pour la rendre accessible à tous les utilisateurs authentifiés ayant accès au plugin.\n- Race condition checkUserPage — appel sans garde dans ip-popup.js pouvait lever TypeError si ip-user.js n'était pas encore chargé. Ajout d'un guard typeof ns.checkUserPage === 'function'.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.6.2.0/infopopup_3.6.2.0.zip",
+        "checksum": "c8d20f03a97269eced850a8439043899",
+        "timestamp": "2026-04-12T07:59:57Z"
+      },
+      {
         "version": "3.6.1.0",
         "changelog": "Fixed\n- Raccourcis Jellyfin bloqués à la frappe — les raccourcis globaux de Jellyfin-Web (ex : \"q\" → Quick Connect, \"f\" → plein écran) ne se déclenchent plus lors de la saisie dans les champs du plugin. stopPropagation appliqué sur keydown dans la page admin, la popup et la page utilisateur. Escape et Tab restent fonctionnels.",
         "targetAbi": "10.11.0.0",
