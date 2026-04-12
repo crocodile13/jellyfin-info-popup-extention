@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.6.1.0",
+        "changelog": "Fixed\n- Raccourcis Jellyfin bloqués à la frappe — les raccourcis globaux de Jellyfin-Web (ex : \"q\" → Quick Connect, \"f\" → plein écran) ne se déclenchent plus lors de la saisie dans les champs du plugin. stopPropagation appliqué sur keydown dans la page admin, la popup et la page utilisateur. Escape et Tab restent fonctionnels.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.6.1.0/infopopup_3.6.1.0.zip",
+        "checksum": "fbf83660ef5d0e8046e2f625f0f3eee3",
+        "timestamp": "2026-04-12T07:58:57Z"
+      },
+      {
         "version": "3.6.0.0",
         "changelog": "Added\n- Barre de progression countdown — la durée d'affichage de la popup (ms) déclenche une barre de progression élégante qui se vide avant fermeture automatique. 0 = infini (fermeture manuelle uniquement).\n- Icône plugin embarquée — GetThumbImage() implémenté dans Plugin.cs : l'icône est intégrée dans le DLL et visible dans le tableau de bord Jellyfin sans dépendance réseau.\nChanged\n- Sémantique de PopupDelayMs — ce paramètre contrôle désormais la durée d'affichage avant fermeture auto (0 = infini). Le délai avant apparition reste 800 ms fixe. Valeur par défaut : 0 (infini).\n- Label du paramètre — renommé \"Durée d'affichage avant fermeture automatique (ms, 0 = infini)\" dans les 8 langues.\nFixed\n- Validation client systématique — titre > 200 car., message > 10 000 car., réponse vide ou > 2 000 car. : erreurs claires avant tout envoi réseau. Paramètres settings : contrôle de plage avant POST.\n- Validation serveur renforcée — IsValidId() + AreValidUserIds() sur tous les endpoints avec paramètre de route ou liste d'IDs. [Required][MaxLength] sur SubmitReplyRequest.Body.",
         "targetAbi": "10.11.0.0",
