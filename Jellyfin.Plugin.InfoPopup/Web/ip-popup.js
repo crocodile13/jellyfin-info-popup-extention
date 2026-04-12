@@ -467,7 +467,7 @@
             new MutationObserver(function () {
                 schedulePopupCheck();
                 ns.checkConfigPage();
-                ns.checkUserPage();
+                if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
             }).observe(document.body, { childList: true, subtree: true });
 
             window.addEventListener('hashchange', schedulePopupCheck);
@@ -475,7 +475,7 @@
 
             schedulePopupCheck();
             ns.checkConfigPage();
-            ns.checkUserPage();
+            if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
         });
     }
 

@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.6.2.0] — 2026-04-11
+
+### Fixed
+- **Page Messages invisible pour les non-admins** — `MenuSection = "server"` dans `Plugin.cs` limitait l'entrée de la barre latérale "Messages" aux administrateurs uniquement. Changé en `"plugin"` pour la rendre accessible à tous les utilisateurs authentifiés ayant accès au plugin.
+- **Race condition `checkUserPage`** — appel sans garde dans `ip-popup.js` pouvait lever `TypeError` si `ip-user.js` n'était pas encore chargé. Ajout d'un guard `typeof ns.checkUserPage === 'function'`.
+
+---
+
 ## [3.6.1.0] — 2026-04-11
 
 ### Fixed
