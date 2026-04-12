@@ -6,11 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
-## [3.6.2.0] — 2026-04-11
+## [3.6.2.0] — 2026-04-12
+
+### Added
+- **Sidebar Messages pour tous les utilisateurs** — injection JavaScript d'une entrée "Messages" dans la barre latérale Jellyfin, visible par tous les utilisateurs authentifiés (pas seulement les admins).
+- **Messages repliables dans la boîte de réception** — les messages reçus sont repliés par défaut (titre + auteur + date + aperçu). Clic pour déplier le corps complet. Chargement paresseux du corps pour les messages historiques.
+- **Nom de l'auteur dans les messages** — le backend résout et renvoie `SentByUserName` dans les DTOs `MessageSummary` et `MessageDetail`.
+- **Toolbar de formatage dans le formulaire utilisateur** — boutons gras, italique, souligné, barré et liste à puces dans l'onglet Envoyer.
+- **Sélecteur de destinataires dans le formulaire utilisateur** — permet de cibler des utilisateurs spécifiques (si l'API `/Users` est accessible).
 
 ### Fixed
-- **Page Messages invisible pour les non-admins** — `MenuSection = "server"` dans `Plugin.cs` limitait l'entrée de la barre latérale "Messages" aux administrateurs uniquement. Changé en `"plugin"` pour la rendre accessible à tous les utilisateurs authentifiés ayant accès au plugin.
-- **Race condition `checkUserPage`** — appel sans garde dans `ip-popup.js` pouvait lever `TypeError` si `ip-user.js` n'était pas encore chargé. Ajout d'un guard `typeof ns.checkUserPage === 'function'`.
+- **Page Messages invisible pour les non-admins** — `EnableInMainMenu = false` + injection sidebar via JS remplace le mécanisme `MenuSection` de Jellyfin (admin-only).
+- **Race condition `checkUserPage`** — guard `typeof ns.checkUserPage === 'function'` dans `ip-popup.js`.
 
 ---
 

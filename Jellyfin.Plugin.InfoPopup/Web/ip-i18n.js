@@ -179,6 +179,7 @@
             user_sent_empty:        'Aucun message envoy\u00e9.',
             user_compose_title:     'Nouveau message',
             user_publish_btn:       'Envoyer le message',
+            user_msg_system:        'Syst\u00e8me',
 
             // ── Badges message ───────────────────────────────────────────────
             msg_deleted_label:      '(supprim\u00e9)',
@@ -363,6 +364,7 @@
             user_sent_empty:        'No messages sent.',
             user_compose_title:     'New message',
             user_publish_btn:       'Send message',
+            user_msg_system:        'System',
 
             // ── Message badges ───────────────────────────────────────────────
             msg_deleted_label:      '(deleted)',
@@ -547,6 +549,7 @@
             user_sent_empty:        'No hay mensajes enviados.',
             user_compose_title:     'Nuevo mensaje',
             user_publish_btn:       'Enviar mensaje',
+            user_msg_system:        'Sistema',
 
             // ── Insignias de mensaje ─────────────────────────────────────────
             msg_deleted_label:      '(eliminado)',
@@ -731,6 +734,7 @@
             user_sent_empty:        'Keine Nachrichten gesendet.',
             user_compose_title:     'Neue Nachricht',
             user_publish_btn:       'Nachricht senden',
+            user_msg_system:        'System',
 
             // ── Nachrichten-Badges ───────────────────────────────────────────
             msg_deleted_label:      '(gel\u00f6scht)',
@@ -915,6 +919,7 @@
             user_sent_empty:        'Nenhuma mensagem enviada.',
             user_compose_title:     'Nova mensagem',
             user_publish_btn:       'Enviar mensagem',
+            user_msg_system:        'Sistema',
 
             // ── Badges de mensagem ───────────────────────────────────────────
             msg_deleted_label:      '(exclu\u00eddo)',
@@ -1099,6 +1104,7 @@
             user_sent_empty:        'Nessun messaggio inviato.',
             user_compose_title:     'Nuovo messaggio',
             user_publish_btn:       'Invia messaggio',
+            user_msg_system:        'Sistema',
 
             // ── Badge messaggio ──────────────────────────────────────────────
             msg_deleted_label:      '(eliminato)',
@@ -1283,6 +1289,7 @@
             user_sent_empty:        '\u9001\u4fe1\u6e08\u307f\u30e1\u30c3\u30bb\u30fc\u30b8\u306f\u3042\u308a\u307e\u305b\u3093\u3002',
             user_compose_title:     '\u65b0\u898f\u30e1\u30c3\u30bb\u30fc\u30b8',
             user_publish_btn:       '\u30e1\u30c3\u30bb\u30fc\u30b8\u3092\u9001\u308b',
+            user_msg_system:        '\u30b7\u30b9\u30c6\u30e0',
 
             // ── メッセージバッジ ──────────────────────────────────────────────
             msg_deleted_label:      '(\u524a\u9664\u6e08\u307f)',
@@ -1467,6 +1474,7 @@
             user_sent_empty:        '\u6ca1\u6709\u5df2\u53d1\u9001\u7684\u6d88\u606f\u3002',
             user_compose_title:     '\u65b0\u6d88\u606f',
             user_publish_btn:       '\u53d1\u9001\u6d88\u606f',
+            user_msg_system:        '\u7cfb\u7edf',
 
             // ── 消息标签 ──────────────────────────────────────────────────────
             msg_deleted_label:      '(\u5df2\u5220\u9664)',

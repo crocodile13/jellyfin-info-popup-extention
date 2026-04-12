@@ -468,6 +468,7 @@
                 schedulePopupCheck();
                 ns.checkConfigPage();
                 if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
+                if (typeof ns.injectSidebarEntry === 'function') ns.injectSidebarEntry();
             }).observe(document.body, { childList: true, subtree: true });
 
             window.addEventListener('hashchange', schedulePopupCheck);
@@ -476,6 +477,7 @@
             schedulePopupCheck();
             ns.checkConfigPage();
             if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
+            if (typeof ns.injectSidebarEntry === 'function') ns.injectSidebarEntry();
         });
     }
 

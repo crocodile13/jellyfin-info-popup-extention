@@ -35,7 +35,8 @@
             <h3 id="ip-user-compose-title" class="sectionTitle">Nouveau message</h3>
 
             <div class="inputContainer">
-                <label id="ip-user-title-label" class="inputLabel inputLabelUnfocused" for="ip-user-title">Titre *</label>
+                <label id="ip-user-title-label" class="inputLabel" for="ip-user-title"
+                       style="display:block;margin-bottom:8px;">Titre *</label>
                 <input id="ip-user-title" type="text" class="emby-input" maxlength="200" autocomplete="off"/>
                 <div id="ip-user-title-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
             </div>
@@ -43,10 +44,28 @@
             <div class="inputContainer" style="margin-top:16px;">
                 <label id="ip-user-body-label" class="inputLabel" for="ip-user-body"
                        style="display:block;margin-bottom:8px;">Message *</label>
+
+                <!-- Toolbar de formatage -->
+                <div id="ip-user-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">
+                    <button type="button" class="ip-fmt-btn" data-action="bold" title="Gras (**bold**)"><strong>B</strong></button>
+                    <button type="button" class="ip-fmt-btn" data-action="italic" title="Italique (_italic_)"><em>I</em></button>
+                    <button type="button" class="ip-fmt-btn" data-action="underline" title="Souligné (__underline__)"><u>U</u></button>
+                    <button type="button" class="ip-fmt-btn" data-action="strike" title="Barré (~~strike~~)"><s>S</s></button>
+                    <button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list" title="Liste à puces">&#8226; Liste</button>
+                </div>
+
                 <textarea id="ip-user-body" class="emby-textarea" maxlength="10000" rows="7"
-                          placeholder="Saisir le contenu..."
+                          placeholder="Saisir le contenu... (**gras**, _italique_, ~~barré~~, __souligné__, - liste)"
                           style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
                 <div id="ip-user-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>
+            </div>
+
+            <!-- Destinataires -->
+            <div id="ip-user-target-section" class="inputContainer" style="margin-top:16px;display:none;">
+                <label id="ip-user-recipients-label" class="inputLabel" style="display:block;margin-bottom:8px;">Destinataires</label>
+                <div id="ip-user-target-picker" style="margin-top:8px;">
+                    <span style="opacity:.5;font-size:.88rem;">Chargement des utilisateurs...</span>
+                </div>
             </div>
 
             <div style="margin-top:20px;display:flex;align-items:center;gap:12px;">

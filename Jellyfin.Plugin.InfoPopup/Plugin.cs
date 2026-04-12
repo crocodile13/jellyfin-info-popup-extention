@@ -55,8 +55,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 Name = "InfoPopupUserPage",
                 EmbeddedResourcePath = $"{GetType().Namespace}.Web.usermessagespage.html",
                 DisplayName = "Messages",
-                EnableInMainMenu = true,
-                MenuSection = "plugin",
+                EnableInMainMenu = false,
+                MenuSection = "server",
                 MenuIcon = "message"
             }
         };
