@@ -165,7 +165,7 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 ### i18n — language detection
 `ip-i18n.js` detects the language from `document.documentElement.lang` (set by Jellyfin Web based on user settings), with `navigator.language` as fallback. Normalized via `normalizeLang()` to one of `'fr'`, `'es'`, `'de'`, `'pt'`, `'it'`, `'ja'`, `'zh'` — falls back to `'en'` for any unrecognized code. `window.__IP.t(key, ...args)` is the single translation entry point. `applyStaticTranslations(page)` in `ip-admin.js` updates all static elements of `configurationpage.html` at init time.
 
-**Supported languages (8 total):** English (`en`, default), French (`fr`), Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Chinese Simplified (`zh`). All 90 translation keys are present in every language dict (65 original + 25 added in v3.3.0.0).
+**Supported languages (8 total):** English (`en`, default), French (`fr`), Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Chinese Simplified (`zh`). All 91 translation keys are present in every language dict (65 original + 25 added in v3.3.0.0 + 1 in v3.6.2.0).
 
 **Jellyfin 10.11 React Router timing issue** — in 10.11, `document.documentElement.lang` is not set when the module first loads because the `localusersignedin` event fires before the subscriber is registered (confirmed by jellyfin-web PR #4306). Two complementary mechanisms handle this:
 1. **`MutationObserver`** on `document.documentElement`: whenever Jellyfin sets or changes the `lang` attribute (even with a delay), `_lang` and `_dict` are updated immediately.
@@ -173,8 +173,10 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 
 Both mechanisms are idempotent and stop once a reliable source (`html.lang`) is available. Dynamic elements (popup, toasts, table) always use the correct language because they call `t()` after the user is signed in. Static elements from `applyStaticTranslations(page)` are refreshed on each SPA navigation to the config page (`initConfigPage` re-runs).
 
-### Sidebar entry (v3.3+)
-`Plugin.cs` implements `IHasWebPages` and returns a `PluginPageInfo` with `EnableInMainMenu = true`, `MenuSection = "server"`, `MenuIcon = "notifications"`. Jellyfin reads `GET /System/Configuration/Pages` and automatically adds the entry to the sidebar. No JS injection needed for the sidebar itself.
+### Sidebar entries (v3.3+ / v3.6.2+)
+**Admin config page**: `Plugin.cs` implements `IHasWebPages` and returns a `PluginPageInfo` with `EnableInMainMenu = true`, `MenuSection = "server"`, `MenuIcon = "notifications"`. Jellyfin reads `GET /System/Configuration/Pages` and automatically adds the entry to the sidebar for admin users.
+
+**User messages page (v3.6.2+)**: `EnableInMainMenu = false` — Jellyfin's `IHasWebPages` sidebar mechanism is admin-only, so the user page entry is injected via JavaScript (`ip-user.js:injectSidebarEntry()`). The function uses MutationObserver (from `ip-popup.js`) to detect `.mainDrawer-scrollContainer` and inserts a `<a class="navMenuOption">` link navigating to `#!/configurationpage?name=InfoPopupUserPage`. Guard: `_sidebarInjected` flag prevents double injection. The HTML page is still served via `IHasWebPages` embedded resource.
 
 ### Client settings (v3.3+)
 `ip-popup.js` calls `GET /InfoPopup/client-settings` at startup (before starting the MutationObserver). This endpoint is `[AllowAnonymous]` and returns `PopupEnabled`, `PopupDelayMs`, `MaxMessagesInPopup`, `AllowReplies`, `HistoryEnabled`. These values replace hard-coded constants. Default values are used if the call fails.
@@ -435,4 +437,7 @@ The script applies these transformations before embedding in `manifest.json`:
 - **`_rateLimitMs` is no longer hardcoded in ip-admin.js**: `canPublish()` reads `_rateLimitMs` (updated from settings). Never re-introduce `var RATE_LIMIT_MS = 2000`.
 - **Tab system**: `initTabs(page)` and `initSettingsTab(page)` must be called at the top of `initConfigPage`, after `injectStyles()` and `applyStaticTranslations()`. Missing these calls means tabs don't function and settings aren't loaded.
 - **`ReplyStoreService` cache**: same pattern as `SeenTrackerService` — invalidate `_cache` only on write. Do not read the JSON file directly; always go through `ReadStore()`.
-- **i18n key count**: 90 keys total (65 original + 25 added in v3.3.0.0) must be present in all 8 language dicts. When adding a new language or key, verify full parity.
+- **i18n key count**: 91 keys total (65 original + 25 added in v3.3.0.0 + 1 in v3.6.2.0) must be present in all 8 language dicts. When adding a new language or key, verify full parity.
+- **Sidebar injection (`injectSidebarEntry`)**: no flag — idempotent via `container.querySelector('#ip-nav-messages')` check. If Jellyfin recreates the sidebar DOM (SPA transition), the entry is re-injected automatically by the MutationObserver. Looks for `.mainDrawer-scrollContainer` (Jellyfin sidebar container).
+- **User page collapsible cards**: `buildCollapsibleCard()` in `ip-user.js` creates cards with `.ip-collapsed` / `.ip-expanded` toggle classes. Body lazy-loading uses the same pattern as popup history items. The preview text is plain text (not rendered markdown) to avoid HTML in the collapsed view.
+- **`SentByUserName` in DTOs**: `ToSummary()` and `ToDetail()` in the controller are now instance methods (not static) because they call `ResolveUserName()` which uses `_userManager`. Method group syntax `.Select(ToSummary)` still works with instance methods.

@@ -186,12 +186,19 @@
             '.ip-msg-deleted{opacity:.45;text-decoration:line-through}',
             '.ip-msg-deleted-badge{display:inline-block;font-size:.72rem;color:#cf6679;border:1px solid rgba(207,102,121,.4);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:middle}',
             '.ip-msg-edited-badge{display:inline-block;font-size:.72rem;color:rgba(255,200,80,.8);border:1px solid rgba(255,200,80,.3);border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:middle}',
-            // ── User page ─────────────────────────────────────────────────────
-            '#infoPopupUserPage .ip-user-msg-card{border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:14px 16px;margin-bottom:10px;background:rgba(255,255,255,.03)}',
-            '#infoPopupUserPage .ip-user-msg-title{font-weight:600;margin-bottom:4px;font-size:1rem}',
-            '#infoPopupUserPage .ip-user-msg-meta{font-size:.78rem;opacity:.55;margin-bottom:8px}',
-            '#infoPopupUserPage .ip-user-msg-body{font-size:.9rem;line-height:1.5}',
-            '#infoPopupUserPage .ip-user-unseen-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--theme-accent-color,#00a4dc);margin-right:6px;vertical-align:middle}',
+            // ── User page — collapsible cards ─────────────────────────────────
+            '#infoPopupUserPage .ip-user-msg-card{border:1px solid rgba(255,255,255,.1);border-radius:6px;margin-bottom:10px;background:rgba(255,255,255,.03);overflow:hidden}',
+            '#infoPopupUserPage .ip-user-msg-header{padding:14px 16px;cursor:pointer;user-select:none;transition:background .12s}',
+            '#infoPopupUserPage .ip-user-msg-header:hover{background:rgba(255,255,255,.04)}',
+            '#infoPopupUserPage .ip-user-msg-title-row{display:flex;align-items:center;gap:6px}',
+            '#infoPopupUserPage .ip-user-msg-title-text{font-weight:600;font-size:1rem;flex:1;overflow-wrap:break-word;word-break:break-word}',
+            '#infoPopupUserPage .ip-user-msg-chev{font-size:.65rem;opacity:.45;transition:transform .2s;flex-shrink:0}',
+            '#infoPopupUserPage .ip-expanded .ip-user-msg-chev{transform:rotate(90deg)}',
+            '#infoPopupUserPage .ip-user-msg-meta{font-size:.78rem;opacity:.55;margin-top:4px}',
+            '#infoPopupUserPage .ip-user-msg-preview{font-size:.85rem;opacity:.5;margin-top:6px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '#infoPopupUserPage .ip-expanded .ip-user-msg-preview{display:none}',
+            '#infoPopupUserPage .ip-user-msg-body{padding:0 16px 14px;font-size:.9rem;line-height:1.55;overflow-wrap:break-word;word-break:break-word;border-top:1px solid rgba(255,255,255,.06)}',
+            '#infoPopupUserPage .ip-user-unseen-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--theme-accent-color,#00a4dc);flex-shrink:0}',
             // ── Reply already-sent state ──────────────────────────────────────
             '.ip-reply-done{font-size:.82rem;opacity:.6;font-style:italic;padding:6px 0}'
         ].join('\n');

@@ -71,6 +71,9 @@ public class MessageSummary
     /// <summary>ID Jellyfin de l'expéditeur du message.</summary>
     public string SentByUserId { get; set; } = string.Empty;
 
+    /// <summary>Nom d'affichage de l'expéditeur.</summary>
+    public string SentByUserName { get; set; } = string.Empty;
+
     /// <summary>True si le message a été soft-deleté.</summary>
     public bool IsDeleted { get; set; }
 
@@ -95,6 +98,9 @@ public class MessageDetail
 
     /// <summary>ID Jellyfin de l'expéditeur du message.</summary>
     public string SentByUserId { get; set; } = string.Empty;
+
+    /// <summary>Nom d'affichage de l'expéditeur.</summary>
+    public string SentByUserName { get; set; } = string.Empty;
 
     /// <summary>True si le message a été soft-deleté.</summary>
     public bool IsDeleted { get; set; }

@@ -77,24 +77,38 @@ public class InfoPopupController : ControllerBase
     private static bool AreValidUserIds(IEnumerable<string> ids) =>
         ids.All(uid => !string.IsNullOrWhiteSpace(uid) && Guid.TryParse(uid, out _));
 
-    private static MessageSummary ToSummary(PopupMessage m) => new()
+    /// <summary>Résout le nom d'utilisateur à partir de son ID Jellyfin.</summary>
+    private string ResolveUserName(string? userId)
+    {
+        if (string.IsNullOrEmpty(userId)) return string.Empty;
+        try
+        {
+            var user = _userManager.GetUserById(Guid.Parse(userId));
+            return user?.Username ?? string.Empty;
+        }
+        catch { return string.Empty; }
+    }
+
+    private MessageSummary ToSummary(PopupMessage m) => new()
     {
         Id = m.Id,
         Title = m.Title,
         PublishedAt = m.PublishedAt,
         TargetUserIds = m.TargetUserIds,
         SentByUserId = m.SentByUserId,
+        SentByUserName = ResolveUserName(m.SentByUserId),
         IsDeleted = m.IsDeleted,
         DeletedAt = m.DeletedAt
     };
 
-    private static MessageDetail ToDetail(PopupMessage m) => new()
+    private MessageDetail ToDetail(PopupMessage m) => new()
     {
         Id = m.Id,
         Title = m.Title,
         Body = m.Body,
         PublishedAt = m.PublishedAt,
         SentByUserId = m.SentByUserId,
+        SentByUserName = ResolveUserName(m.SentByUserId),
         IsDeleted = m.IsDeleted,
         EditHistoryCount = m.EditHistory.Count
     };
