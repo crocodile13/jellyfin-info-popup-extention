@@ -13,7 +13,8 @@
       "Read(//root/.dotnet/**)",
       "Bash(python3:*)",
       "Bash(node:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git add:*)"
     ]
   }
 }
