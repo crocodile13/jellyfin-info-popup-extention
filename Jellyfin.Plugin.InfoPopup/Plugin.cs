@@ -56,7 +56,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 EmbeddedResourcePath = $"{GetType().Namespace}.Web.usermessagespage.html",
                 DisplayName = "Messages",
                 EnableInMainMenu = true,
-                MenuSection = "server",
+                MenuSection = "plugin",
                 MenuIcon = "message"
             }
         };
