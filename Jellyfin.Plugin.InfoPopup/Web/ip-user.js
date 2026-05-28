@@ -53,53 +53,228 @@
     // Sidebar injection
     // ══════════════════════════════════════════════════════════════════════════
 
-    function injectSidebarEntry() {
-        if (!getToken()) return;
+    // ── Overlay page utilisateur ────────────────────────────────────────────
+    var _overlayOpen = false;
 
-        // Trouver le conteneur de la sidebar Jellyfin
-        var container = document.querySelector('.mainDrawer-scrollContainer');
-        if (!container) return;
+    function closeUserOverlay() {
+        var overlay = document.getElementById('ip-user-overlay');
+        if (overlay) overlay.remove();
+        _overlayOpen = false;
+    }
 
-        // Vérifier si déjà injecté dans ce conteneur
-        if (container.querySelector('#ip-nav-messages')) return;
-
+    function showUserPage() {
+        if (_overlayOpen) return;
+        _overlayOpen = true;
         ns.injectStyles();
 
+        // Fermer le drawer sidebar — classic layout
+        document.body.classList.remove('mainDrawerOpen', 'bodyWithPopupOpen');
+        var drawer = document.querySelector('.mainDrawer');
+        if (drawer) { drawer.classList.remove('mainDrawerOpen'); drawer.classList.add('hide'); }
+        // MUI layout : cliquer le backdrop ferme le drawer
+        var muiBackdrop = document.querySelector('.MuiDrawer-root .MuiBackdrop-root');
+        if (muiBackdrop) muiBackdrop.click();
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ip-user-overlay';
+        overlay.className = 'ip-user-overlay';
+
+        // ── Header ──────────────────────────────────────────────────────
+        var header = document.createElement('div');
+        header.className = 'ip-user-overlay-header';
+
+        var backBtn = document.createElement('button');
+        backBtn.className = 'ip-user-overlay-back';
+        backBtn.type = 'button';
+        backBtn.innerHTML = '<span class="material-icons" style="font-size:1rem;">arrow_back</span> ' + escHtml(t('user_page_back'));
+        backBtn.addEventListener('click', closeUserOverlay);
+        header.appendChild(backBtn);
+
+        var titleEl = document.createElement('span');
+        titleEl.className = 'ip-user-overlay-title';
+        titleEl.textContent = t('user_page_title');
+        header.appendChild(titleEl);
+
+        overlay.appendChild(header);
+
+        // ── Content ─────────────────────────────────────────────────────
+        var content = document.createElement('div');
+        content.className = 'ip-user-overlay-content';
+        content.id = 'infoPopupUserPage';
+
+        // Tabs
+        var tabBar = document.createElement('div');
+        tabBar.className = 'ip-tab-bar';
+        tabBar.id = 'ip-user-tabs';
+        tabBar.innerHTML =
+            '<button class="ip-tab-btn ip-tab-active" id="ip-user-tab-inbox" type="button">' +
+                '<span class="material-icons" style="font-size:1rem;vertical-align:middle;">inbox</span> ' +
+                '<span id="ip-user-tab-inbox-lbl">' + escHtml(t('user_tab_inbox')) + '</span>' +
+            '</button>' +
+            '<button class="ip-tab-btn" id="ip-user-tab-send" type="button" style="display:none;">' +
+                '<span class="material-icons" style="font-size:1rem;vertical-align:middle;">send</span> ' +
+                '<span id="ip-user-tab-send-lbl">' + escHtml(t('user_tab_send')) + '</span>' +
+            '</button>';
+        content.appendChild(tabBar);
+
+        // Panel Inbox
+        var panelInbox = document.createElement('div');
+        panelInbox.id = 'ip-user-panel-inbox';
+        panelInbox.innerHTML = '<div id="ip-user-inbox-list"><p style="opacity:.55;">' + escHtml(t('user_inbox_loading')) + '</p></div>';
+        content.appendChild(panelInbox);
+
+        // Panel Send (hidden by default)
+        var panelSend = document.createElement('div');
+        panelSend.id = 'ip-user-panel-send';
+        panelSend.style.display = 'none';
+
+        // Compose form
+        panelSend.innerHTML =
+            '<div class="detailSection">' +
+                '<h3 id="ip-user-compose-title" class="sectionTitle">' + escHtml(t('user_compose_title')) + '</h3>' +
+                '<div class="inputContainer">' +
+                    '<label id="ip-user-title-label" class="inputLabel" for="ip-user-title" style="display:block;margin-bottom:8px;">' + escHtml(t('cfg_title_label')) + '</label>' +
+                    '<input id="ip-user-title" type="text" class="emby-input" maxlength="200" autocomplete="off"/>' +
+                    '<div id="ip-user-title-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>' +
+                '</div>' +
+                '<div class="inputContainer" style="margin-top:16px;">' +
+                    '<label id="ip-user-body-label" class="inputLabel" for="ip-user-body" style="display:block;margin-bottom:8px;">' + escHtml(t('cfg_body_label')) + '</label>' +
+                    '<div id="ip-user-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">' +
+                        '<button type="button" class="ip-fmt-btn" data-action="bold"><strong>B</strong></button>' +
+                        '<button type="button" class="ip-fmt-btn" data-action="italic"><em>I</em></button>' +
+                        '<button type="button" class="ip-fmt-btn" data-action="underline"><u>U</u></button>' +
+                        '<button type="button" class="ip-fmt-btn" data-action="strike"><s>S</s></button>' +
+                        '<button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list">• Liste</button>' +
+                    '</div>' +
+                    '<textarea id="ip-user-body" class="emby-textarea" maxlength="10000" rows="7" style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>' +
+                    '<div id="ip-user-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>' +
+                '</div>' +
+                '<div id="ip-user-target-section" class="inputContainer" style="margin-top:16px;display:none;">' +
+                    '<label id="ip-user-recipients-label" class="inputLabel" style="display:block;margin-bottom:8px;">' + escHtml(t('cfg_recipients')) + '</label>' +
+                    '<div id="ip-user-target-picker" style="margin-top:8px;"><span style="opacity:.5;font-size:.88rem;">' + escHtml(t('cfg_loading_users')) + '</span></div>' +
+                '</div>' +
+                '<div style="margin-top:20px;display:flex;align-items:center;gap:12px;">' +
+                    '<button id="ip-user-publish-btn" class="raised button-submit emby-button" type="button">' + escHtml(t('user_publish_btn')) + '</button>' +
+                    '<div id="ip-user-toast" style="display:none;padding:8px 14px;border-radius:4px;font-size:.9rem;"></div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="detailSection" style="margin-top:32px;">' +
+                '<h3 id="ip-user-sent-title" class="sectionTitle">' + escHtml(t('user_sent_title')) + '</h3>' +
+                '<div id="ip-user-sent-list"><p style="opacity:.55;">' + escHtml(t('user_sent_empty')) + '</p></div>' +
+            '</div>';
+        content.appendChild(panelSend);
+
+        overlay.appendChild(content);
+        document.body.appendChild(overlay);
+
+        // ── Init ────────────────────────────────────────────────────────
+        initUserPage(content);
+
+        // Escape ferme l'overlay
+        var onKey = function (e) {
+            if (e.key === 'Escape') { closeUserOverlay(); document.removeEventListener('keydown', onKey); }
+        };
+        document.addEventListener('keydown', onKey);
+
+        // Fermer si on navigue ailleurs
+        var onNav = function () {
+            if (_overlayOpen) closeUserOverlay();
+            window.removeEventListener('hashchange', onNav);
+            window.removeEventListener('popstate', onNav);
+        };
+        window.addEventListener('hashchange', onNav);
+        window.addEventListener('popstate', onNav);
+    }
+
+    function createSidebarLink() {
         var link = document.createElement('a');
         link.id = 'ip-nav-messages';
-        link.className = 'navMenuOption';
-        link.href = '#!/configurationpage?name=InfoPopupUserPage';
-        link.style.cssText = 'display:flex;align-items:center;padding:8px 20px;cursor:pointer;' +
-            'color:inherit;text-decoration:none;transition:background .15s;';
-
+        link.href = '#';
+        link.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            showUserPage();
+        });
         var icon = document.createElement('span');
-        icon.className = 'material-icons navMenuOptionIcon';
+        icon.className = 'material-icons';
         icon.textContent = 'message';
-
         var label = document.createElement('span');
-        label.className = 'navMenuOptionText';
         label.textContent = t('user_page_title');
-
         link.appendChild(icon);
         link.appendChild(label);
+        return { link: link, icon: icon, label: label };
+    }
 
-        // Insérer avant les liens de déconnexion ou à la fin de la sidebar.
-        // Chercher un séparateur ou le dernier lien pour positionner l'entrée.
-        var logoutLink = container.querySelector('a[href*="logout"]') ||
-                         container.querySelector('a[href*="mypreferencesmenu"]') ||
-                         container.querySelector('.adminMenuOptions');
-        if (logoutLink) {
-            logoutLink.parentNode.insertBefore(link, logoutLink);
+    function injectIntoClassicSidebar() {
+        var container = document.querySelector('.mainDrawer-scrollContainer');
+        if (!container || container.closest('.hide')) return false;
+        if (container.querySelector('#ip-nav-messages')) return true;
+
+        var parts = createSidebarLink();
+        parts.link.className = 'navMenuOption';
+        parts.link.style.cssText = 'display:flex;align-items:center;padding:8px 20px;cursor:pointer;' +
+            'color:inherit;text-decoration:none;transition:background .15s;';
+        parts.icon.classList.add('navMenuOptionIcon');
+        parts.label.classList.add('navMenuOptionText');
+
+        var anchor = container.querySelector('a[href*="logout"]') ||
+                     container.querySelector('a[href*="mypreferencesmenu"]') ||
+                     container.querySelector('.adminMenuOptions');
+        if (anchor) {
+            anchor.parentNode.insertBefore(parts.link, anchor);
         } else {
-            container.appendChild(link);
+            container.appendChild(parts.link);
         }
 
-        link.addEventListener('mouseenter', function () {
-            link.style.background = 'rgba(255,255,255,.06)';
-        });
-        link.addEventListener('mouseleave', function () {
-            link.style.background = '';
-        });
+        parts.link.addEventListener('mouseenter', function () { parts.link.style.background = 'rgba(255,255,255,.06)'; });
+        parts.link.addEventListener('mouseleave', function () { parts.link.style.background = ''; });
+        return true;
+    }
+
+    function injectIntoMuiSidebar() {
+        // Jellyfin 10.11+ experimental layout uses MUI Drawer
+        var muiDrawer = document.querySelector('.MuiDrawer-paper') ||
+                        document.querySelector('[class*="ResponsiveDrawer"]');
+        if (!muiDrawer) return false;
+
+        var list = muiDrawer.querySelector('ul') || muiDrawer.querySelector('[role="list"]') ||
+                   muiDrawer.querySelector('.MuiList-root');
+        if (!list) return false;
+        if (list.querySelector('#ip-nav-messages')) return true;
+
+        var parts = createSidebarLink();
+        // Match MUI ListItemButton styling
+        parts.link.style.cssText = 'display:flex;align-items:center;gap:16px;padding:8px 16px 8px 24px;' +
+            'cursor:pointer;color:inherit;text-decoration:none;transition:background .15s;' +
+            'min-height:48px;font-size:.9rem;width:100%;box-sizing:border-box;';
+        parts.icon.style.cssText = 'font-size:1.5rem;opacity:.7;flex-shrink:0;min-width:40px;';
+
+        // Insert before last items (logout, etc)
+        var items = list.children;
+        var inserted = false;
+        for (var i = items.length - 1; i >= 0; i--) {
+            var href = items[i].querySelector('a[href*="logout"]') ||
+                       items[i].querySelector('a[href*="mypreferencesmenu"]');
+            if (href) {
+                list.insertBefore(parts.link, items[i]);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted) list.appendChild(parts.link);
+
+        parts.link.addEventListener('mouseenter', function () { parts.link.style.background = 'rgba(255,255,255,.06)'; });
+        parts.link.addEventListener('mouseleave', function () { parts.link.style.background = ''; });
+        return true;
+    }
+
+    function injectSidebarEntry() {
+        if (!getToken()) return;
+        ns.injectStyles();
+        // Try classic layout first (10.10, 10.11 stable), then MUI (10.11 experimental)
+        if (!injectIntoClassicSidebar()) {
+            injectIntoMuiSidebar();
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -615,8 +790,12 @@
     }
 
     // ── checkUserPage (appelé par MutationObserver dans ip-popup.js) ─────────
+    // Gère 2 cas : overlay JS (non-admin) et configurationpage (admin fallback)
     function checkUserPage() {
         if (!getToken()) return;
+        // Si l'overlay est ouvert, pas besoin de chercher dans le DOM
+        if (_overlayOpen) return;
+        // Fallback admin : configurationpage peut encore fonctionner pour les admins
         var page = document.querySelector('#infoPopupUserPage');
         if (!page) return;
         initUserPage(page);
@@ -625,5 +804,7 @@
     // ── Exposition ───────────────────────────────────────────────────────────
     ns.checkUserPage       = checkUserPage;
     ns.injectSidebarEntry  = injectSidebarEntry;
+    ns.showUserPage        = showUserPage;
+    ns.closeUserOverlay    = closeUserOverlay;
 
 }(window.__IP = window.__IP || {}));

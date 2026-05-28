@@ -830,6 +830,43 @@ public class InfoPopupController : ControllerBase
         return Ok(ToPermissionDto(perm));
     }
 
+    /// <summary>
+    /// Met à jour les droits de plusieurs utilisateurs en une seule opération.
+    /// Réservé aux administrateurs.
+    /// </summary>
+    [HttpPost("permissions/bulk")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult BulkUpdatePermissions([FromBody] BulkUpdatePermissionsRequest request)
+    {
+        if (!ModelState.IsValid || request.UserIds.Count == 0)
+            return BadRequest(new { error = "Liste d'IDs vide ou invalide." });
+
+        if (!AreValidUserIds(request.UserIds))
+            return BadRequest(new { error = "Un ou plusieurs UserIds ne sont pas des GUIDs valides." });
+
+        foreach (var userId in request.UserIds)
+        {
+            var perm = new UserPermission
+            {
+                UserId = userId,
+                CanSendMessages = request.CanSendMessages,
+                CanReply = request.CanReply,
+                CanEditOwnMessages = request.CanEditOwnMessages,
+                CanDeleteOwnMessages = request.CanDeleteOwnMessages,
+                CanEditOthersMessages = request.CanEditOthersMessages,
+                CanDeleteOthersMessages = request.CanDeleteOthersMessages,
+                MaxMessagesPerDay = request.MaxMessagesPerDay,
+                MaxRepliesPerDay = request.MaxRepliesPerDay
+            };
+            _permService.Upsert(perm);
+        }
+
+        _logger.LogInformation("InfoPopup: droits mis à jour en masse pour {Count} utilisateur(s)", request.UserIds.Count);
+        return Ok(new { updated = request.UserIds.Count });
+    }
+
     // ── JS modules ───────────────────────────────────────────────────────────────────
 
     private static readonly System.Collections.Generic.HashSet<string> _allowedModules =

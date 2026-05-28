@@ -311,3 +311,34 @@ public class SoftDeleteMessageRequest
 {
     // Pas de body nécessaire — l'ID est dans la route.
 }
+
+/// <summary>Requête de mise à jour groupée des droits de plusieurs utilisateurs.</summary>
+public class BulkUpdatePermissionsRequest
+{
+    /// <summary>IDs Jellyfin des utilisateurs à mettre à jour.</summary>
+    [Required] public List<string> UserIds { get; set; } = new();
+
+    /// <summary>Autoriser l'utilisateur à envoyer des messages popup.</summary>
+    public bool CanSendMessages { get; set; }
+
+    /// <summary>Autoriser l'utilisateur à répondre aux messages popup.</summary>
+    public bool CanReply { get; set; }
+
+    /// <summary>Autoriser l'utilisateur à modifier ses propres messages.</summary>
+    public bool CanEditOwnMessages { get; set; }
+
+    /// <summary>Autoriser l'utilisateur à supprimer (soft-delete) ses propres messages.</summary>
+    public bool CanDeleteOwnMessages { get; set; }
+
+    /// <summary>Autoriser l'utilisateur à modifier les messages des autres utilisateurs.</summary>
+    public bool CanEditOthersMessages { get; set; }
+
+    /// <summary>Autoriser l'utilisateur à supprimer (soft-delete) les messages des autres utilisateurs.</summary>
+    public bool CanDeleteOthersMessages { get; set; }
+
+    /// <summary>Nombre maximum de messages par jour. 0 = illimité.</summary>
+    [Range(0, 1000)] public int MaxMessagesPerDay { get; set; } = 5;
+
+    /// <summary>Nombre maximum de réponses par jour. 0 = illimité.</summary>
+    [Range(0, 1000)] public int MaxRepliesPerDay { get; set; } = 10;
+}

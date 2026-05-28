@@ -949,70 +949,178 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Onglet Droits (permissions)
+    // Onglet Droits (permissions) — système de rôles
     // ════════════════════════════════════════════════════════════════════════
 
-    function buildPermRow(page, u) {
-        var tr = document.createElement('tr');
-        var boolFields = [
-            { key: 'canSendMessages',       val: u.canSendMessages       || u.CanSendMessages       || false },
-            { key: 'canReply',              val: u.canReply              || u.CanReply              || false },
-            { key: 'canEditOwnMessages',    val: u.canEditOwnMessages    || u.CanEditOwnMessages    || false },
-            { key: 'canDeleteOwnMessages',  val: u.canDeleteOwnMessages  || u.CanDeleteOwnMessages  || false },
-            { key: 'canEditOthersMessages',   val: u.canEditOthersMessages   || u.CanEditOthersMessages   || false },
-            { key: 'canDeleteOthersMessages', val: u.canDeleteOthersMessages || u.CanDeleteOthersMessages || false }
+    var ROLES = {
+        reader:      { canSendMessages: false, canReply: false, canEditOwnMessages: false, canDeleteOwnMessages: false, canEditOthersMessages: false, canDeleteOthersMessages: false },
+        contributor: { canSendMessages: true,  canReply: true,  canEditOwnMessages: true,  canDeleteOwnMessages: true,  canEditOthersMessages: false, canDeleteOthersMessages: false },
+        moderator:   { canSendMessages: true,  canReply: true,  canEditOwnMessages: true,  canDeleteOwnMessages: true,  canEditOthersMessages: true,  canDeleteOthersMessages: true  }
+    };
+
+    function detectRole(u) {
+        var cs  = u.canSendMessages       || u.CanSendMessages       || false;
+        var cr  = u.canReply              || u.CanReply              || false;
+        var ceo = u.canEditOwnMessages    || u.CanEditOwnMessages    || false;
+        var cdo = u.canDeleteOwnMessages  || u.CanDeleteOwnMessages  || false;
+        var cet = u.canEditOthersMessages || u.CanEditOthersMessages || false;
+        var cdt = u.canDeleteOthersMessages || u.CanDeleteOthersMessages || false;
+        if (!cs && !cr && !ceo && !cdo && !cet && !cdt) return 'reader';
+        if (cs && cr && ceo && cdo && cet && cdt)       return 'moderator';
+        if (cs && cr && ceo && cdo && !cet && !cdt)     return 'contributor';
+        return 'custom';
+    }
+
+    function buildRoleOptions() {
+        return [
+            { value: 'reader',      label: t('perm_role_reader') },
+            { value: 'contributor', label: t('perm_role_contributor') },
+            { value: 'moderator',   label: t('perm_role_moderator') },
+            { value: 'custom',      label: t('perm_role_custom') }
         ];
+    }
+
+    function buildPermCard(page, u, allCards) {
         var userId   = u.userId   || u.UserId   || '';
-        var userName = u.userName || u.UserName || userId;
+        var userName = u.userName || u.UserName  || userId;
+        var role     = detectRole(u);
 
-        // col username
-        var tdName = document.createElement('td');
-        tdName.textContent = userName;
-        tr.appendChild(tdName);
+        var card = document.createElement('div');
+        card.className = 'ip-perm-card';
+        card.dataset.userId = userId;
 
-        // col checkboxes
-        var checkboxMap = {};
-        boolFields.forEach(function(f) {
-            var td  = document.createElement('td');
-            var chk = document.createElement('input');
-            chk.type    = 'checkbox';
-            chk.checked = f.val;
-            chk.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:var(--theme-accent-color,#00a4dc);';
-            checkboxMap[f.key] = chk;
-            td.appendChild(chk);
-            tr.appendChild(td);
+        // ── Header row ──────────────────────────────────────────────────
+        var header = document.createElement('div');
+        header.className = 'ip-perm-card-header';
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'ip-perm-card-name';
+        nameEl.textContent = userName;
+        header.appendChild(nameEl);
+
+        var roleWrap = document.createElement('span');
+        roleWrap.className = 'ip-perm-card-role';
+        var roleSel = document.createElement('select');
+        buildRoleOptions().forEach(function (o) {
+            var opt = document.createElement('option');
+            opt.value = o.value;
+            opt.textContent = o.label;
+            if (o.value === role) opt.selected = true;
+            roleSel.appendChild(opt);
         });
+        roleWrap.appendChild(roleSel);
+        header.appendChild(roleWrap);
 
-        // col maxMessagesPerDay
-        var tdMsgs  = document.createElement('td');
+        // Limits
+        var limitsWrap = document.createElement('span');
+        limitsWrap.className = 'ip-perm-card-limits';
         var inpMsgs = document.createElement('input');
-        inpMsgs.type  = 'number';
-        inpMsgs.min   = '0';
-        inpMsgs.max   = '1000';
+        inpMsgs.type = 'number'; inpMsgs.min = '0'; inpMsgs.max = '1000';
         inpMsgs.value = String(u.maxMessagesPerDay !== undefined ? u.maxMessagesPerDay : (u.MaxMessagesPerDay !== undefined ? u.MaxMessagesPerDay : 5));
-        tdMsgs.appendChild(inpMsgs);
-        tr.appendChild(tdMsgs);
-
-        // col maxRepliesPerDay
-        var tdRep  = document.createElement('td');
         var inpRep = document.createElement('input');
-        inpRep.type  = 'number';
-        inpRep.min   = '0';
-        inpRep.max   = '1000';
+        inpRep.type = 'number'; inpRep.min = '0'; inpRep.max = '1000';
         inpRep.value = String(u.maxRepliesPerDay !== undefined ? u.maxRepliesPerDay : (u.MaxRepliesPerDay !== undefined ? u.MaxRepliesPerDay : 10));
-        tdRep.appendChild(inpRep);
-        tr.appendChild(tdRep);
+        limitsWrap.appendChild(inpMsgs);
+        limitsWrap.appendChild(document.createTextNode(' ' + t('perm_col_max_msgs')));
+        limitsWrap.appendChild(document.createTextNode(' · '));
+        limitsWrap.appendChild(inpRep);
+        limitsWrap.appendChild(document.createTextNode(' ' + t('perm_col_max_replies')));
+        header.appendChild(limitsWrap);
 
-        // col actions
-        var tdAct      = document.createElement('td');
-        var saveBtn    = document.createElement('button');
-        saveBtn.type      = 'button';
+        // Actions: details toggle + save
+        var actWrap = document.createElement('span');
+        actWrap.className = 'ip-perm-card-actions';
+
+        var detailsBtn = document.createElement('button');
+        detailsBtn.type = 'button';
+        detailsBtn.className = 'ip-perm-toggle-details';
+        detailsBtn.textContent = t('perm_details_show');
+        actWrap.appendChild(detailsBtn);
+
+        var saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
         saveBtn.className = 'raised emby-button ip-perm-save-btn';
         saveBtn.textContent = t('perm_save_row');
+        actWrap.appendChild(saveBtn);
+
         var statusSpan = document.createElement('span');
         statusSpan.style.display = 'none';
+        actWrap.appendChild(statusSpan);
+        header.appendChild(actWrap);
 
-        saveBtn.addEventListener('click', function() {
+        card.appendChild(header);
+
+        // ── Details row (checkboxes, only visible for Custom) ────────────
+        var details = document.createElement('div');
+        details.className = 'ip-perm-details';
+        var boolFields = [
+            { key: 'canSendMessages',       label: t('perm_col_send'),           val: u.canSendMessages       || u.CanSendMessages       || false },
+            { key: 'canReply',              label: t('perm_col_reply'),          val: u.canReply              || u.CanReply              || false },
+            { key: 'canEditOwnMessages',    label: t('perm_col_edit_own'),       val: u.canEditOwnMessages    || u.CanEditOwnMessages    || false },
+            { key: 'canDeleteOwnMessages',  label: t('perm_col_delete_own'),     val: u.canDeleteOwnMessages  || u.CanDeleteOwnMessages  || false },
+            { key: 'canEditOthersMessages', label: t('perm_col_edit_others'),    val: u.canEditOthersMessages || u.CanEditOthersMessages || false },
+            { key: 'canDeleteOthersMessages', label: t('perm_col_delete_others'),val: u.canDeleteOthersMessages || u.CanDeleteOthersMessages || false }
+        ];
+        var checkboxMap = {};
+        boolFields.forEach(function (f) {
+            var lbl = document.createElement('label');
+            var chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.checked = f.val;
+            checkboxMap[f.key] = chk;
+            lbl.appendChild(chk);
+            lbl.appendChild(document.createTextNode(' ' + f.label));
+            details.appendChild(lbl);
+        });
+        card.appendChild(details);
+
+        // ── Sync role ↔ checkboxes ──────────────────────────────────────
+        function applyRole(r) {
+            var perms = ROLES[r];
+            if (!perms) return;
+            Object.keys(perms).forEach(function (k) {
+                if (checkboxMap[k]) checkboxMap[k].checked = perms[k];
+            });
+        }
+
+        function syncRoleFromCheckboxes() {
+            var cur = {};
+            Object.keys(checkboxMap).forEach(function (k) { cur[k] = checkboxMap[k].checked; });
+            var found = 'custom';
+            ['reader', 'contributor', 'moderator'].forEach(function (r) {
+                var match = true;
+                Object.keys(ROLES[r]).forEach(function (k) { if (ROLES[r][k] !== cur[k]) match = false; });
+                if (match) found = r;
+            });
+            roleSel.value = found;
+            if (found !== 'custom') details.classList.remove('open');
+        }
+
+        roleSel.addEventListener('change', function () {
+            var r = roleSel.value;
+            if (r === 'custom') {
+                details.classList.add('open');
+            } else {
+                details.classList.remove('open');
+                applyRole(r);
+            }
+        });
+
+        Object.keys(checkboxMap).forEach(function (k) {
+            checkboxMap[k].addEventListener('change', syncRoleFromCheckboxes);
+        });
+
+        detailsBtn.addEventListener('click', function () {
+            details.classList.toggle('open');
+            if (details.classList.contains('open') && roleSel.value !== 'custom') {
+                roleSel.value = 'custom';
+            }
+        });
+
+        if (role === 'custom') details.classList.add('open');
+
+        // ── Save ────────────────────────────────────────────────────────
+        saveBtn.addEventListener('click', function () {
             saveBtn.disabled = true;
             statusSpan.style.display = 'none';
             var payload = {
@@ -1028,23 +1136,21 @@
             apiFetch('/InfoPopup/permissions/' + encodeURIComponent(userId), {
                 method: 'PUT',
                 body: JSON.stringify(payload)
-            }).then(function() {
-                statusSpan.className    = 'ip-perm-save-ok';
-                statusSpan.textContent  = t('perm_saved_row');
+            }).then(function () {
+                statusSpan.className = 'ip-perm-save-ok';
+                statusSpan.textContent = t('perm_saved_row');
                 statusSpan.style.display = '';
-                setTimeout(function() { statusSpan.style.display = 'none'; saveBtn.disabled = false; }, 2500);
-            }).catch(function() {
-                statusSpan.className    = 'ip-perm-save-err';
-                statusSpan.textContent  = t('perm_save_err');
+                setTimeout(function () { statusSpan.style.display = 'none'; saveBtn.disabled = false; }, 2500);
+            }).catch(function () {
+                statusSpan.className = 'ip-perm-save-err';
+                statusSpan.textContent = t('perm_save_err');
                 statusSpan.style.display = '';
                 saveBtn.disabled = false;
             });
         });
 
-        tdAct.appendChild(saveBtn);
-        tdAct.appendChild(statusSpan);
-        tr.appendChild(tdAct);
-        return tr;
+        allCards.push({ card: card, roleSel: roleSel, checkboxMap: checkboxMap, inpMsgs: inpMsgs, inpRep: inpRep, userId: userId, details: details });
+        return card;
     }
 
     function loadPermissions(page) {
@@ -1052,43 +1158,99 @@
         if (!container) return;
         container.innerHTML = '<p style="opacity:.55;">' + escHtml(t('perm_loading')) + '</p>';
         apiFetch('/InfoPopup/permissions')
-            .then(function(res) { return res.json(); })
-            .then(function(users) {
+            .then(function (res) { return res.json(); })
+            .then(function (users) {
                 if (!users || !users.length) {
                     container.innerHTML = '<p style="opacity:.55;">' + escHtml(t('perm_no_users')) + '</p>';
                     return;
                 }
-                var cols = [
-                    'perm_col_user', 'perm_col_send', 'perm_col_reply',
-                    'perm_col_edit_own', 'perm_col_delete_own',
-                    'perm_col_edit_others', 'perm_col_delete_others',
-                    'perm_col_max_msgs', 'perm_col_max_replies', 'perm_col_actions'
-                ];
-                var table = document.createElement('table');
-                table.className = 'ip-perm-table';
-                var thead   = document.createElement('thead');
-                var headRow = document.createElement('tr');
-                cols.forEach(function(k) {
-                    var th = document.createElement('th');
-                    th.textContent = t(k);
-                    headRow.appendChild(th);
-                });
-                thead.appendChild(headRow);
-                table.appendChild(thead);
-                var tbody = document.createElement('tbody');
-                users.forEach(function(u) {
-                    tbody.appendChild(buildPermRow(page, u));
-                });
-                table.appendChild(tbody);
                 container.innerHTML = '';
-                container.appendChild(table);
+                var allCards = [];
+
+                // ── Bulk apply bar ──────────────────────────────────────
+                var bulk = document.createElement('div');
+                bulk.className = 'ip-perm-bulk';
+                var bulkLabel = document.createElement('span');
+                bulkLabel.textContent = t('perm_bulk_label');
+                bulkLabel.style.fontWeight = '500';
+                bulk.appendChild(bulkLabel);
+
+                var bulkSel = document.createElement('select');
+                buildRoleOptions().filter(function (o) { return o.value !== 'custom'; }).forEach(function (o) {
+                    var opt = document.createElement('option');
+                    opt.value = o.value;
+                    opt.textContent = o.label;
+                    bulkSel.appendChild(opt);
+                });
+                bulk.appendChild(bulkSel);
+
+                var bulkBtn = document.createElement('button');
+                bulkBtn.type = 'button';
+                bulkBtn.className = 'raised emby-button';
+                bulkBtn.textContent = t('perm_bulk_apply');
+                bulk.appendChild(bulkBtn);
+
+                var bulkStatus = document.createElement('span');
+                bulkStatus.className = 'ip-perm-bulk-status';
+                bulk.appendChild(bulkStatus);
+
+                bulkBtn.addEventListener('click', function () {
+                    var role = bulkSel.value;
+                    var perms = ROLES[role];
+                    if (!perms) return;
+                    bulkBtn.disabled = true;
+                    bulkStatus.textContent = '';
+                    var userIds = allCards.map(function (c) { return c.userId; });
+                    var payload = {
+                        userIds: userIds,
+                        canSendMessages:         perms.canSendMessages,
+                        canReply:                perms.canReply,
+                        canEditOwnMessages:      perms.canEditOwnMessages,
+                        canDeleteOwnMessages:    perms.canDeleteOwnMessages,
+                        canEditOthersMessages:   perms.canEditOthersMessages,
+                        canDeleteOthersMessages: perms.canDeleteOthersMessages,
+                        maxMessagesPerDay: 5,
+                        maxRepliesPerDay: 10
+                    };
+                    apiFetch('/InfoPopup/permissions/bulk', {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    }).then(function () {
+                        allCards.forEach(function (c) {
+                            c.roleSel.value = role;
+                            c.details.classList.remove('open');
+                            Object.keys(perms).forEach(function (k) {
+                                if (c.checkboxMap[k]) c.checkboxMap[k].checked = perms[k];
+                            });
+                            c.inpMsgs.value = '5';
+                            c.inpRep.value = '10';
+                        });
+                        bulkStatus.textContent = t('perm_bulk_applied', userIds.length);
+                        bulkStatus.style.color = '#4caf50';
+                        setTimeout(function () { bulkStatus.textContent = ''; }, 3000);
+                        bulkBtn.disabled = false;
+                    }).catch(function () {
+                        bulkStatus.textContent = t('perm_save_err');
+                        bulkStatus.style.color = '#cf6679';
+                        bulkBtn.disabled = false;
+                    });
+                });
+                container.appendChild(bulk);
+
+                // ── User cards ──────────────────────────────────────────
+                users.forEach(function (u) {
+                    container.appendChild(buildPermCard(page, u, allCards));
+                });
+
                 var hint = document.createElement('p');
                 hint.style.cssText = 'opacity:.5;font-size:.78rem;margin-top:8px;';
                 hint.textContent = t('perm_hint_0');
                 container.appendChild(hint);
             })
-            .catch(function() {
-                container.innerHTML = '<p style="color:#cf6679;">' + escHtml(t('perm_save_err')) + '</p>';
+            .catch(function (err) {
+                var msg = err && err.message ? err.message : String(err);
+                container.innerHTML = '<p style="color:#cf6679;">' + escHtml(t('perm_save_err')) + ' — ' + escHtml(msg) + '</p>';
+                console.error('InfoPopup: loadPermissions error:', err);
             });
     }
 

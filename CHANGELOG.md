@@ -6,6 +6,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.0.0] — 2026-05-28
+
+### Added
+- **Système de droits par rôles** — chaque utilisateur se configure via un menu déroulant (Lecteur, Contributeur, Modérateur, Personnalisé) au lieu de cocher six cases. Les cases détaillées restent accessibles via le bouton "Détails".
+- **Application groupée des droits** — barre "Appliquer à tous" pour assigner un rôle et des limites journalières à l'ensemble des utilisateurs en une seule action. Nouvel endpoint `POST /InfoPopup/permissions/bulk`.
+- **Page Messages en superposition** — la page utilisateur s'ouvre en overlay plein écran accessible à tous les utilisateurs, sans passer par la route admin `configurationpage`.
+- **i18n** — 9 nouvelles clés (rôles, application groupée, navigation overlay) dans les 8 langues.
+
+### Changed
+- **Refonte de l'onglet Droits** — affichage en cartes par utilisateur (nom, rôle, limites journalières) remplaçant la grille de cases à cocher difficile à manipuler.
+
+### Fixed
+- **Page Messages inaccessible aux non-admins (issue #1)** — l'ancien lien pointait vers une route réservée aux admins (`configurationpage`), provoquant une redirection vers l'accueil. Remplacé par un overlay JS accessible à tous.
+- **Compatibilité disposition expérimentale 10.11 (MUI)** — injection de l'entrée sidebar dans les deux dispositions : classique (`.mainDrawer-scrollContainer`) et expérimentale React/MUI (`.MuiDrawer-paper`).
+- **Onglet Droits affichait "Erreur"** — le message d'erreur réel est désormais affiché (cause détaillée + log console) au lieu d'un libellé générique.
+
+---
+
 ## [3.6.2.0] — 2026-04-12
 
 ### Added
