@@ -28,7 +28,9 @@ dist/_publish/
 dist/*.zip
 
 # ── Environnement local ───────────────────────────────────────────────────────
-.env.make          # contient GITHUB_USER — ne pas committer
+# .env.make contient GITHUB_USER — ne pas committer (commentaire sur sa propre
+# ligne : git ne supporte pas les commentaires en fin de ligne dans .gitignore)
+.env.make
 .env
 
 # ── OS ────────────────────────────────────────────────────────────────────────

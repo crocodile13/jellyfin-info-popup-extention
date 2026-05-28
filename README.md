@@ -5,9 +5,9 @@
 
 A Jellyfin plugin that allows administrators to broadcast popup messages to users when they log in, with per-user permissions, reply system, and a full user messaging page.
 
-> ⚠️ **Project status**
+> ℹ️ **Project status**
 >
-> This plugin currently has permission management bugs, likely caused by recent Jellyfin changes. As I'm going through a very busy period in my studies, I don't have the time to work on the necessary fixes right now. **Please consider this repository as unmaintained for the time being** — everything will be addressed in summer 2026.
+> As of **v3.7.0.0** the permission management has been overhauled (role-based UX + bulk apply), the bug where non-admins were redirected away from the Messages page (#1) is fixed, and the sidebar is compatible with the Jellyfin 10.11 experimental (React/MUI) layout. Maintenance remains best-effort due to limited time, but the plugin is functional on current Jellyfin versions.
 
 ## Table of Contents
 - [Preview](#-preview)
@@ -62,7 +62,8 @@ This extension was almost entirely vibe-coded by Claude. That's intentional: I s
 - **Edit or delete without re-display** -- Edited or deleted messages don't re-appear for users who already saw them.
 
 ### User Messages Page
-- **Sidebar entry for all users** -- A "Messages" entry is injected into the Jellyfin sidebar via JavaScript, visible to all authenticated users (not just admins).
+- **Sidebar entry for all users** -- A "Messages" entry is injected into the Jellyfin sidebar via JavaScript, visible to all authenticated users (not just admins). Works in both the classic and the experimental (React/MUI) sidebar layouts.
+- **Full-screen overlay page** -- The Messages page opens as a JavaScript overlay (Inbox / Send / Sent tabs) accessible to every user, instead of the admin-only `configurationpage` route. This fixes non-admin users being redirected to the home page (#1).
 - **Collapsible inbox** -- Received messages are collapsed by default showing title, author, date and a preview. Click to expand the full body.
 - **Compose with formatting** -- Users with `CanSendMessages` permission see a Send tab with a formatting toolbar (bold, italic, underline, strikethrough, list).
 - **Recipient picker** -- Target specific users or send to everyone.
@@ -82,7 +83,9 @@ This extension was almost entirely vibe-coded by Claude. That's intentional: I s
 - **Rate limiting** -- Configurable daily limits per user for messages and replies.
 
 ### Permissions & Settings
-- **Per-user permissions** -- Admin can configure per user: `CanSendMessages`, `CanReply`, `CanEditOwnMessages`, `CanDeleteOwnMessages`, `CanEditOthersMessages`, `CanDeleteOthersMessages`, `MaxMessagesPerDay`, `MaxRepliesPerDay`.
+- **Role-based permission UX** -- Instead of toggling six checkboxes per user, each user is assigned a role (Reader, Contributor, Moderator, Custom) via a dropdown. The detailed checkboxes remain available under a "Details" toggle for fine-grained control.
+- **Bulk apply** -- Assign a role and daily limits to every user at once via the "Apply to all" bar (`POST /InfoPopup/permissions/bulk`).
+- **Per-user permissions** -- Each role maps to the underlying flags: `CanSendMessages`, `CanReply`, `CanEditOwnMessages`, `CanDeleteOwnMessages`, `CanEditOthersMessages`, `CanDeleteOthersMessages`, plus `MaxMessagesPerDay` and `MaxRepliesPerDay` limits.
 - **Global settings** -- Popup enabled/disabled, auto-close duration, max messages in popup, allow replies, history enabled, rate limit, message retention (admin/user).
 - **Client settings endpoint** -- Non-sensitive settings exposed via `[AllowAnonymous]` endpoint for the popup JS.
 
@@ -224,6 +227,7 @@ REST API (/InfoPopup/*)               JS Client (injected into index.html)
 | GET    /permissions      [ADMIN]|   | Table: inline expand, edit, multi-delete   |
 | GET    /permissions/me    [user]|   +--------------------------------------------+
 | PUT    /permissions/{id} [ADMIN]|
+| POST   /permissions/bulk [ADMIN]|
 | GET    /{module}.js       [anon]|   User Page (sidebar, all users)
 +---------------------------------+   +--------------------------------------------+
                                       | Inbox: collapsible cards (title+author+    |

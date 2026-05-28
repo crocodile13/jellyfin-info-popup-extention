@@ -71,7 +71,9 @@ jellyfin-info-popup-extention/
         ├── ip-styles.js               ← CSS idempotent dans <head>
         ├── ip-admin.js                ← page de configuration admin
         ├── ip-popup.js                ← popup utilisateur + MutationObserver
-        └── configurationpage.html
+        ├── ip-user.js                 ← page Messages utilisateur (overlay plein écran, tous users)
+        ├── configurationpage.html
+        └── usermessagespage.html
 ```
 
 ---
@@ -160,12 +162,12 @@ Jellyfin-Web is a SPA. All client UI goes through the JS modules injected into `
 `ScriptInjectionMiddleware` intercepts `/`, `/web`, `/web/`, `/web/index.html` and injects `<script src="/InfoPopup/client.js"></script>` before `</body>`.
 
 ### Modular JS architecture (v0.6+)
-`client.js` is a lightweight loader (~50 lines) that sequentially injects `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` via dynamic `<script>` tags with `load` event chaining. All inter-module communication goes through the `window.__IP` namespace (IIFE pattern: `(function(ns){ ... }(window.__IP = window.__IP || {}))`).
+`client.js` is a lightweight loader (~50 lines) that sequentially injects `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js`, `ip-user.js` via dynamic `<script>` tags with `load` event chaining. All inter-module communication goes through the `window.__IP` namespace (IIFE pattern: `(function(ns){ ... }(window.__IP = window.__IP || {}))`).
 
 ### i18n — language detection
 `ip-i18n.js` detects the language from `document.documentElement.lang` (set by Jellyfin Web based on user settings), with `navigator.language` as fallback. Normalized via `normalizeLang()` to one of `'fr'`, `'es'`, `'de'`, `'pt'`, `'it'`, `'ja'`, `'zh'` — falls back to `'en'` for any unrecognized code. `window.__IP.t(key, ...args)` is the single translation entry point. `applyStaticTranslations(page)` in `ip-admin.js` updates all static elements of `configurationpage.html` at init time.
 
-**Supported languages (8 total):** English (`en`, default), French (`fr`), Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Chinese Simplified (`zh`). All 91 translation keys are present in every language dict (65 original + 25 added in v3.3.0.0 + 1 in v3.6.2.0).
+**Supported languages (8 total):** English (`en`, default), French (`fr`), Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Chinese Simplified (`zh`). Every translation key present in `en` must exist in all 8 dicts (≈146 keys as of v3.7.0.0, including the role/bulk-permission keys added that release). **Verify parity programmatically** — do not trust a hard-coded total, it has repeatedly drifted from the actual code.
 
 **Jellyfin 10.11 React Router timing issue** — in 10.11, `document.documentElement.lang` is not set when the module first loads because the `localusersignedin` event fires before the subscriber is registered (confirmed by jellyfin-web PR #4306). Two complementary mechanisms handle this:
 1. **`MutationObserver`** on `document.documentElement`: whenever Jellyfin sets or changes the `lang` attribute (even with a delay), `_lang` and `_dict` are updated immediately.
@@ -176,7 +178,11 @@ Both mechanisms are idempotent and stop once a reliable source (`html.lang`) is 
 ### Sidebar entries (v3.3+ / v3.6.2+)
 **Admin config page**: `Plugin.cs` implements `IHasWebPages` and returns a `PluginPageInfo` with `EnableInMainMenu = true`, `MenuSection = "server"`, `MenuIcon = "notifications"`. Jellyfin reads `GET /System/Configuration/Pages` and automatically adds the entry to the sidebar for admin users.
 
-**User messages page (v3.6.2+)**: `EnableInMainMenu = false` — Jellyfin's `IHasWebPages` sidebar mechanism is admin-only, so the user page entry is injected via JavaScript (`ip-user.js:injectSidebarEntry()`). The function uses MutationObserver (from `ip-popup.js`) to detect `.mainDrawer-scrollContainer` and inserts a `<a class="navMenuOption">` link navigating to `#!/configurationpage?name=InfoPopupUserPage`. Guard: `_sidebarInjected` flag prevents double injection. The HTML page is still served via `IHasWebPages` embedded resource.
+**User messages page (v3.6.2+, overhauled v3.7.0.0)**: `EnableInMainMenu = false` — Jellyfin's `IHasWebPages` sidebar mechanism is admin-only, so the user page entry is injected via JavaScript (`ip-user.js:injectSidebarEntry()`).
+
+The `configurationpage` route is nested under `ConnectionRequired level='admin'`, so it **cannot** serve a page to non-admins (a normal user clicking a link to it is redirected to the home page — this was issue #1). Therefore, since v3.7.0.0, the user page is **not** a real route: the sidebar link calls `ip-user.js:showUserPage()`, which builds a full-screen overlay (`.ip-user-overlay`, `z-index:9998`) directly in the DOM with the Inbox / Send / Sent tabs. `closeUserOverlay()` tears it down; it is also closed on `Escape`, `hashchange` and `popstate`. The `_overlayOpen` flag gates `checkUserPage()`. The overlay works for every authenticated user regardless of admin status.
+
+**Dual sidebar injection** — `injectSidebarEntry()` tries `injectIntoClassicSidebar()` (classic layout: `.mainDrawer-scrollContainer`, `navMenuOption` classes) first, then falls back to `injectIntoMuiSidebar()` (Jellyfin 10.11 experimental React/MUI layout: `.MuiDrawer-paper` / `[class*="ResponsiveDrawer"]`, MUI list item markup). Idempotent via a `#ip-nav-messages` existence check; re-injected automatically by the MutationObserver if Jellyfin rebuilds the sidebar on SPA navigation. The `usermessagespage.html` embedded resource is kept for the admin-side fallback only.
 
 ### Client settings (v3.3+)
 `ip-popup.js` calls `GET /InfoPopup/client-settings` at startup (before starting the MutationObserver). This endpoint is `[AllowAnonymous]` and returns `PopupEnabled`, `PopupDelayMs`, `MaxMessagesInPopup`, `AllowReplies`, `HistoryEnabled`. These values replace hard-coded constants. Default values are used if the call fails.
@@ -294,7 +300,11 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 | GET | `/InfoPopup/replies` | **admin** | All replies grouped by message (`List<MessageRepliesDto>`) |
 | DELETE | `/InfoPopup/replies/{replyId}` | **admin** | Delete one reply |
 | POST | `/InfoPopup/messages/{id}/replies/delete` | **admin** | Delete all replies for a message |
-| GET | `/InfoPopup/{module}.js` | anonymous | JS modules — whitelist: `client.js`, `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` |
+| GET | `/InfoPopup/permissions` | **admin** | All per-user permissions (`List<UserPermissionDto>`) |
+| GET | `/InfoPopup/permissions/me` | user | Current user's own permissions |
+| PUT | `/InfoPopup/permissions/{userId}` | **admin** | Update one user's permissions (role flags + daily limits) |
+| POST | `/InfoPopup/permissions/bulk` | **admin** | Apply the same permissions to many users at once (body: `BulkUpdatePermissionsRequest` with `UserIds[]`) |
+| GET | `/InfoPopup/{module}.js` | anonymous | JS modules — whitelist: `client.js`, `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js`, `ip-user.js` |
 
 ---
 
@@ -437,7 +447,7 @@ The script applies these transformations before embedding in `manifest.json`:
 - **`_rateLimitMs` is no longer hardcoded in ip-admin.js**: `canPublish()` reads `_rateLimitMs` (updated from settings). Never re-introduce `var RATE_LIMIT_MS = 2000`.
 - **Tab system**: `initTabs(page)` and `initSettingsTab(page)` must be called at the top of `initConfigPage`, after `injectStyles()` and `applyStaticTranslations()`. Missing these calls means tabs don't function and settings aren't loaded.
 - **`ReplyStoreService` cache**: same pattern as `SeenTrackerService` — invalidate `_cache` only on write. Do not read the JSON file directly; always go through `ReadStore()`.
-- **i18n key count**: 91 keys total (65 original + 25 added in v3.3.0.0 + 1 in v3.6.2.0) must be present in all 8 language dicts. When adding a new language or key, verify full parity.
-- **Sidebar injection (`injectSidebarEntry`)**: no flag — idempotent via `container.querySelector('#ip-nav-messages')` check. If Jellyfin recreates the sidebar DOM (SPA transition), the entry is re-injected automatically by the MutationObserver. Looks for `.mainDrawer-scrollContainer` (Jellyfin sidebar container).
+- **i18n key parity**: every key present in `en` must exist in all 8 language dicts (≈146 keys as of v3.7.0.0). Verify parity programmatically when adding a key or language — do not rely on a hard-coded total, it has repeatedly drifted from the actual code.
+- **Sidebar injection (`injectSidebarEntry`)**: no boolean flag — idempotent via `container.querySelector('#ip-nav-messages')` check. If Jellyfin recreates the sidebar DOM (SPA transition), the entry is re-injected automatically by the MutationObserver. Tries the classic layout first (`injectIntoClassicSidebar()` → `.mainDrawer-scrollContainer`, `navMenuOption`), then the 10.11 experimental layout (`injectIntoMuiSidebar()` → `.MuiDrawer-paper` / `[class*="ResponsiveDrawer"]`). The link calls `ip-user.js:showUserPage()` (full-screen overlay) — **never** point it at `#!/configurationpage?...`, that route is admin-only and redirects non-admins to the home page (issue #1).
 - **User page collapsible cards**: `buildCollapsibleCard()` in `ip-user.js` creates cards with `.ip-collapsed` / `.ip-expanded` toggle classes. Body lazy-loading uses the same pattern as popup history items. The preview text is plain text (not rendered markdown) to avoid HTML in the collapsed view.
 - **`SentByUserName` in DTOs**: `ToSummary()` and `ToDetail()` in the controller are now instance methods (not static) because they call `ResolveUserName()` which uses `_userManager`. Method group syntax `.Select(ToSummary)` still works with instance methods.
