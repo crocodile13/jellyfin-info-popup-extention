@@ -28,7 +28,8 @@
       "Bash(git --no-pager diff --stat)",
       "Bash(git --no-pager log --oneline -6)",
       "Bash(git --no-pager log --oneline -1 -- Jellyfin.Plugin.InfoPopup/Services/PermissionService.cs)",
-      "Bash(gh release *)"
+      "Bash(gh release *)",
+      "Bash(git --no-pager log --oneline -4)"
     ]
   }
 }

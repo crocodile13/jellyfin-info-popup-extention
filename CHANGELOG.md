@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.7.0] — 2026-05-29
+
+### Fixed
+- **Inbox de la page Messages ne marquait jamais les non-lus** — les messages consultés via la sidebar restaient « non vus » côté serveur et le popup les ré-affichait à chaque connexion. Le chargement de l'inbox émet désormais un `POST /seen` avec tous les unseen ids.
+- **Bouton « Messages » mal placé / clic mort dans la sidebar 10.11 MUI** — l'injection prenait la première `ul` du drawer (qui est la liste Média/Bibliothèques) et un handler React MUI parent consommait le clic avant le nôtre. L'injection cible désormais la liste utilisateur (autour de logout/preferences) et le clic est doublé d'une délégation `document` en capture phase, robuste aux re-renders React.
+
+---
+
 ## [3.7.6.0] — 2026-05-29
 
 ### Fixed

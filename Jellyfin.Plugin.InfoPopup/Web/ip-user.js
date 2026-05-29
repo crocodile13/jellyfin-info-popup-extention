@@ -200,6 +200,9 @@
         var link = document.createElement('a');
         link.id = 'ip-nav-messages';
         link.href = '#';
+        // L'écouteur direct est doublé d'une délégation document (voir bindSidebarClick) :
+        // dans la sidebar MUI Jellyfin 10.11, le clic peut être consommé par un handler React
+        // parent avant d'atteindre le nôtre, ou le DOM peut être recréé sans préserver l'écouteur.
         link.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -213,6 +216,22 @@
         link.appendChild(icon);
         link.appendChild(label);
         return { link: link, icon: icon, label: label };
+    }
+
+    // Délégation document : robuste si la sidebar est recréée par React/MUI sans préserver
+    // les listeners attachés aux <a>, ou si un handler parent consomme le clic.
+    // Posé une seule fois, en capture pour passer avant les handlers MUI parents.
+    var _sidebarClickBound = false;
+    function bindSidebarClick() {
+        if (_sidebarClickBound) return;
+        _sidebarClickBound = true;
+        document.addEventListener('click', function (e) {
+            var link = e.target && e.target.closest && e.target.closest('#ip-nav-messages');
+            if (!link) return;
+            e.preventDefault();
+            e.stopPropagation();
+            showUserPage();
+        }, true);
     }
 
     function injectIntoClassicSidebar() {
@@ -246,11 +265,35 @@
         var muiDrawer = document.querySelector('.MuiDrawer-paper') ||
                         document.querySelector('[class*="ResponsiveDrawer"]');
         if (!muiDrawer) return false;
+        if (muiDrawer.querySelector('#ip-nav-messages')) return true;
 
-        var list = muiDrawer.querySelector('ul') || muiDrawer.querySelector('[role="list"]') ||
-                   muiDrawer.querySelector('.MuiList-root');
+        // Cible la liste utilisateur (préférences/déconnexion), JAMAIS la première liste qui
+        // contient les bibliothèques médias — sinon le bouton « Messages » se retrouve dans
+        // la section Média. On remonte depuis le lien le plus représentatif de la zone user
+        // jusqu'à la liste qui le contient.
+        var userAnchor = muiDrawer.querySelector('a[href*="logout"]')
+                      || muiDrawer.querySelector('a[href*="quickconnect"]')
+                      || muiDrawer.querySelector('a[href*="mypreferencesmenu"]')
+                      || muiDrawer.querySelector('a[href*="preferences"]')
+                      || muiDrawer.querySelector('a[href*="settings"]');
+
+        var list = null;
+        if (userAnchor) {
+            var cursor = userAnchor;
+            while (cursor && cursor !== muiDrawer) {
+                if (cursor.matches && cursor.matches('ul, [role="list"], .MuiList-root')) {
+                    list = cursor;
+                    break;
+                }
+                cursor = cursor.parentElement;
+            }
+        }
+        if (!list) {
+            // Fallback : dernière liste du drawer (PAS la première qui est Média).
+            var lists = muiDrawer.querySelectorAll('ul, [role="list"], .MuiList-root');
+            if (lists.length) list = lists[lists.length - 1];
+        }
         if (!list) return false;
-        if (list.querySelector('#ip-nav-messages')) return true;
 
         var parts = createSidebarLink();
         // Match MUI ListItemButton styling
@@ -259,16 +302,14 @@
             'min-height:48px;font-size:.9rem;width:100%;box-sizing:border-box;';
         parts.icon.style.cssText = 'font-size:1.5rem;opacity:.7;flex-shrink:0;min-width:40px;';
 
-        // Insert before last items (logout, etc)
-        var items = list.children;
+        // Insertion préférentielle juste avant l'item qui contient l'anchor user trouvé plus haut.
         var inserted = false;
-        for (var i = items.length - 1; i >= 0; i--) {
-            var href = items[i].querySelector('a[href*="logout"]') ||
-                       items[i].querySelector('a[href*="mypreferencesmenu"]');
-            if (href) {
-                list.insertBefore(parts.link, items[i]);
+        if (userAnchor) {
+            var item = userAnchor;
+            while (item && item.parentElement !== list) item = item.parentElement;
+            if (item && item.parentElement === list) {
+                list.insertBefore(parts.link, item);
                 inserted = true;
-                break;
             }
         }
         if (!inserted) list.appendChild(parts.link);
@@ -281,6 +322,7 @@
     function injectSidebarEntry() {
         if (!getToken()) return;
         ns.injectStyles();
+        bindSidebarClick();
         // Try classic layout first (10.10, 10.11 stable), then MUI (10.11 experimental)
         if (!injectIntoClassicSidebar()) {
             injectIntoMuiSidebar();
@@ -339,6 +381,19 @@
                 history.forEach(function (msg) {
                     list.appendChild(buildCollapsibleCard(msg, false));
                 });
+
+                // Marquer les unseen comme vus côté serveur — sinon le popup les
+                // re-afficherait à la prochaine connexion, alors que l'utilisateur
+                // vient justement de les consulter via la page « Messages ».
+                // Les pastilles « non lu » restent visibles dans la vue actuelle
+                // pour information, mais l'état est persisté.
+                var unseenIds = unseen.map(function (m) { return m.id || m.Id || ''; }).filter(Boolean);
+                if (unseenIds.length) {
+                    apiFetch('/InfoPopup/seen', {
+                        method: 'POST',
+                        body: JSON.stringify({ ids: unseenIds })
+                    }).catch(function () { /* silencieux : l'UX n'en dépend pas */ });
+                }
             })
             .catch(function () {
                 list.innerHTML = '<p style="opacity:.55;">' + escHtml(t('user_inbox_empty')) + '</p>';
@@ -746,13 +801,14 @@
     // ══════════════════════════════════════════════════════════════════════════
 
     function applyUserPageTranslations(page) {
+        // Note : `#ip-user-page-title` et `#ip-user-publish-lbl` ne sont pas dans le DOM
+        // de l'overlay (le titre et le bouton publish sont rendus directement avec t() lors
+        // de la construction). Ne pas réintroduire ces clés ici sans ajouter d'élément correspondant.
         var map = {
-            '#ip-user-page-title':    'user_page_title',
             '#ip-user-tab-inbox-lbl': 'user_tab_inbox',
             '#ip-user-tab-send-lbl':  'user_tab_send',
             '#ip-user-compose-title': 'user_compose_title',
             '#ip-user-sent-title':    'user_sent_title',
-            '#ip-user-publish-lbl':   'user_publish_btn',
             '#ip-user-recipients-label': 'cfg_recipients'
         };
         Object.keys(map).forEach(function (sel) {
