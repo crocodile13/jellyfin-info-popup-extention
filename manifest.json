@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.5.0",
+        "changelog": "Fixed\n- Page « Messages » cassait la barre latérale — l'ouverture de la page masquait le menu latéral (hide) sans jamais le restaurer à la fermeture. La barre latérale est désormais rétablie correctement.\n- Rôle « Personnalisé » non enregistré — même cause que les droits sans effet (format d'ID) ; désormais persisté correctement via l'enregistrement global.\nChanged\n- Onglet Droits : enregistrement global — un seul bouton « Enregistrer les droits » remplace les boutons individuels par utilisateur.\n- Onglet Droits : sélection multiple — cases à cocher par utilisateur + tout sélectionner / désélectionner / inverser, et application groupée d'un rôle et des limites à la sélection.\n- Liste déroulante personnalisée — les <select> de la page de configuration utilisent une liste entièrement thémée (la liste ouverte aussi, contrairement aux <option> natifs).\n- Bouton retour de la page Messages — réutilise le composant natif Jellyfin (paper-icon-button-light) au lieu d'un bouton custom.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.5.0/infopopup_3.7.5.0.zip",
+        "checksum": "13901bdd0b823a032be49625d769cbe6",
+        "timestamp": "2026-05-29T16:20:19Z"
+      },
+      {
         "version": "3.7.4.0",
         "changelog": "Fixed\n- Droits accordés sans effet — les droits étaient enregistrés avec l'ID utilisateur au format « D » (avec tirets, via User.Id.ToString()) mais relus au format « N » (sans tirets, via le claim Jellyfin-UserId). L'utilisateur ne retrouvait jamais ses droits : ni envoi de message, ni réponse, malgré une attribution visible côté admin. Tous les ID utilisateurs sont désormais normalisés en GUID canonique avant stockage et comparaison.\nChanged\n- Menus déroulants restylés — tous les <select> de la page de configuration adoptent un style sombre cohérent (flèche personnalisée, survol, focus) au lieu du rendu natif du navigateur.",
         "targetAbi": "10.11.0.0",
