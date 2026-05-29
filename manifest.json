@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.1.0",
+        "changelog": "Fixed\n- Onglet « Droits » en erreur (HTTP 500) — GET /InfoPopup/permissions levait un MissingMethodException sur IUserManager.Users, dont la signature a changé pendant le cycle Jellyfin 10.11 (entité User déplacée dans Jellyfin.Database.Implementations.Entities). L'énumération des utilisateurs passe désormais par la réflexion, liée au runtime et robuste aux variations d'ABI entre versions 10.11.x.\nChanged\n- Icône allégée — assets/icon.png réduite de 1024×1024 (1,4 Mo) à 256×256 (~20 Ko), réduisant d'autant la taille du DLL et du ZIP de release.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.1.0/infopopup_3.7.1.0.zip",
+        "checksum": "ee59c9f1eee8d855c44aa2475d8e985b",
+        "timestamp": "2026-05-29T10:17:19Z"
+      },
+      {
         "version": "3.7.0.0",
         "changelog": "Added\n- Système de droits par rôles — chaque utilisateur se configure via un menu déroulant (Lecteur, Contributeur, Modérateur, Personnalisé) au lieu de cocher six cases. Les cases détaillées restent accessibles via le bouton \"Détails\".\n- Application groupée des droits — barre \"Appliquer à tous\" pour assigner un rôle et des limites journalières à l'ensemble des utilisateurs en une seule action. Nouvel endpoint POST /InfoPopup/permissions/bulk.\n- Page Messages en superposition — la page utilisateur s'ouvre en overlay plein écran accessible à tous les utilisateurs, sans passer par la route admin configurationpage.\n- i18n — 9 nouvelles clés (rôles, application groupée, navigation overlay) dans les 8 langues.\nChanged\n- Refonte de l'onglet Droits — affichage en cartes par utilisateur (nom, rôle, limites journalières) remplaçant la grille de cases à cocher difficile à manipuler.\nFixed\n- Page Messages inaccessible aux non-admins (issue #1) — l'ancien lien pointait vers une route réservée aux admins (configurationpage), provoquant une redirection vers l'accueil. Remplacé par un overlay JS accessible à tous.\n- Compatibilité disposition expérimentale 10.11 (MUI) — injection de l'entrée sidebar dans les deux dispositions : classique (.mainDrawer-scrollContainer) et expérimentale React/MUI (.MuiDrawer-paper).\n- Onglet Droits affichait \"Erreur\" — le message d'erreur réel est désormais affiché (cause détaillée + log console) au lieu d'un libellé générique.",
         "targetAbi": "10.11.0.0",
