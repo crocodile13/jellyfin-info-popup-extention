@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.3.0",
+        "changelog": "Fixed\n- Onglet « Droits » vide (« Aucun utilisateur ») — sur Jellyfin 10.11.9+, la propriété IUserManager.Users a été remplacée par la méthode GetUsers(). Le helper de réflexion ne testait que la propriété et renvoyait une liste vide (sans erreur). Il tente désormais aussi GetUsers().\n- « Paramètres invalides » à l'enregistrement — la durée d'affichage avant fermeture automatique était plafonnée à 30 000 ms, ce qui rejetait des valeurs légitimes (ex. 60 000). Plafond relevé à 600 000 ms (10 min) côté client, serveur et formulaire.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.3.0/infopopup_3.7.3.0.zip",
+        "checksum": "1a32f31db2cb1384e0c9a337eddc3535",
+        "timestamp": "2026-05-29T15:16:47Z"
+      },
+      {
         "version": "3.7.2.0",
         "changelog": "Fixed\n- Plugin introuvable dans le catalogue Jellyfin (collision de GUID) — le GUID par défaut du template (a1b2c3d4-e5f6-7890-abcd-ef1234567890) était partagé avec d'autres plugins publics (ex. « QualityGate »). Jellyfin fusionnant les plugins par GUID à travers tous les dépôts, Info Popup se retrouvait masqué sous l'autre plugin. Nouveau GUID unique : ceeb3040-9fe5-451f-ac05-8587ea3c3718.\nChanged\n- GUID du plugin modifié — conséquence : Info Popup est vu comme un nouveau plugin. Si une ancienne version est installée, la désinstaller puis réinstaller depuis le catalogue.",
         "targetAbi": "10.11.0.0",
