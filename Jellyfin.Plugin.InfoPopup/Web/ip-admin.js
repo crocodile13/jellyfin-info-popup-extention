@@ -959,6 +959,13 @@
     };
 
     function detectRole(u) {
+        // Si l'admin a choisi explicitement un rôle (persisté en v3.7.6.0), on l'honore —
+        // y compris « custom » même si la combinaison de bools correspond fortuitement à un preset.
+        var explicitRole = u.role || u.Role || '';
+        if (explicitRole === 'reader' || explicitRole === 'contributor'
+                || explicitRole === 'moderator' || explicitRole === 'custom') {
+            return explicitRole;
+        }
         var cs  = u.canSendMessages       || u.CanSendMessages       || false;
         var cr  = u.canReply              || u.CanReply              || false;
         var ceo = u.canEditOwnMessages    || u.CanEditOwnMessages    || false;
@@ -1402,7 +1409,8 @@
                             canEditOthersMessages:   c.checkboxMap.canEditOthersMessages.checked,
                             canDeleteOthersMessages: c.checkboxMap.canDeleteOthersMessages.checked,
                             maxMessagesPerDay: parseInt(c.inpMsgs.value, 10) || 0,
-                            maxRepliesPerDay:  parseInt(c.inpRep.value, 10)  || 0
+                            maxRepliesPerDay:  parseInt(c.inpRep.value, 10)  || 0,
+                            role: c.roleSel.value || ''
                         };
                         return apiFetch('/InfoPopup/permissions/' + encodeURIComponent(c.userId), {
                             method: 'PUT',

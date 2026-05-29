@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.6.0] — 2026-05-29
+
+### Fixed
+- **Messages envoyés sans contenu (page Messages utilisateur)** — l'endpoint `/messages/sent` renvoyait des summaries sans corps, et le fallback `/messages/{id}` rejetait l'auteur quand il n'était pas lui-même dans `TargetUserIds` (404). Désormais l'auteur peut toujours lire son propre message, et `/messages/sent` renvoie le corps directement.
+- **Rôle « Personnalisé » qui redevient un preset après enregistrement** — `detectRole` reclassait les bools en preset à chaque rechargement, perdant le choix explicite de l'admin. Le rôle est désormais persisté côté serveur (nouveau champ `Role` dans `UserPermission`) et honoré tel quel.
+- **Liste déroulante des cartes Droits coupée/superposée** — `.ip-perm-card{overflow:hidden}` clippait la liste ouverte ; remplacé par `overflow:visible` avec promotion `z-index` de la carte active.
+
+### Added
+- **Émetteur affiché dans la popup** — ligne « De : ... » au-dessus du corps de chaque message (single ou multi), nouvelle clé i18n `popup_from` dans les 8 langues.
+- **Cache-bust des modules JS (`?v=X.Y.Z.W`)** — l'URL injectée et chaque module chargé par `client.js` portent désormais la version du plugin. Plus besoin de purger nginx/Cloudflare/service worker à chaque release : l'URL change → tous les caches refetchent automatiquement.
+
+---
+
 ## [3.7.5.0] — 2026-05-29
 
 ### Fixed

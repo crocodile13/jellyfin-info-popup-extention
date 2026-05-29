@@ -31,6 +31,14 @@ public class UserPermission
 
     /// <summary>Nombre maximum de réponses par jour. 0 = illimité.</summary>
     public int MaxRepliesPerDay { get; set; } = 10;
+
+    /// <summary>
+    /// Rôle explicitement choisi par l'admin ("reader", "contributor", "moderator", "custom" ou "").
+    /// Persisté pour conserver le choix « Personnalisé » même si la combinaison de droits
+    /// correspond fortuitement à un preset (sinon `detectRole` côté client reclasserait).
+    /// Vide = pas de choix explicite, le client dérive le rôle des bools.
+    /// </summary>
+    public string Role { get; set; } = string.Empty;
 }
 
 /// <summary>Root du fichier infopopup_permissions.json.</summary>

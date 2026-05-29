@@ -13,7 +13,14 @@ namespace Jellyfin.Plugin.InfoPopup.Middleware;
 /// </summary>
 public sealed class ScriptInjectionMiddleware
 {
-    private const string ScriptTag = "<script src=\"/InfoPopup/client.js\"></script>";
+    // Version du plugin embarquée dans l'URL : `?v=X.Y.Z.W`. Indispensable car les reverse
+    // proxys (nginx etc.) cachent agressivement les .js et un Ctrl+Shift+R ne purge pas leur
+    // cache. À chaque release l'URL change → tous les caches (navigateur, SW, proxy) refetchent
+    // automatiquement. Le loader client.js propage ce `?v=…` aux modules qu'il charge.
+    private static readonly string _versionQuery =
+        "?v=" + (Plugin.Instance?.Version?.ToString() ?? "0");
+    private static readonly string ScriptTag =
+        $"<script src=\"/InfoPopup/client.js{_versionQuery}\"></script>";
     private readonly RequestDelegate _next;
 
     /// <summary>Constructeur.</summary>

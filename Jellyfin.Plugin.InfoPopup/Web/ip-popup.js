@@ -290,7 +290,19 @@
             '" title="' + escHtml(t('popup_close_aria')) + '">\u2715</button>';
         dialog.appendChild(header);
 
+        // Construit la ligne « De : ... » (ou null si pas d'auteur connu).
+        function buildSenderLine(msg) {
+            var sender = msg.sentByUserName || msg.SentByUserName || '';
+            if (!sender) return null;
+            var line = document.createElement('div');
+            line.className = 'ip-msg-sender';
+            line.textContent = t('popup_from') + ' ' + sender;
+            return line;
+        }
+
         if (isSingle) {
+            var senderLine = buildSenderLine(unseenMessages[0]);
+            if (senderLine) dialog.appendChild(senderLine);
             var body = document.createElement('div');
             body.id  = 'infopopup-body';
             body.innerHTML = renderBody(unseenMessages[0].body || unseenMessages[0].Body || '');
@@ -308,10 +320,12 @@
                 var cardTitle = document.createElement('div');
                 cardTitle.className   = 'ip-msg-card-title';
                 cardTitle.textContent = msg.title || msg.Title || '';
+                card.appendChild(cardTitle);
+                var senderLineMulti = buildSenderLine(msg);
+                if (senderLineMulti) card.appendChild(senderLineMulti);
                 var cardBody = document.createElement('div');
                 cardBody.className = 'ip-msg-card-body';
                 cardBody.innerHTML = renderBody(msg.body || msg.Body || '');
-                card.appendChild(cardTitle);
                 card.appendChild(cardBody);
                 if (canReply) {
                     card.appendChild(buildReplyArea(msgId));

@@ -69,6 +69,9 @@
             // ── Multi-messages cards ────────────────────────────────────────
             '#infopopup-msgs{padding:12px 20px;display:flex;flex-direction:column;gap:12px}',
             '.ip-msg-card{border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden}',
+            '.ip-msg-sender{padding:6px 20px 0;font-size:.82rem;opacity:.65;font-style:italic}',
+            '#infopopup-dialog>.ip-msg-sender{padding:6px 20px 0}',
+            '.ip-msg-card .ip-msg-sender{padding:8px 14px 0}',
             '.ip-msg-card-title{font-weight:600;font-size:.97rem;padding:11px 14px 10px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.08);overflow-wrap:break-word;word-break:break-word}',
             '.ip-msg-card-body{padding:11px 14px 13px;overflow-wrap:break-word;word-break:break-word;line-height:1.6;opacity:.92;font-size:.93rem}',
             // ── Tableau admin — colonnes déroulantes ────────────────────────
@@ -210,7 +213,14 @@
             '.ip-perm-savebar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.1)}',
             '.ip-perm-savebar p{flex-basis:100%;margin:4px 0 0;opacity:.5;font-size:.78rem}',
             '.ip-perm-save-status{font-size:.85rem}',
-            '.ip-perm-card{border:1px solid rgba(255,255,255,.1);border-radius:6px;margin-bottom:8px;overflow:hidden;transition:border-color .15s}',
+            // overflow:visible : indispensable pour ne PAS clipper la liste déroulante
+            // (enhanceSelect) qui s'étend au-delà de la carte quand on l'ouvre. Le coin
+            // arrondi du panneau « détails » est restauré explicitement plus bas.
+            '.ip-perm-card{position:relative;border:1px solid rgba(255,255,255,.1);border-radius:6px;margin-bottom:8px;overflow:visible;transition:border-color .15s}',
+            // La carte qui a un dropdown ouvert passe au-dessus des suivantes
+            // (évite que la liste soit recouverte par la carte voisine).
+            '.ip-perm-card:has(.ip-sel.ip-open){z-index:5}',
+            '.ip-perm-details.open{border-radius:0 0 5px 5px}',
             '.ip-perm-card:hover{border-color:rgba(255,255,255,.2)}',
             '.ip-perm-card-header{display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap}',
             '.ip-perm-card-name{font-weight:600;font-size:.95rem;min-width:120px;flex:1}',

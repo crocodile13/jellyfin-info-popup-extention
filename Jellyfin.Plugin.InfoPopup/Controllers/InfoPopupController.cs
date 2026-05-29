@@ -137,7 +137,8 @@ public class InfoPopupController : ControllerBase
             CanEditOthersMessages = p.CanEditOthersMessages,
             CanDeleteOthersMessages = p.CanDeleteOthersMessages,
             MaxMessagesPerDay = p.MaxMessagesPerDay,
-            MaxRepliesPerDay = p.MaxRepliesPerDay
+            MaxRepliesPerDay = p.MaxRepliesPerDay,
+            Role = p.Role
         };
     }
 
@@ -197,8 +198,9 @@ public class InfoPopupController : ControllerBase
             // Masquer les messages soft-deletés aux utilisateurs.
             if (msg.IsDeleted) return NotFound();
 
+            // L'auteur du message peut toujours lire son propre message (utile pour la Sent tab).
             // 404 et non 403 : ne pas révéler l'existence d'un message non ciblé.
-            if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId))
+            if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId) && msg.SentByUserId != userId)
                 return NotFound();
         }
 
@@ -366,13 +368,17 @@ public class InfoPopupController : ControllerBase
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<IEnumerable<MessageSummary>>> GetSentMessages()
+    public async Task<ActionResult<IEnumerable<MessageDetail>>> GetSentMessages()
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
+        // ToDetail (et non ToSummary) : l'utilisateur est l'auteur, il peut voir le corps
+        // sans avoir besoin de cliquer pour faire un fetch supplémentaire. Évite aussi le
+        // bug où la carte affichait un corps vide parce que /messages/{id} renvoyait 404
+        // quand l'auteur n'était pas dans TargetUserIds.
         var all = _store.GetAll();
-        var sent = all.Where(m => m.SentByUserId == userId).Select(ToSummary);
+        var sent = all.Where(m => m.SentByUserId == userId).Select(ToDetail);
         return Ok(sent);
     }
 
@@ -867,7 +873,8 @@ public class InfoPopupController : ControllerBase
             CanEditOthersMessages = request.CanEditOthersMessages,
             CanDeleteOthersMessages = request.CanDeleteOthersMessages,
             MaxMessagesPerDay = request.MaxMessagesPerDay,
-            MaxRepliesPerDay = request.MaxRepliesPerDay
+            MaxRepliesPerDay = request.MaxRepliesPerDay,
+            Role = request.Role ?? string.Empty
         };
 
         _permService.Upsert(perm);
@@ -902,7 +909,8 @@ public class InfoPopupController : ControllerBase
                 CanEditOthersMessages = request.CanEditOthersMessages,
                 CanDeleteOthersMessages = request.CanDeleteOthersMessages,
                 MaxMessagesPerDay = request.MaxMessagesPerDay,
-                MaxRepliesPerDay = request.MaxRepliesPerDay
+                MaxRepliesPerDay = request.MaxRepliesPerDay,
+                Role = request.Role ?? string.Empty
             };
             _permService.Upsert(perm);
         }

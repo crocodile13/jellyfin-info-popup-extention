@@ -260,6 +260,9 @@ public class UserPermissionDto
 
     /// <summary>Nombre maximum de réponses par jour. 0 = illimité.</summary>
     public int MaxRepliesPerDay { get; set; }
+
+    /// <summary>Rôle explicite ("reader"/"contributor"/"moderator"/"custom"/""). Voir UserPermission.Role.</summary>
+    public string Role { get; set; } = string.Empty;
 }
 
 /// <summary>Requête de mise à jour des droits d'un utilisateur.</summary>
@@ -288,6 +291,9 @@ public class UpdatePermissionsRequest
 
     /// <summary>Nombre maximum de réponses par jour. 0 = illimité.</summary>
     [Range(0, 1000)] public int MaxRepliesPerDay { get; set; } = 10;
+
+    /// <summary>Rôle explicite ("reader"/"contributor"/"moderator"/"custom"/""). Voir UserPermission.Role.</summary>
+    public string Role { get; set; } = string.Empty;
 }
 
 /// <summary>Droits effectifs de l'utilisateur courant retournés dans popup-data et permissions/me.</summary>
@@ -341,4 +347,7 @@ public class BulkUpdatePermissionsRequest
 
     /// <summary>Nombre maximum de réponses par jour. 0 = illimité.</summary>
     [Range(0, 1000)] public int MaxRepliesPerDay { get; set; } = 10;
+
+    /// <summary>Rôle explicite appliqué à tous les utilisateurs sélectionnés.</summary>
+    public string Role { get; set; } = string.Empty;
 }

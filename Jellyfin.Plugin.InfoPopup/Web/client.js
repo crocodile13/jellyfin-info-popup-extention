@@ -20,6 +20,18 @@
     if (window.__infoPopupLoaded) return;
     window.__infoPopupLoaded = true;
 
+    // Récupère le `?v=…` de notre propre <script src=...> (ajouté par le middleware) pour
+    // le propager aux modules chargés ici. Sans ça, les caches proxy/SW continuent à servir
+    // les anciens modules même quand le plugin est mis à jour.
+    var versionQuery = '';
+    try {
+        var cur = document.currentScript;
+        if (cur && cur.src) {
+            var qIdx = cur.src.indexOf('?');
+            if (qIdx >= 0) versionQuery = cur.src.substring(qIdx);
+        }
+    } catch (e) { /* document.currentScript indisponible : on sert sans query */ }
+
     var MODULES = [
         '/InfoPopup/ip-i18n.js',
         '/InfoPopup/ip-utils.js',
@@ -37,7 +49,7 @@
     function loadNext(index) {
         if (index >= MODULES.length) return;
         var script   = document.createElement('script');
-        script.src   = MODULES[index];
+        script.src   = MODULES[index] + versionQuery;
         script.async = false;
         script.addEventListener('load', function () { loadNext(index + 1); });
         script.addEventListener('error', function () {

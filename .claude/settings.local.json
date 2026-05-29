@@ -27,7 +27,8 @@
       "Bash(git --no-pager diff --stat -- assets/)",
       "Bash(git --no-pager diff --stat)",
       "Bash(git --no-pager log --oneline -6)",
-      "Bash(git --no-pager log --oneline -1 -- Jellyfin.Plugin.InfoPopup/Services/PermissionService.cs)"
+      "Bash(git --no-pager log --oneline -1 -- Jellyfin.Plugin.InfoPopup/Services/PermissionService.cs)",
+      "Bash(gh release *)"
     ]
   }
 }
