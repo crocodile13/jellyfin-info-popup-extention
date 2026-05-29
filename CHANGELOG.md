@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.5.0] — 2026-05-29
+
+### Fixed
+- **Page « Messages » cassait la barre latérale** — l'ouverture de la page masquait le menu latéral (`hide`) sans jamais le restaurer à la fermeture. La barre latérale est désormais rétablie correctement.
+- **Rôle « Personnalisé » non enregistré** — même cause que les droits sans effet (format d'ID) ; désormais persisté correctement via l'enregistrement global.
+
+### Changed
+- **Onglet Droits : enregistrement global** — un seul bouton « Enregistrer les droits » remplace les boutons individuels par utilisateur.
+- **Onglet Droits : sélection multiple** — cases à cocher par utilisateur + tout sélectionner / désélectionner / inverser, et application groupée d'un rôle et des limites à la sélection.
+- **Liste déroulante personnalisée** — les `<select>` de la page de configuration utilisent une liste entièrement thémée (la liste ouverte aussi, contrairement aux `<option>` natifs).
+- **Bouton retour de la page Messages** — réutilise le composant natif Jellyfin (`paper-icon-button-light`) au lieu d'un bouton custom.
+
+---
+
 ## [3.7.4.0] — 2026-05-29
 
 ### Fixed

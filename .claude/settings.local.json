@@ -24,7 +24,10 @@
       "Bash(awk '/private.*GetUserId\\\\\\(\\\\\\)/{f=1} f{print NR\": \"$0} f&&/^    }/{exit}' Jellyfin.Plugin.InfoPopup/Controllers/InfoPopupController.cs)",
       "Bash(cd *)",
       "Bash(git --no-pager log --oneline -5)",
-      "Bash(git --no-pager diff --stat -- assets/)"
+      "Bash(git --no-pager diff --stat -- assets/)",
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git --no-pager log --oneline -6)",
+      "Bash(git --no-pager log --oneline -1 -- Jellyfin.Plugin.InfoPopup/Services/PermissionService.cs)"
     ]
   }
 }

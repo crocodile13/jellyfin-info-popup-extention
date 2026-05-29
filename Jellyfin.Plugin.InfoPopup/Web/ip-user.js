@@ -60,6 +60,10 @@
         var overlay = document.getElementById('ip-user-overlay');
         if (overlay) overlay.remove();
         _overlayOpen = false;
+        // Restaure la barre latérale classique : showUserPage la fermait, il ne faut pas
+        // la laisser dans un état cassé (la classe `hide` la masquerait définitivement).
+        var drawer = document.querySelector('.mainDrawer');
+        if (drawer) drawer.classList.remove('hide');
     }
 
     function showUserPage() {
@@ -67,11 +71,13 @@
         _overlayOpen = true;
         ns.injectStyles();
 
-        // Fermer le drawer sidebar — classic layout
+        // Fermer le drawer sidebar comme le ferait Jellyfin (retrait de la classe d'ouverture).
+        // NE PAS ajouter `hide` au .mainDrawer : l'overlay (position:fixed, z-index 9998) le couvre
+        // déjà, et `hide` laissé en place casserait la barre latérale après fermeture.
         document.body.classList.remove('mainDrawerOpen', 'bodyWithPopupOpen');
         var drawer = document.querySelector('.mainDrawer');
-        if (drawer) { drawer.classList.remove('mainDrawerOpen'); drawer.classList.add('hide'); }
-        // MUI layout : cliquer le backdrop ferme le drawer
+        if (drawer) drawer.classList.remove('mainDrawerOpen');
+        // MUI layout : cliquer le backdrop ferme le drawer nativement
         var muiBackdrop = document.querySelector('.MuiDrawer-root .MuiBackdrop-root');
         if (muiBackdrop) muiBackdrop.click();
 
@@ -83,10 +89,14 @@
         var header = document.createElement('div');
         header.className = 'ip-user-overlay-header';
 
-        var backBtn = document.createElement('button');
-        backBtn.className = 'ip-user-overlay-back';
+        // Bouton retour : on réutilise le composant natif Jellyfin `paper-icon-button-light`
+        // (même rendu/ripple que le bouton retour de l'en-tête) au lieu d'un bouton custom.
+        var backBtn = document.createElement('button', { is: 'paper-icon-button-light' });
+        backBtn.classList.add('paper-icon-button-light', 'ip-user-overlay-back');
         backBtn.type = 'button';
-        backBtn.innerHTML = '<span class="material-icons" style="font-size:1rem;">arrow_back</span> ' + escHtml(t('user_page_back'));
+        backBtn.title = t('user_page_back');
+        backBtn.setAttribute('aria-label', t('user_page_back'));
+        backBtn.innerHTML = '<span class="material-icons" aria-hidden="true">arrow_back</span>';
         backBtn.addEventListener('click', closeUserOverlay);
         header.appendChild(backBtn);
 

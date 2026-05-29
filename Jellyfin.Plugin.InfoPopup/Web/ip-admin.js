@@ -971,6 +971,122 @@
         return 'custom';
     }
 
+    // Remplace un <select> natif par une liste déroulante stylée (le natif reste dans le DOM,
+    // caché, et garde sa valeur/son état — toute la logique existante lit sel.value et écoute
+    // l'évènement 'change', tous deux préservés). Le rendu de la liste ouverte est ainsi
+    // entièrement contrôlable par le thème (les <option> natifs ne sont pas stylables).
+    function enhanceSelect(sel) {
+        if (!sel || sel.__ipEnhanced) return sel;
+        sel.__ipEnhanced = true;
+
+        var wrap = document.createElement('span');
+        wrap.className = 'ip-sel';
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ip-sel-btn';
+        btn.setAttribute('aria-haspopup', 'listbox');
+        btn.setAttribute('aria-expanded', 'false');
+        var lbl = document.createElement('span');
+        lbl.className = 'ip-sel-label';
+        btn.appendChild(lbl);
+
+        var list = document.createElement('div');
+        list.className = 'ip-sel-list';
+        list.setAttribute('role', 'listbox');
+
+        sel.parentNode.insertBefore(wrap, sel);
+        wrap.appendChild(btn);
+        wrap.appendChild(list);
+        wrap.appendChild(sel);
+        sel.classList.add('ip-sel-native');
+
+        function syncLabel() {
+            var opt = sel.options[sel.selectedIndex];
+            lbl.textContent = opt ? opt.textContent : '';
+            Array.prototype.forEach.call(list.children, function (el) {
+                var on = el.getAttribute('data-value') === sel.value;
+                el.classList.toggle('ip-sel-opt-active', on);
+                el.classList.remove('ip-sel-opt-focus');
+                el.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
+        function buildOptions() {
+            list.innerHTML = '';
+            Array.prototype.forEach.call(sel.options, function (o) {
+                var item = document.createElement('div');
+                item.className = 'ip-sel-opt';
+                item.setAttribute('role', 'option');
+                item.setAttribute('data-value', o.value);
+                item.textContent = o.textContent;
+                item.addEventListener('click', function () {
+                    sel.value = o.value;
+                    close();
+                    btn.focus();
+                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    syncLabel();
+                });
+                list.appendChild(item);
+            });
+            syncLabel();
+        }
+
+        var outsideHandler = null;
+        function open() {
+            if (wrap.classList.contains('ip-open')) return;
+            wrap.classList.add('ip-open');
+            btn.setAttribute('aria-expanded', 'true');
+            outsideHandler = function (e) { if (!wrap.contains(e.target)) close(); };
+            setTimeout(function () { document.addEventListener('mousedown', outsideHandler, true); }, 0);
+            var active = list.querySelector('.ip-sel-opt-active');
+            if (active) active.scrollIntoView({ block: 'nearest' });
+        }
+        function close() {
+            if (!wrap.classList.contains('ip-open')) return;
+            wrap.classList.remove('ip-open');
+            btn.setAttribute('aria-expanded', 'false');
+            if (outsideHandler) { document.removeEventListener('mousedown', outsideHandler, true); outsideHandler = null; }
+        }
+        function toggle() { if (wrap.classList.contains('ip-open')) { close(); } else { open(); } }
+
+        function moveFocus(dir) {
+            var items = Array.prototype.slice.call(list.children);
+            if (!items.length) return;
+            var idx = -1;
+            items.forEach(function (el, i) {
+                if (el.classList.contains('ip-sel-opt-focus')) idx = i;
+            });
+            if (idx < 0) items.forEach(function (el, i) { if (el.classList.contains('ip-sel-opt-active')) idx = i; });
+            idx = Math.max(0, Math.min(items.length - 1, idx + dir));
+            items.forEach(function (el) { el.classList.remove('ip-sel-opt-focus'); });
+            items[idx].classList.add('ip-sel-opt-focus');
+            items[idx].scrollIntoView({ block: 'nearest' });
+        }
+
+        btn.addEventListener('click', toggle);
+        btn.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!wrap.classList.contains('ip-open')) { open(); return; }
+                moveFocus(e.key === 'ArrowDown' ? 1 : -1);
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (wrap.classList.contains('ip-open')) {
+                    var cur = list.querySelector('.ip-sel-opt-focus') || list.querySelector('.ip-sel-opt-active');
+                    if (cur) { cur.click(); } else { close(); }
+                } else { open(); }
+            } else if (e.key === 'Escape') {
+                close();
+            }
+        });
+
+        sel.__ipSync = syncLabel;
+        sel.__ipRefresh = buildOptions;
+        buildOptions();
+        return sel;
+    }
+
     function buildRoleOptions() {
         return [
             { value: 'reader',      label: t('perm_role_reader') },
@@ -993,6 +1109,12 @@
         var header = document.createElement('div');
         header.className = 'ip-perm-card-header';
 
+        var selChk = document.createElement('input');
+        selChk.type = 'checkbox';
+        selChk.className = 'ip-perm-card-sel';
+        selChk.setAttribute('aria-label', t('perm_sel_all'));
+        header.appendChild(selChk);
+
         var nameEl = document.createElement('span');
         nameEl.className = 'ip-perm-card-name';
         nameEl.textContent = userName;
@@ -1009,6 +1131,7 @@
             roleSel.appendChild(opt);
         });
         roleWrap.appendChild(roleSel);
+        enhanceSelect(roleSel);
         header.appendChild(roleWrap);
 
         // Limits
@@ -1027,7 +1150,7 @@
         limitsWrap.appendChild(document.createTextNode(' ' + t('perm_col_max_replies')));
         header.appendChild(limitsWrap);
 
-        // Actions: details toggle + save
+        // Actions: details toggle (sauvegarde désormais globale, voir loadPermissions)
         var actWrap = document.createElement('span');
         actWrap.className = 'ip-perm-card-actions';
 
@@ -1036,16 +1159,6 @@
         detailsBtn.className = 'ip-perm-toggle-details';
         detailsBtn.textContent = t('perm_details_show');
         actWrap.appendChild(detailsBtn);
-
-        var saveBtn = document.createElement('button');
-        saveBtn.type = 'button';
-        saveBtn.className = 'raised emby-button ip-perm-save-btn';
-        saveBtn.textContent = t('perm_save_row');
-        actWrap.appendChild(saveBtn);
-
-        var statusSpan = document.createElement('span');
-        statusSpan.style.display = 'none';
-        actWrap.appendChild(statusSpan);
         header.appendChild(actWrap);
 
         card.appendChild(header);
@@ -1093,6 +1206,7 @@
                 if (match) found = r;
             });
             roleSel.value = found;
+            if (roleSel.__ipSync) roleSel.__ipSync();
             if (found !== 'custom') details.classList.remove('open');
         }
 
@@ -1114,42 +1228,17 @@
             details.classList.toggle('open');
             if (details.classList.contains('open') && roleSel.value !== 'custom') {
                 roleSel.value = 'custom';
+                if (roleSel.__ipSync) roleSel.__ipSync();
             }
         });
 
         if (role === 'custom') details.classList.add('open');
 
-        // ── Save ────────────────────────────────────────────────────────
-        saveBtn.addEventListener('click', function () {
-            saveBtn.disabled = true;
-            statusSpan.style.display = 'none';
-            var payload = {
-                canSendMessages:         checkboxMap.canSendMessages.checked,
-                canReply:                checkboxMap.canReply.checked,
-                canEditOwnMessages:      checkboxMap.canEditOwnMessages.checked,
-                canDeleteOwnMessages:    checkboxMap.canDeleteOwnMessages.checked,
-                canEditOthersMessages:   checkboxMap.canEditOthersMessages.checked,
-                canDeleteOthersMessages: checkboxMap.canDeleteOthersMessages.checked,
-                maxMessagesPerDay: parseInt(inpMsgs.value, 10) || 0,
-                maxRepliesPerDay:  parseInt(inpRep.value, 10)  || 0
-            };
-            apiFetch('/InfoPopup/permissions/' + encodeURIComponent(userId), {
-                method: 'PUT',
-                body: JSON.stringify(payload)
-            }).then(function () {
-                statusSpan.className = 'ip-perm-save-ok';
-                statusSpan.textContent = t('perm_saved_row');
-                statusSpan.style.display = '';
-                setTimeout(function () { statusSpan.style.display = 'none'; saveBtn.disabled = false; }, 2500);
-            }).catch(function () {
-                statusSpan.className = 'ip-perm-save-err';
-                statusSpan.textContent = t('perm_save_err');
-                statusSpan.style.display = '';
-                saveBtn.disabled = false;
-            });
+        allCards.push({
+            card: card, roleSel: roleSel, checkboxMap: checkboxMap,
+            inpMsgs: inpMsgs, inpRep: inpRep, userId: userId, details: details,
+            selChk: selChk, applyRole: applyRole
         });
-
-        allCards.push({ card: card, roleSel: roleSel, checkboxMap: checkboxMap, inpMsgs: inpMsgs, inpRep: inpRep, userId: userId, details: details });
         return card;
     }
 
@@ -1167,13 +1256,38 @@
                 container.innerHTML = '';
                 var allCards = [];
 
-                // ── Bulk apply bar ──────────────────────────────────────
-                var bulk = document.createElement('div');
-                bulk.className = 'ip-perm-bulk';
+                // ── Barre d'outils : sélection + édition groupée ──────────
+                var toolbar = document.createElement('div');
+                toolbar.className = 'ip-perm-toolbar';
+
+                // Ligne 1 : contrôles de sélection
+                var selRow = document.createElement('div');
+                selRow.className = 'ip-perm-toolbar-row';
+                function mkToolBtn(label) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'ip-perm-tool-btn';
+                    b.textContent = label;
+                    return b;
+                }
+                var btnSelAll    = mkToolBtn(t('perm_sel_all'));
+                var btnSelNone   = mkToolBtn(t('perm_sel_none'));
+                var btnSelInvert = mkToolBtn(t('perm_sel_invert'));
+                var selCount     = document.createElement('span');
+                selCount.className = 'ip-perm-sel-count';
+                selRow.appendChild(btnSelAll);
+                selRow.appendChild(btnSelNone);
+                selRow.appendChild(btnSelInvert);
+                selRow.appendChild(selCount);
+                toolbar.appendChild(selRow);
+
+                // Ligne 2 : application groupée à la sélection
+                var bulkRow = document.createElement('div');
+                bulkRow.className = 'ip-perm-toolbar-row';
                 var bulkLabel = document.createElement('span');
                 bulkLabel.textContent = t('perm_bulk_label');
                 bulkLabel.style.fontWeight = '500';
-                bulk.appendChild(bulkLabel);
+                bulkRow.appendChild(bulkLabel);
 
                 var bulkSel = document.createElement('select');
                 buildRoleOptions().filter(function (o) { return o.value !== 'custom'; }).forEach(function (o) {
@@ -1182,70 +1296,133 @@
                     opt.textContent = o.label;
                     bulkSel.appendChild(opt);
                 });
-                bulk.appendChild(bulkSel);
+                bulkRow.appendChild(bulkSel);
+                enhanceSelect(bulkSel);
+
+                var bulkMsgs = document.createElement('input');
+                bulkMsgs.type = 'number'; bulkMsgs.min = '0'; bulkMsgs.max = '1000'; bulkMsgs.value = '5';
+                bulkMsgs.className = 'ip-perm-bulk-num';
+                bulkMsgs.setAttribute('aria-label', t('perm_col_max_msgs'));
+                var bulkRep = document.createElement('input');
+                bulkRep.type = 'number'; bulkRep.min = '0'; bulkRep.max = '1000'; bulkRep.value = '10';
+                bulkRep.className = 'ip-perm-bulk-num';
+                bulkRep.setAttribute('aria-label', t('perm_col_max_replies'));
+                bulkRow.appendChild(bulkMsgs);
+                bulkRow.appendChild(document.createTextNode(' ' + t('perm_col_max_msgs') + ' · '));
+                bulkRow.appendChild(bulkRep);
+                bulkRow.appendChild(document.createTextNode(' ' + t('perm_col_max_replies')));
 
                 var bulkBtn = document.createElement('button');
                 bulkBtn.type = 'button';
                 bulkBtn.className = 'raised emby-button';
-                bulkBtn.textContent = t('perm_bulk_apply');
-                bulk.appendChild(bulkBtn);
+                bulkBtn.textContent = t('perm_apply_sel');
+                bulkRow.appendChild(bulkBtn);
+                toolbar.appendChild(bulkRow);
+                container.appendChild(toolbar);
 
-                var bulkStatus = document.createElement('span');
-                bulkStatus.className = 'ip-perm-bulk-status';
-                bulk.appendChild(bulkStatus);
-
-                bulkBtn.addEventListener('click', function () {
-                    var role = bulkSel.value;
-                    var perms = ROLES[role];
-                    if (!perms) return;
-                    bulkBtn.disabled = true;
-                    bulkStatus.textContent = '';
-                    var userIds = allCards.map(function (c) { return c.userId; });
-                    var payload = {
-                        userIds: userIds,
-                        canSendMessages:         perms.canSendMessages,
-                        canReply:                perms.canReply,
-                        canEditOwnMessages:      perms.canEditOwnMessages,
-                        canDeleteOwnMessages:    perms.canDeleteOwnMessages,
-                        canEditOthersMessages:   perms.canEditOthersMessages,
-                        canDeleteOthersMessages: perms.canDeleteOthersMessages,
-                        maxMessagesPerDay: 5,
-                        maxRepliesPerDay: 10
-                    };
-                    apiFetch('/InfoPopup/permissions/bulk', {
-                        method: 'POST',
-                        body: JSON.stringify(payload)
-                    }).then(function () {
-                        allCards.forEach(function (c) {
-                            c.roleSel.value = role;
-                            c.details.classList.remove('open');
-                            Object.keys(perms).forEach(function (k) {
-                                if (c.checkboxMap[k]) c.checkboxMap[k].checked = perms[k];
-                            });
-                            c.inpMsgs.value = '5';
-                            c.inpRep.value = '10';
-                        });
-                        bulkStatus.textContent = t('perm_bulk_applied', userIds.length);
-                        bulkStatus.style.color = '#4caf50';
-                        setTimeout(function () { bulkStatus.textContent = ''; }, 3000);
-                        bulkBtn.disabled = false;
-                    }).catch(function () {
-                        bulkStatus.textContent = t('perm_save_err');
-                        bulkStatus.style.color = '#cf6679';
-                        bulkBtn.disabled = false;
-                    });
-                });
-                container.appendChild(bulk);
-
-                // ── User cards ──────────────────────────────────────────
+                // ── Cartes utilisateurs ───────────────────────────────────
                 users.forEach(function (u) {
                     container.appendChild(buildPermCard(page, u, allCards));
+                });
+
+                function updateSelCount() {
+                    var n = allCards.filter(function (c) { return c.selChk.checked; }).length;
+                    selCount.textContent = t('perm_sel_count', n);
+                }
+                allCards.forEach(function (c) { c.selChk.addEventListener('change', updateSelCount); });
+                updateSelCount();
+
+                btnSelAll.addEventListener('click', function () {
+                    allCards.forEach(function (c) { c.selChk.checked = true; });
+                    updateSelCount();
+                });
+                btnSelNone.addEventListener('click', function () {
+                    allCards.forEach(function (c) { c.selChk.checked = false; });
+                    updateSelCount();
+                });
+                btnSelInvert.addEventListener('click', function () {
+                    allCards.forEach(function (c) { c.selChk.checked = !c.selChk.checked; });
+                    updateSelCount();
+                });
+
+                // Applique le rôle + limites choisis aux cartes SÉLECTIONNÉES (en mémoire,
+                // persisté ensuite par le bouton « Enregistrer » global).
+                bulkBtn.addEventListener('click', function () {
+                    var role = bulkSel.value;
+                    if (!ROLES[role]) return;
+                    var selected = allCards.filter(function (c) { return c.selChk.checked; });
+                    if (!selected.length) { flashSaveStatus(t('perm_bulk_none_selected'), false); return; }
+                    var mMsgs = bulkMsgs.value;
+                    var mRep  = bulkRep.value;
+                    selected.forEach(function (c) {
+                        c.roleSel.value = role;
+                        if (c.roleSel.__ipSync) c.roleSel.__ipSync();
+                        c.applyRole(role);
+                        c.details.classList.remove('open');
+                        c.inpMsgs.value = mMsgs;
+                        c.inpRep.value  = mRep;
+                    });
+                    flashSaveStatus(t('perm_bulk_applied', selected.length), true);
+                });
+
+                // ── Barre d'enregistrement global ─────────────────────────
+                var saveBar = document.createElement('div');
+                saveBar.className = 'ip-perm-savebar';
+                var saveAllBtn = document.createElement('button');
+                saveAllBtn.type = 'button';
+                saveAllBtn.className = 'raised button-submit emby-button';
+                saveAllBtn.textContent = t('perm_save_all');
+                var saveStatus = document.createElement('span');
+                saveStatus.className = 'ip-perm-save-status';
+                saveBar.appendChild(saveAllBtn);
+                saveBar.appendChild(saveStatus);
+
+                var statusTimer = null;
+                function flashSaveStatus(text, ok) {
+                    saveStatus.textContent = text;
+                    saveStatus.className = 'ip-perm-save-status ' + (ok ? 'ip-perm-save-ok' : 'ip-perm-save-err');
+                    if (statusTimer) clearTimeout(statusTimer);
+                    statusTimer = setTimeout(function () {
+                        saveStatus.textContent = '';
+                        saveStatus.className = 'ip-perm-save-status';
+                    }, 3000);
+                }
+
+                saveAllBtn.addEventListener('click', function () {
+                    saveAllBtn.disabled = true;
+                    if (statusTimer) clearTimeout(statusTimer);
+                    saveStatus.textContent = '';
+                    saveStatus.className = 'ip-perm-save-status';
+                    var reqs = allCards.map(function (c) {
+                        var payload = {
+                            canSendMessages:         c.checkboxMap.canSendMessages.checked,
+                            canReply:                c.checkboxMap.canReply.checked,
+                            canEditOwnMessages:      c.checkboxMap.canEditOwnMessages.checked,
+                            canDeleteOwnMessages:    c.checkboxMap.canDeleteOwnMessages.checked,
+                            canEditOthersMessages:   c.checkboxMap.canEditOthersMessages.checked,
+                            canDeleteOthersMessages: c.checkboxMap.canDeleteOthersMessages.checked,
+                            maxMessagesPerDay: parseInt(c.inpMsgs.value, 10) || 0,
+                            maxRepliesPerDay:  parseInt(c.inpRep.value, 10)  || 0
+                        };
+                        return apiFetch('/InfoPopup/permissions/' + encodeURIComponent(c.userId), {
+                            method: 'PUT',
+                            body: JSON.stringify(payload)
+                        });
+                    });
+                    Promise.all(reqs).then(function () {
+                        flashSaveStatus(t('perm_saved_all'), true);
+                        saveAllBtn.disabled = false;
+                    }).catch(function () {
+                        flashSaveStatus(t('perm_save_err'), false);
+                        saveAllBtn.disabled = false;
+                    });
                 });
 
                 var hint = document.createElement('p');
                 hint.style.cssText = 'opacity:.5;font-size:.78rem;margin-top:8px;';
                 hint.textContent = t('perm_hint_0');
-                container.appendChild(hint);
+                saveBar.appendChild(hint);
+                container.appendChild(saveBar);
             })
             .catch(function (err) {
                 var msg = err && err.message ? err.message : String(err);
@@ -1461,6 +1638,7 @@
                         });
                         filterWrap.appendChild(filterLbl);
                         filterWrap.appendChild(filterSel);
+                        enhanceSelect(filterSel);
                         listEl.appendChild(filterWrap);
 
                         var groupsContainer = document.createElement('div');
