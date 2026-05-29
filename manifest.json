@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.4.0",
+        "changelog": "Fixed\n- Droits accordés sans effet — les droits étaient enregistrés avec l'ID utilisateur au format « D » (avec tirets, via User.Id.ToString()) mais relus au format « N » (sans tirets, via le claim Jellyfin-UserId). L'utilisateur ne retrouvait jamais ses droits : ni envoi de message, ni réponse, malgré une attribution visible côté admin. Tous les ID utilisateurs sont désormais normalisés en GUID canonique avant stockage et comparaison.\nChanged\n- Menus déroulants restylés — tous les <select> de la page de configuration adoptent un style sombre cohérent (flèche personnalisée, survol, focus) au lieu du rendu natif du navigateur.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.4.0/infopopup_3.7.4.0.zip",
+        "checksum": "bc16171e7f171011d9991bcf00a2147b",
+        "timestamp": "2026-05-29T15:52:59Z"
+      },
+      {
         "version": "3.7.3.0",
         "changelog": "Fixed\n- Onglet « Droits » vide (« Aucun utilisateur ») — sur Jellyfin 10.11.9+, la propriété IUserManager.Users a été remplacée par la méthode GetUsers(). Le helper de réflexion ne testait que la propriété et renvoyait une liste vide (sans erreur). Il tente désormais aussi GetUsers().\n- « Paramètres invalides » à l'enregistrement — la durée d'affichage avant fermeture automatique était plafonnée à 30 000 ms, ce qui rejetait des valeurs légitimes (ex. 60 000). Plafond relevé à 600 000 ms (10 min) côté client, serveur et formulaire.",
         "targetAbi": "10.11.0.0",
