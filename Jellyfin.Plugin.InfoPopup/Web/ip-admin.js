@@ -1449,7 +1449,6 @@
                         filterLbl.textContent = t('replies_filter_lbl');
                         filterLbl.style.cssText = 'font-size:.88rem;opacity:.7;';
                         var filterSel = document.createElement('select');
-                        filterSel.style.cssText = 'background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:4px;color:inherit;padding:4px 8px;font-size:.88rem;';
                         var optAll = document.createElement('option');
                         optAll.value = '';
                         optAll.textContent = '— ' + t('tbl_badge_all') + ' —';

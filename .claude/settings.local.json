@@ -20,7 +20,11 @@
       "Bash(git rev-list *)",
       "Bash(grep -E \"\\(^|/\\)\\\\.env\\\\.make$\")",
       "Bash(echo \"rc_scan=$? \\(vide au-dessus = aucun match\\)\")",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(awk '/private.*GetUserId\\\\\\(\\\\\\)/{f=1} f{print NR\": \"$0} f&&/^    }/{exit}' Jellyfin.Plugin.InfoPopup/Controllers/InfoPopupController.cs)",
+      "Bash(cd *)",
+      "Bash(git --no-pager log --oneline -5)",
+      "Bash(git --no-pager diff --stat -- assets/)"
     ]
   }
 }

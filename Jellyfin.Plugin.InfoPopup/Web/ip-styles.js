@@ -175,7 +175,11 @@
             '.ip-replies-del-all:hover{background:rgba(220,50,50,.18)}',
             // ── Permissions tab — role cards ─────────────────────────────────────
             '.ip-perm-bulk{display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:12px 16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:6px;flex-wrap:wrap}',
-            '.ip-perm-bulk select,.ip-perm-card select{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:4px;color:inherit;padding:5px 10px;font-size:.88rem;cursor:pointer}',
+            // Tous les <select> de la page de config (barre bulk, rôle par carte, filtre Réponses) — restylés pour le thème sombre.
+            '#infoPopupConfigPage select{-webkit-appearance:none;-moz-appearance:none;appearance:none;color-scheme:dark;background-color:rgba(255,255,255,.08);background-image:url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2214%22%20height=%2214%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%23bbbbbb%22%20stroke-width=%222%22%3E%3Cpath%20d=%22M6%209l6%206%206-6%22/%3E%3C/svg%3E);background-repeat:no-repeat;background-position:right 9px center;background-size:13px;border:1px solid rgba(255,255,255,.2);border-radius:4px;color:inherit;padding:5px 30px 5px 10px;font-size:.88rem;line-height:1.4;cursor:pointer;transition:border-color .15s,background-color .15s}',
+            '#infoPopupConfigPage select:hover{background-color:rgba(255,255,255,.13);border-color:rgba(255,255,255,.4)}',
+            '#infoPopupConfigPage select:focus{outline:none;border-color:var(--theme-primary-color,#00a4dc)}',
+            '#infoPopupConfigPage select option{background:#1f1f1f;color:#e5e5e5}',
             '.ip-perm-bulk button{font-size:.85rem;padding:5px 14px}',
             '.ip-perm-bulk-status{font-size:.82rem;opacity:.7}',
             '.ip-perm-card{border:1px solid rgba(255,255,255,.1);border-radius:6px;margin-bottom:8px;overflow:hidden;transition:border-color .15s}',

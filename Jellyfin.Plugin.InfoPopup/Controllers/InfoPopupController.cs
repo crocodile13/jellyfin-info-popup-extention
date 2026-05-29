@@ -758,7 +758,8 @@ public class InfoPopupController : ControllerBase
         var result = new List<UserPermissionDto>();
         foreach (var (uid, userName) in EnumerateUsers())
         {
-            var perm = perms.FirstOrDefault(p => p.UserId == uid) ?? new UserPermission { UserId = uid };
+            var perm = perms.FirstOrDefault(p => PermissionService.NormalizeUserId(p.UserId) == PermissionService.NormalizeUserId(uid))
+                       ?? new UserPermission { UserId = uid };
             var dto = ToPermissionDto(perm);
             if (!string.IsNullOrEmpty(userName)) dto.UserName = userName;
             result.Add(dto);

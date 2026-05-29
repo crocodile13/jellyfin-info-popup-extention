@@ -88,6 +88,19 @@ public class PermissionService
     // ── API publique ─────────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Normalise un identifiant utilisateur en GUID canonique sans tirets (format "N").
+    /// INDISPENSABLE : Jellyfin n'est pas cohérent sur le format des IDs. L'API REST /Users
+    /// (et le claim Jellyfin-UserId) renvoie le format "N" (32 hex sans tirets), tandis que
+    /// User.Id.ToString() (obtenu par réflexion via IUserManager côté admin) renvoie le format
+    /// "D" (avec tirets). Sans normalisation, les droits enregistrés côté admin (clé "D") ne
+    /// correspondent jamais à l'utilisateur résolu côté requête (claim "N") → GetOrDefault
+    /// renvoie le défaut (tout false) et les droits accordés restent sans effet.
+    /// Toute comparaison/clé d'ID utilisateur DOIT passer par cette méthode.
+    /// </summary>
+    public static string NormalizeUserId(string? id)
+        => Guid.TryParse(id, out var g) ? g.ToString("N") : (id ?? string.Empty);
+
+    /// <summary>
     /// Retourne les droits d'un utilisateur, ou un objet par défaut si absent.
     /// Les droits par défaut sont tous à false (accès minimal).
     /// </summary>
@@ -95,12 +108,13 @@ public class PermissionService
     /// <returns>Les droits de l'utilisateur, jamais null.</returns>
     public UserPermission GetOrDefault(string userId)
     {
+        var key = NormalizeUserId(userId);
         _lock.EnterReadLock();
         try
         {
             var store = ReadStore();
-            return store.Permissions.FirstOrDefault(p => p.UserId == userId)
-                ?? new UserPermission { UserId = userId };
+            return store.Permissions.FirstOrDefault(p => NormalizeUserId(p.UserId) == key)
+                ?? new UserPermission { UserId = key };
         }
         finally { _lock.ExitReadLock(); }
     }
@@ -124,11 +138,12 @@ public class PermissionService
     /// <param name="perm">Les droits à persister.</param>
     public void Upsert(UserPermission perm)
     {
+        perm.UserId = NormalizeUserId(perm.UserId);
         _lock.EnterWriteLock();
         try
         {
             var store = ReadStore();
-            var existing = store.Permissions.FindIndex(p => p.UserId == perm.UserId);
+            var existing = store.Permissions.FindIndex(p => NormalizeUserId(p.UserId) == perm.UserId);
             if (existing >= 0)
                 store.Permissions[existing] = perm;
             else
@@ -147,12 +162,13 @@ public class PermissionService
     /// <returns><c>true</c> si l'entrée existait et a été supprimée, <c>false</c> sinon.</returns>
     public bool DeleteByUserId(string userId)
     {
+        var key = NormalizeUserId(userId);
         _lock.EnterWriteLock();
         try
         {
             var store = ReadStore();
             var before = store.Permissions.Count;
-            store.Permissions.RemoveAll(p => p.UserId == userId);
+            store.Permissions.RemoveAll(p => NormalizeUserId(p.UserId) == key);
             var deleted = before - store.Permissions.Count > 0;
             if (deleted)
             {

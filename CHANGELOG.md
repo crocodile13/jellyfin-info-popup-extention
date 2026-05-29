@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.4.0] — 2026-05-29
+
+### Fixed
+- **Droits accordés sans effet** — les droits étaient enregistrés avec l'ID utilisateur au format « D » (avec tirets, via `User.Id.ToString()`) mais relus au format « N » (sans tirets, via le claim `Jellyfin-UserId`). L'utilisateur ne retrouvait jamais ses droits : ni envoi de message, ni réponse, malgré une attribution visible côté admin. Tous les ID utilisateurs sont désormais normalisés en GUID canonique avant stockage et comparaison.
+
+### Changed
+- **Menus déroulants restylés** — tous les `<select>` de la page de configuration adoptent un style sombre cohérent (flèche personnalisée, survol, focus) au lieu du rendu natif du navigateur.
+
+---
+
 ## [3.7.3.0] — 2026-05-29
 
 ### Fixed
