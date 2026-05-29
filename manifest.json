@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.6.0",
+        "changelog": "Fixed\n- Messages envoyés sans contenu (page Messages utilisateur) — l'endpoint /messages/sent renvoyait des summaries sans corps, et le fallback /messages/{id} rejetait l'auteur quand il n'était pas lui-même dans TargetUserIds (404). Désormais l'auteur peut toujours lire son propre message, et /messages/sent renvoie le corps directement.\n- Rôle « Personnalisé » qui redevient un preset après enregistrement — detectRole reclassait les bools en preset à chaque rechargement, perdant le choix explicite de l'admin. Le rôle est désormais persisté côté serveur (nouveau champ Role dans UserPermission) et honoré tel quel.\n- Liste déroulante des cartes Droits coupée/superposée — .ip-perm-card{overflow:hidden} clippait la liste ouverte ; remplacé par overflow:visible avec promotion z-index de la carte active.\nAdded\n- Émetteur affiché dans la popup — ligne « De : ... » au-dessus du corps de chaque message (single ou multi), nouvelle clé i18n popup_from dans les 8 langues.\n- Cache-bust des modules JS (?v=X.Y.Z.W) — l'URL injectée et chaque module chargé par client.js portent désormais la version du plugin. Plus besoin de purger nginx/Cloudflare/service worker à chaque release : l'URL change → tous les caches refetchent automatiquement.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.6.0/infopopup_3.7.6.0.zip",
+        "checksum": "b2c510cf412586c08b5dd6ff064212d4",
+        "timestamp": "2026-05-29T23:33:30Z"
+      },
+      {
         "version": "3.7.5.0",
         "changelog": "Fixed\n- Page « Messages » cassait la barre latérale — l'ouverture de la page masquait le menu latéral (hide) sans jamais le restaurer à la fermeture. La barre latérale est désormais rétablie correctement.\n- Rôle « Personnalisé » non enregistré — même cause que les droits sans effet (format d'ID) ; désormais persisté correctement via l'enregistrement global.\nChanged\n- Onglet Droits : enregistrement global — un seul bouton « Enregistrer les droits » remplace les boutons individuels par utilisateur.\n- Onglet Droits : sélection multiple — cases à cocher par utilisateur + tout sélectionner / désélectionner / inverser, et application groupée d'un rôle et des limites à la sélection.\n- Liste déroulante personnalisée — les <select> de la page de configuration utilisent une liste entièrement thémée (la liste ouverte aussi, contrairement aux <option> natifs).\n- Bouton retour de la page Messages — réutilise le composant natif Jellyfin (paper-icon-button-light) au lieu d'un bouton custom.",
         "targetAbi": "10.11.0.0",
