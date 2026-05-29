@@ -110,7 +110,7 @@ PLUGIN_GUID=$(jq -r '.[0].guid // empty' <<< "$MANIFEST" 2>/dev/null || echo "")
 if [ -z "$PLUGIN_GUID" ]; then
     # Premier build : créer la structure complète
     jq -n \
-        --arg guid        "a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+        --arg guid        "ceeb3040-9fe5-451f-ac05-8587ea3c3718" \
         --arg name        "Info Popup" \
         --arg description "Permet aux administrateurs de diffuser des messages popup aux utilisateurs lors de leur connexion." \
         --arg overview    "Messages popup pour les utilisateurs Jellyfin" \

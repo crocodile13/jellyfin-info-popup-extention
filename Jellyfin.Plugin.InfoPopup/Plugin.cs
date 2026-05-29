@@ -16,8 +16,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
     /// <summary>
     /// Identifiant unique du plugin — NE JAMAIS MODIFIER après publication.
+    /// Changé en v3.7.2.0 : l'ancien GUID modèle (a1b2c3d4-e5f6-7890-abcd-ef1234567890)
+    /// entrait en collision avec le plugin "QualityGate" (GeiserX) présent dans
+    /// l'Universal Plugin Repository, ce qui fusionnait les deux et masquait
+    /// Info Popup dans le catalogue Jellyfin.
     /// </summary>
-    public override Guid Id => new Guid("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+    public override Guid Id => new Guid("ceeb3040-9fe5-451f-ac05-8587ea3c3718");
 
     /// <inheritdoc />
     public override string Name => "Info Popup";

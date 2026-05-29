@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.2.0] — 2026-05-29
+
+### Fixed
+- **Plugin introuvable dans le catalogue Jellyfin (collision de GUID)** — le GUID par défaut du template (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) était partagé avec d'autres plugins publics (ex. « QualityGate »). Jellyfin fusionnant les plugins par GUID à travers tous les dépôts, Info Popup se retrouvait masqué sous l'autre plugin. Nouveau GUID unique : `ceeb3040-9fe5-451f-ac05-8587ea3c3718`.
+
+### Changed
+- **GUID du plugin modifié** — conséquence : Info Popup est vu comme un nouveau plugin. Si une ancienne version est installée, la désinstaller puis réinstaller depuis le catalogue.
+
+---
+
 ## [3.7.1.0] — 2026-05-29
 
 ### Fixed

@@ -22,7 +22,7 @@
 | Client-side CSS prefix and DOM IDs | `.ip-` / `#infopopup-` |
 | JS double-execution guard | `window.__infoPopupLoaded` |
 | .NET log message prefix | `InfoPopup:` |
-| Plugin GUID (immutable) | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Plugin GUID (stable depuis v3.7.2.0 — voir pitfalls) | `ceeb3040-9fe5-451f-ac05-8587ea3c3718` |
 
 ### Stack
 - Backend: C# / .NET 9, `IBasePlugin`, `ControllerBase`, ASP.NET Core DI
@@ -334,7 +334,7 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 
 ### During
 - Preserve XML C# comments on public members
-- **Never** change the GUID
+- **Never** change the GUID (it must stay `ceeb3040-9fe5-451f-ac05-8587ea3c3718`). The *only* time it was ever changed was v3.7.2.0, to escape a collision with the default template GUID — see the ⛔ pitfall below. Changing it orphans every existing install, so never do it casually.
 - **Never** manually edit `version.json` or `<Version>` in the `.csproj` → use `make bump-*`
 - **Never** manually edit `manifest.json` → use `make manifest-update` (or a full `make release-*`)
 - **Never** manually edit `dist/infopopup_*.zip` or compute/paste an MD5 checksum → the Makefile downloads the ZIP from GitHub and computes the real checksum
@@ -420,6 +420,7 @@ The script applies these transformations before embedding in `manifest.json`:
 - `HttpContext.User.FindFirst("Jellyfin-UserId")` — not `User.Identity.Name`
 - Admin policy: `"RequiresElevation"` in Jellyfin 10.10+
 - ⛔ **`IUserManager.Users` — NEVER access it directly (statically typed).** Its signature changed *within* the Jellyfin 10.11 patch cycle (the `User` entity moved to `Jellyfin.Database.Implementations.Entities`), so a statically-typed call compiled against `Jellyfin.Controller` 10.11.0 throws `MissingMethodException: …IUserManager.get_Users()` at runtime on a slightly different 10.11.x server → **HTTP 500 on `GET /InfoPopup/permissions`** (the "Droits → Erreur" bug, fixed in v3.7.1.0). Enumerate users via the reflection helper `InfoPopupController.EnumerateUsers()` (binds at runtime, wrapped in try/catch + log). `IUserManager.GetUserById(Guid)` is ABI-stable and fine to use directly. Do **not** "fix" this by pinning the `Jellyfin.Controller` package to one exact patch — the plugin is distributed to users on various 10.11.x builds, so runtime binding is the only robust option. General rule: for any Jellyfin API that has churned across 10.11.x, prefer runtime-bound access (reflection) over a statically-typed call.
+- ⛔ **GUID modèle = collision dans le catalogue (corrigé en v3.7.2.0).** Le GUID par défaut du template de plugin Jellyfin (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) est réutilisé tel quel par d'autres plugins publics — notamment **QualityGate** (GeiserX), présent dans l'« Universal Plugin Repository » (0belous). **Jellyfin fusionne les plugins par GUID à travers TOUS les dépôts ajoutés** : deux plugins au même GUID ne forment qu'**une seule carte** au catalogue, le nom du dépôt vu en premier l'emporte, et les versions de l'autre sont empilées sous ce nom. Symptôme réel : « Info Popup » **introuvable** au catalogue car fusionné sous « QualityGate » (sa version 3.7.1.0 s'affichait comme une version de QualityGate). Piège diagnostique : `/Packages` interrogé en **direct** (127.0.0.1, via `--network container:jellyfin`) montrait quand même le plugin — la fusion se fait à l'**agrégation** du catalogue, pas dans un dépôt isolé ; il faut récupérer `/Packages` **depuis le navigateur** (IP autorisée par l'admin-allowlist) et chercher le GUID : s'il est rattaché à un *autre* nom, c'est une collision. **Fix : GUID aléatoire unique** (`uuidgen`) changé à 3 endroits — `Plugin.cs` (propriété `Id`), `manifest.json` (champ `guid`), et `scripts/update_manifest.sh` (le `--arg guid` ligne ~113, sinon `make manifest-update` réécrit l'ancien lors d'un build « from scratch » ; en update normal le script réutilise `.[0].guid` du manifest existant). **Ne PAS** toucher au GUID du `.sln` (`{A1B2C3D4-…}`) : c'est un identifiant de projet **Visual Studio interne**, sans rapport avec le GUID plugin Jellyfin, et le modifier risque de casser la solution sans rien apporter.
 - **`popupActive` reset too early**: never set `popupActive = false` before the `.finally()` of `markAllSeen()`. Symptom: the popup reappears immediately after closing if navigation is fast.
 - **DELETE with body**: use `POST /InfoPopup/messages/delete`. Never revert to `DELETE` with a body — it may be silently ignored by proxies.
 - **`GetConfig()` outside lock**: always capture `var cfg = GetConfig()` inside the locked block in `MessageStore`. Never access it via the static property directly in a multi-step operation.
