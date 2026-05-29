@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.2.0",
+        "changelog": "Fixed\n- Plugin introuvable dans le catalogue Jellyfin (collision de GUID) — le GUID par défaut du template (a1b2c3d4-e5f6-7890-abcd-ef1234567890) était partagé avec d'autres plugins publics (ex. « QualityGate »). Jellyfin fusionnant les plugins par GUID à travers tous les dépôts, Info Popup se retrouvait masqué sous l'autre plugin. Nouveau GUID unique : ceeb3040-9fe5-451f-ac05-8587ea3c3718.\nChanged\n- GUID du plugin modifié — conséquence : Info Popup est vu comme un nouveau plugin. Si une ancienne version est installée, la désinstaller puis réinstaller depuis le catalogue.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.2.0/infopopup_3.7.2.0.zip",
+        "checksum": "b34b0d65811913fcfd59a9726499f827",
+        "timestamp": "2026-05-29T14:59:03Z"
+      },
+      {
         "version": "3.7.1.0",
         "changelog": "Fixed\n- Onglet « Droits » en erreur (HTTP 500) — GET /InfoPopup/permissions levait un MissingMethodException sur IUserManager.Users, dont la signature a changé pendant le cycle Jellyfin 10.11 (entité User déplacée dans Jellyfin.Database.Implementations.Entities). L'énumération des utilisateurs passe désormais par la réflexion, liée au runtime et robuste aux variations d'ABI entre versions 10.11.x.\nChanged\n- Icône allégée — assets/icon.png réduite de 1024×1024 (1,4 Mo) à 256×256 (~20 Ko), réduisant d'autant la taille du DLL et du ZIP de release.",
         "targetAbi": "10.11.0.0",
