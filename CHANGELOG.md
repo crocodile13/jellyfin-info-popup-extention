@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.1.0] — 2026-05-29
+
+### Fixed
+- **Onglet « Droits » en erreur (HTTP 500)** — `GET /InfoPopup/permissions` levait un `MissingMethodException` sur `IUserManager.Users`, dont la signature a changé pendant le cycle Jellyfin 10.11 (entité `User` déplacée dans `Jellyfin.Database.Implementations.Entities`). L'énumération des utilisateurs passe désormais par la réflexion, liée au runtime et robuste aux variations d'ABI entre versions 10.11.x.
+
+### Changed
+- **Icône allégée** — `assets/icon.png` réduite de 1024×1024 (1,4 Mo) à 256×256 (~20 Ko), réduisant d'autant la taille du DLL et du ZIP de release.
+
+---
+
 ## [3.7.0.0] — 2026-05-28
 
 ### Added

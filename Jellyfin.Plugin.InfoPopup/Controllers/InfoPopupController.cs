@@ -754,19 +754,53 @@ public class InfoPopupController : ControllerBase
     public ActionResult<IEnumerable<UserPermissionDto>> GetAllPermissions()
     {
         var perms = _permService.GetAll();
-        var users = _userManager.Users.ToList();
 
         var result = new List<UserPermissionDto>();
-        foreach (var user in users)
+        foreach (var (uid, userName) in EnumerateUsers())
         {
-            var uid = user.Id.ToString();
             var perm = perms.FirstOrDefault(p => p.UserId == uid) ?? new UserPermission { UserId = uid };
             var dto = ToPermissionDto(perm);
-            dto.UserName = user.Username;
+            if (!string.IsNullOrEmpty(userName)) dto.UserName = userName;
             result.Add(dto);
         }
 
         return Ok(result.OrderBy(d => d.UserName));
+    }
+
+    /// <summary>
+    /// Énumère les utilisateurs Jellyfin (id + nom) via réflexion sur IUserManager.Users.
+    /// La réflexion lie l'appel au runtime : la signature de la propriété Users a changé
+    /// pendant le cycle 10.11 (User déplacé dans Jellyfin.Database.Implementations.Entities),
+    /// ce qui provoquait un MissingMethodException avec un accès typé statiquement.
+    /// Ne JAMAIS revenir à `_userManager.Users` en accès direct.
+    /// </summary>
+    private List<(string Id, string Name)> EnumerateUsers()
+    {
+        var list = new List<(string, string)>();
+        try
+        {
+            var usersValue = _userManager.GetType().GetProperty("Users")?.GetValue(_userManager)
+                ?? typeof(IUserManager).GetProperty("Users")?.GetValue(_userManager);
+
+            if (usersValue is not System.Collections.IEnumerable users)
+                return list;
+
+            foreach (var user in users)
+            {
+                if (user is null) continue;
+                var type = user.GetType();
+                var id = type.GetProperty("Id")?.GetValue(user)?.ToString();
+                if (string.IsNullOrEmpty(id)) continue;
+                var name = type.GetProperty("Username")?.GetValue(user) as string;
+                list.Add((id, name ?? string.Empty));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "InfoPopup: échec de l'énumération des utilisateurs (IUserManager.Users)");
+        }
+
+        return list;
     }
 
     /// <summary>Retourne les droits effectifs de l'utilisateur courant.</summary>
