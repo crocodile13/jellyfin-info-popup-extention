@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.7.0",
+        "changelog": "Fixed\n- Inbox de la page Messages ne marquait jamais les non-lus — les messages consultés via la sidebar restaient « non vus » côté serveur et le popup les ré-affichait à chaque connexion. Le chargement de l'inbox émet désormais un POST /seen avec tous les unseen ids.\n- Bouton « Messages » mal placé / clic mort dans la sidebar 10.11 MUI — l'injection prenait la première ul du drawer (qui est la liste Média/Bibliothèques) et un handler React MUI parent consommait le clic avant le nôtre. L'injection cible désormais la liste utilisateur (autour de logout/preferences) et le clic est doublé d'une délégation document en capture phase, robuste aux re-renders React.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.7.0/infopopup_3.7.7.0.zip",
+        "checksum": "85fbc5165e6f910bc08717b0bde24216",
+        "timestamp": "2026-05-29T23:46:57Z"
+      },
+      {
         "version": "3.7.6.0",
         "changelog": "Fixed\n- Messages envoyés sans contenu (page Messages utilisateur) — l'endpoint /messages/sent renvoyait des summaries sans corps, et le fallback /messages/{id} rejetait l'auteur quand il n'était pas lui-même dans TargetUserIds (404). Désormais l'auteur peut toujours lire son propre message, et /messages/sent renvoie le corps directement.\n- Rôle « Personnalisé » qui redevient un preset après enregistrement — detectRole reclassait les bools en preset à chaque rechargement, perdant le choix explicite de l'admin. Le rôle est désormais persisté côté serveur (nouveau champ Role dans UserPermission) et honoré tel quel.\n- Liste déroulante des cartes Droits coupée/superposée — .ip-perm-card{overflow:hidden} clippait la liste ouverte ; remplacé par overflow:visible avec promotion z-index de la carte active.\nAdded\n- Émetteur affiché dans la popup — ligne « De : ... » au-dessus du corps de chaque message (single ou multi), nouvelle clé i18n popup_from dans les 8 langues.\n- Cache-bust des modules JS (?v=X.Y.Z.W) — l'URL injectée et chaque module chargé par client.js portent désormais la version du plugin. Plus besoin de purger nginx/Cloudflare/service worker à chaque release : l'URL change → tous les caches refetchent automatiquement.",
         "targetAbi": "10.11.0.0",
