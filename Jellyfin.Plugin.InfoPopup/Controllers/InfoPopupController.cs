@@ -546,7 +546,7 @@ public class InfoPopupController : ControllerBase
         if (instance is null) return StatusCode(500);
         var cfg = instance.Configuration;
         cfg.PopupEnabled              = dto.PopupEnabled;
-        cfg.PopupDelayMs              = Math.Clamp(dto.PopupDelayMs, 0, 30000);
+        cfg.PopupDelayMs              = Math.Clamp(dto.PopupDelayMs, 0, 600000);
         cfg.MaxMessagesInPopup        = Math.Clamp(dto.MaxMessagesInPopup, 1, 50);
         cfg.AllowReplies              = dto.AllowReplies;
         cfg.ReplyMaxLength            = Math.Clamp(dto.ReplyMaxLength, 10, 5000);
@@ -779,8 +779,17 @@ public class InfoPopupController : ControllerBase
         var list = new List<(string, string)>();
         try
         {
-            var usersValue = _userManager.GetType().GetProperty("Users")?.GetValue(_userManager)
+            // 10.10 / début 10.11 : propriété IUserManager.Users.
+            object? usersValue = _userManager.GetType().GetProperty("Users")?.GetValue(_userManager)
                 ?? typeof(IUserManager).GetProperty("Users")?.GetValue(_userManager);
+
+            // 10.11.9+ : la propriété Users a été remplacée par la méthode GetUsers().
+            // Sans ce fallback, GetProperty("Users") renvoie null → liste vide → "Aucun utilisateur".
+            if (usersValue is not System.Collections.IEnumerable)
+            {
+                usersValue = _userManager.GetType().GetMethod("GetUsers", Type.EmptyTypes)?.Invoke(_userManager, null)
+                    ?? typeof(IUserManager).GetMethod("GetUsers", Type.EmptyTypes)?.Invoke(_userManager, null);
+            }
 
             if (usersValue is not System.Collections.IEnumerable users)
                 return list;
@@ -797,7 +806,7 @@ public class InfoPopupController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "InfoPopup: échec de l'énumération des utilisateurs (IUserManager.Users)");
+            _logger.LogError(ex, "InfoPopup: échec de l'énumération des utilisateurs (IUserManager.Users / GetUsers)");
         }
 
         return list;

@@ -14,7 +14,13 @@
       "Bash(python3:*)",
       "Bash(node:*)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git fetch *)",
+      "Bash(echo \"fetch rc=$?\")",
+      "Bash(git rev-list *)",
+      "Bash(grep -E \"\\(^|/\\)\\\\.env\\\\.make$\")",
+      "Bash(echo \"rc_scan=$? \\(vide au-dessus = aucun match\\)\")",
+      "Bash(grep *)"
     ]
   }
 }

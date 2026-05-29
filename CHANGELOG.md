@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.3.0] — 2026-05-29
+
+### Fixed
+- **Onglet « Droits » vide (« Aucun utilisateur »)** — sur Jellyfin 10.11.9+, la propriété `IUserManager.Users` a été remplacée par la méthode `GetUsers()`. Le helper de réflexion ne testait que la propriété et renvoyait une liste vide (sans erreur). Il tente désormais aussi `GetUsers()`.
+- **« Paramètres invalides » à l'enregistrement** — la durée d'affichage avant fermeture automatique était plafonnée à 30 000 ms, ce qui rejetait des valeurs légitimes (ex. 60 000). Plafond relevé à 600 000 ms (10 min) côté client, serveur et formulaire.
+
+---
+
 ## [3.7.2.0] — 2026-05-29
 
 ### Fixed

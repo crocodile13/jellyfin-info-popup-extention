@@ -1371,7 +1371,7 @@
                     setTimeout(function() { settingsToastEl.style.display = 'none'; }, 4000);
                 }
             }
-            if (isNaN(delayVal)    || delayVal    < 0     || delayVal    > 30000) settingsValid = false;
+            if (isNaN(delayVal)    || delayVal    < 0     || delayVal    > 600000) settingsValid = false;
             if (isNaN(maxVal)      || maxVal      < 1     || maxVal      > 50)    settingsValid = false;
             if (isNaN(replyLenVal) || replyLenVal < 10    || replyLenVal > 5000)  settingsValid = false;
             if (isNaN(rateVal)     || rateVal     < 0     || rateVal     > 60000) settingsValid = false;
