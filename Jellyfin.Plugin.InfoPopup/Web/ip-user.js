@@ -67,6 +67,7 @@
     }
 
     function showUserPage() {
+        console.log('[InfoPopup] showUserPage() called, _overlayOpen=' + _overlayOpen);
         if (_overlayOpen) return;
         _overlayOpen = true;
         ns.injectStyles();
@@ -243,6 +244,7 @@
         var handler = function (e) {
             var link = e.target && e.target.closest && e.target.closest('#ip-nav-messages');
             if (!link) return;
+            console.log('[InfoPopup] sidebar click captured', e.eventPhase, e.target);
             e.preventDefault();
             e.stopPropagation();
             try { showUserPage(); }

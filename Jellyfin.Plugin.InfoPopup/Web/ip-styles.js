@@ -238,7 +238,9 @@
             '.ip-perm-toggle-details{background:none;border:none;color:var(--theme-accent-color,#00a4dc);font-size:.78rem;cursor:pointer;padding:2px 6px;opacity:.7;transition:opacity .15s}',
             '.ip-perm-toggle-details:hover{opacity:1}',
             // ── User page overlay ────────────────────────────────────────────────
-            '.ip-user-overlay{position:fixed;inset:0;z-index:9998;background:var(--theme-body-background-color,#101010);overflow-y:auto;animation:ip-fade .2s ease}',
+            // z-index aligné avec les autres overlays du plugin (99998) : 9998 était masqué par
+            // certaines pages d'administration Jellyfin qui utilisent des dialogues ~10000+.
+            '.ip-user-overlay{position:fixed;inset:0;z-index:99998;background:var(--theme-body-background-color,#101010);overflow-y:auto;animation:ip-fade .2s ease}',
             '.ip-user-overlay-header{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid rgba(255,255,255,.1);position:sticky;top:0;background:var(--theme-body-background-color,#101010);z-index:1}',
             '.ip-user-overlay-back{flex-shrink:0}',
             '.ip-user-overlay-title{font-size:1.15rem;font-weight:600}',

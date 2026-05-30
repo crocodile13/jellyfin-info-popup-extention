@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.9.0] — 2026-05-30
+
+### Fixed
+- **Overlay « Messages » invisible côté admin** — le `.ip-user-overlay` était en `z-index:9998`, en dessous des dialogues `~10000+` de certaines pages d'administration Jellyfin → clic capté, `showUserPage()` exécuté, mais overlay masqué par la page admin. Aligné sur les autres overlays du plugin (`99998`).
+
+### Added
+- **Logs de diagnostic clic / `showUserPage`** — ajoutés temporairement pour identifier la cause si le problème persiste sur d'autres configurations (à supprimer plus tard).
+
+---
+
 ## [3.7.8.0] — 2026-05-30
 
 ### Fixed

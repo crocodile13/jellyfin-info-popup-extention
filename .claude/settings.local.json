@@ -29,7 +29,9 @@
       "Bash(git --no-pager log --oneline -6)",
       "Bash(git --no-pager log --oneline -1 -- Jellyfin.Plugin.InfoPopup/Services/PermissionService.cs)",
       "Bash(gh release *)",
-      "Bash(git --no-pager log --oneline -4)"
+      "Bash(git --no-pager log --oneline -4)",
+      "Bash(sed -n '/## \\\\[3.7.8.0\\\\]/,/## \\\\[3.7.7.0\\\\]/p')",
+      "Bash(sed -n '/## \\\\[3.7.8.0\\\\]/,/## \\\\[3.7.7.0\\\\]/p' CHANGELOG.md)"
     ]
   }
 }
