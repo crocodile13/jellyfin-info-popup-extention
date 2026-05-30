@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.10.0",
+        "changelog": "Fixed\n- Clic sur « Messages » bloqué après une exception silencieuse dans showUserPage — showUserPage positionnait _overlayOpen = true AVANT toute la construction de l'overlay ; si une exception était levée pendant cette construction (cas révélé par les logs de diagnostic : showUserPage failed: avec err vide côté admin), le flag restait à true et TOUS les clics suivants étaient consommés par le garde if (_overlayOpen) return;. Le corps de l'overlay est désormais isolé dans _showUserPageInner enveloppé d'un try/catch qui réinitialise _overlayOpen = false en cas d'échec, et logue l'erreur complète (name + message + stack).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.10.0/infopopup_3.7.10.0.zip",
+        "checksum": "a7b1d49be70c455c5dff44fed5c3c75a",
+        "timestamp": "2026-05-30T09:55:30Z"
+      },
+      {
         "version": "3.7.9.0",
         "changelog": "Fixed\n- Overlay « Messages » invisible côté admin — le .ip-user-overlay était en z-index:9998, en dessous des dialogues ~10000+ de certaines pages d'administration Jellyfin → clic capté, showUserPage() exécuté, mais overlay masqué par la page admin. Aligné sur les autres overlays du plugin (99998).\nAdded\n- Logs de diagnostic clic / showUserPage — ajoutés temporairement pour identifier la cause si le problème persiste sur d'autres configurations (à supprimer plus tard).",
         "targetAbi": "10.11.0.0",
