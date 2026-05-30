@@ -276,9 +276,31 @@
     }
 
     function injectIntoClassicSidebar() {
-        var container = document.querySelector('.mainDrawer-scrollContainer');
-        if (!container || container.closest('.hide')) return false;
-        if (container.querySelector('#ip-nav-messages')) return true;
+        if (document.querySelector('#ip-nav-messages')) return true;
+
+        // Recherche élargie au document : sur les installations avec KefinTweaks / JellyfinEnhanced
+        // ou autres customizations, `.mainDrawer-scrollContainer` peut ne contenir QUE les
+        // bibliothèques et pas la zone utilisateur — fallback `appendChild` aboutissait alors
+        // dans la section Média (corrigé en v3.8.0.0). On cible un anchor de la zone utilisateur
+        // (logout / quickconnect / preferences) puis on remonte au container scrollable du drawer.
+        var anchorSelectors = [
+            'a[href*="#!/logout.html"]',
+            'a[href*="logout"]',
+            'a[href*="quickconnect"]',
+            'a[href*="mypreferencesmenu"]',
+            'a[href*="myprofile"]',
+            'a[href*="userprofile"]'
+        ];
+        var anchor = null;
+        for (var i = 0; i < anchorSelectors.length; i++) {
+            var candidate = document.querySelector(anchorSelectors[i]);
+            if (candidate && candidate.closest('.mainDrawer, .mainDrawer-scrollContainer, [class*="navMenuOption"]')) {
+                anchor = candidate;
+                break;
+            }
+        }
+        if (!anchor) return false;
+        if (anchor.parentNode.querySelector('#ip-nav-messages')) return true;
 
         var parts = createSidebarLink();
         parts.link.className = 'navMenuOption';
@@ -287,14 +309,7 @@
         parts.icon.classList.add('navMenuOptionIcon');
         parts.label.classList.add('navMenuOptionText');
 
-        var anchor = container.querySelector('a[href*="logout"]') ||
-                     container.querySelector('a[href*="mypreferencesmenu"]') ||
-                     container.querySelector('.adminMenuOptions');
-        if (anchor) {
-            anchor.parentNode.insertBefore(parts.link, anchor);
-        } else {
-            container.appendChild(parts.link);
-        }
+        anchor.parentNode.insertBefore(parts.link, anchor);
 
         parts.link.addEventListener('mouseenter', function () { parts.link.style.background = 'rgba(255,255,255,.06)'; });
         parts.link.addEventListener('mouseleave', function () { parts.link.style.background = ''; });
@@ -416,11 +431,12 @@
                     list.appendChild(empty);
                     return;
                 }
+                var reload = function () { loadInbox(page); };
                 unseen.forEach(function (msg) {
-                    list.appendChild(buildCollapsibleCard(msg, true));
+                    list.appendChild(buildCollapsibleCard(msg, true,  'inbox', reload));
                 });
                 history.forEach(function (msg) {
-                    list.appendChild(buildCollapsibleCard(msg, false));
+                    list.appendChild(buildCollapsibleCard(msg, false, 'inbox', reload));
                 });
 
                 // Marquer les unseen comme vus côté serveur — sinon le popup les
@@ -442,16 +458,168 @@
     }
 
     /**
+     * Affiche les réponses dans le container donné selon le mode.
+     * - mode 'sent' : liste des réponses reçues (ou message « aucune »).
+     * - mode 'inbox' : la propre réponse de l'utilisateur (s'il a répondu).
+     */
+    function renderRepliesSection(container, msg, isSent) {
+        container.innerHTML = '';
+        if (isSent) {
+            var replies = msg.replies || msg.Replies || [];
+            var header = document.createElement('div');
+            header.className = 'ip-user-msg-replies-header';
+            header.textContent = t(replies.length > 1 ? 'user_msg_replies_count_p' : 'user_msg_replies_count_s', replies.length);
+            container.appendChild(header);
+            if (!replies.length) {
+                var empty = document.createElement('div');
+                empty.className = 'ip-user-msg-replies-empty';
+                empty.textContent = t('user_msg_no_replies');
+                container.appendChild(empty);
+                return;
+            }
+            replies.forEach(function (r) {
+                var item = document.createElement('div');
+                item.className = 'ip-user-msg-reply';
+                var who = (r.userName || r.UserName || '') + '  ·  ' + formatDate(r.repliedAt || r.RepliedAt || '');
+                var meta = document.createElement('div');
+                meta.className = 'ip-user-msg-reply-meta';
+                meta.textContent = who;
+                var bodyDiv = document.createElement('div');
+                bodyDiv.className = 'ip-user-msg-reply-body';
+                bodyDiv.textContent = r.body || r.Body || '';
+                item.appendChild(meta);
+                item.appendChild(bodyDiv);
+                container.appendChild(item);
+            });
+        } else {
+            var my = msg.myReply || msg.MyReply || null;
+            if (!my) return;
+            var hdr = document.createElement('div');
+            hdr.className = 'ip-user-msg-replies-header';
+            hdr.textContent = t('user_msg_your_reply') + '  ·  ' + formatDate(my.repliedAt || my.RepliedAt || '');
+            var bodyDiv2 = document.createElement('div');
+            bodyDiv2.className = 'ip-user-msg-reply-body';
+            bodyDiv2.textContent = my.body || my.Body || '';
+            container.appendChild(hdr);
+            container.appendChild(bodyDiv2);
+        }
+    }
+
+    /**
+     * Bascule la carte en mode édition inline : remplace le body (rendu) par un textarea
+     * pré-rempli avec le markdown source, et propose Enregistrer / Annuler.
+     * PUT /InfoPopup/messages/{id} préserve l'ID et `infopopup_seen.json` (R8).
+     */
+    function enterMessageEditMode(card, bodyEl, msg, refreshFn) {
+        if (card.classList.contains('ip-editing')) return;
+        card.classList.add('ip-editing');
+        var id      = msg.id      || msg.Id      || '';
+        var title   = msg.title   || msg.Title   || '';
+        var body    = msg.body    || msg.Body    || '';
+        var targets = msg.targetUserIds || msg.TargetUserIds || [];
+
+        var prevHtml = bodyEl.innerHTML;
+        bodyEl.innerHTML = '';
+
+        var titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.className = 'emby-input ip-user-msg-edit-title';
+        titleInput.value = title;
+        titleInput.maxLength = 200;
+
+        var ta = document.createElement('textarea');
+        ta.className = 'emby-textarea ip-user-msg-edit-body';
+        ta.rows = 6;
+        ta.maxLength = 10000;
+        ta.value = body;
+        ta.style.cssText = 'width:100%;box-sizing:border-box;resize:vertical;';
+
+        var actions = document.createElement('div');
+        actions.className = 'ip-user-msg-edit-actions';
+
+        var save = document.createElement('button');
+        save.type = 'button';
+        save.className = 'raised button-submit emby-button';
+        save.textContent = t('user_msg_save');
+
+        var cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'raised emby-button';
+        cancel.textContent = t('user_msg_cancel');
+
+        var status = document.createElement('span');
+        status.className = 'ip-user-msg-edit-status';
+
+        actions.appendChild(save);
+        actions.appendChild(cancel);
+        actions.appendChild(status);
+
+        bodyEl.appendChild(titleInput);
+        bodyEl.appendChild(ta);
+        bodyEl.appendChild(actions);
+
+        function exit() {
+            card.classList.remove('ip-editing');
+            bodyEl.innerHTML = prevHtml;
+        }
+        cancel.addEventListener('click', exit);
+
+        save.addEventListener('click', function () {
+            var newTitle = titleInput.value.trim();
+            var newBody  = ta.value.trim();
+            if (!newTitle) { status.textContent = t('val_title_required'); status.className = 'ip-user-msg-edit-status err'; return; }
+            if (!newBody)  { status.textContent = t('val_body_required');  status.className = 'ip-user-msg-edit-status err'; return; }
+            save.disabled = true;
+            apiFetch('/InfoPopup/messages/' + encodeURIComponent(id), {
+                method: 'PUT',
+                body: JSON.stringify({ title: newTitle, body: newBody, targetUserIds: targets })
+            }).then(function (res) {
+                if (!res.ok) throw new Error(String(res.status));
+                exit();
+                if (typeof refreshFn === 'function') refreshFn();
+            }).catch(function (err) {
+                save.disabled = false;
+                status.textContent = t('user_msg_edit_err') + (err && err.message ? ' (' + err.message + ')' : '');
+                status.className = 'ip-user-msg-edit-status err';
+            });
+        });
+    }
+
+    /**
+     * Soft-delete d'un message (confirmation native pour rester léger côté UX).
+     * Utilise POST /messages/{id}/soft-delete pour respecter `CanDeleteOwn/Others`.
+     */
+    function softDeleteMessage(id, refreshFn) {
+        if (!id) return;
+        if (!window.confirm(t('user_msg_confirm_delete'))) return;
+        apiFetch('/InfoPopup/messages/' + encodeURIComponent(id) + '/soft-delete', {
+            method: 'POST'
+        }).then(function (res) {
+            if (!res.ok) throw new Error(String(res.status));
+            if (typeof refreshFn === 'function') refreshFn();
+        }).catch(function () { /* silencieux — l'utilisateur réessaiera */ });
+    }
+
+    /**
      * Construit une carte de message repliable.
      * Par défaut, seuls le titre, l'auteur, la date et un aperçu sont visibles.
      * Le clic sur l'en-tête déplie/replie le corps complet.
+     *
+     * @param {object} msg - le message
+     * @param {boolean} isUnseen - si true, pastille « non lu » affichée
+     * @param {string} mode - 'inbox' (destinataire) ou 'sent' (expéditeur). Conditionne
+     *                       l'affichage de MyReply vs Replies et les droits edit/delete.
+     * @param {function} refreshFn - appelée après une action (delete, edit) pour rafraîchir la liste
      */
-    function buildCollapsibleCard(msg, isUnseen) {
+    function buildCollapsibleCard(msg, isUnseen, mode, refreshFn) {
+        var isSent     = mode === 'sent';
         var title      = msg.title       || msg.Title       || '';
         var body       = msg.body        || msg.Body        || '';
         var date       = msg.publishedAt || msg.PublishedAt  || '';
         var authorName = msg.sentByUserName || msg.SentByUserName || '';
         var id         = msg.id          || msg.Id          || '';
+        var myReply    = msg.myReply     || msg.MyReply     || null;
+        var replies    = msg.replies     || msg.Replies     || [];
 
         var card = document.createElement('div');
         card.className = 'ip-user-msg-card ip-collapsed';
@@ -516,6 +684,49 @@
 
         card.appendChild(bodyEl);
 
+        // ── Section « Votre réponse » (inbox uniquement, si l'utilisateur a répondu) ─────
+        // ── Section « Réponses reçues » (sent uniquement, si au moins 1 réponse)     ─────
+        var repliesContainer = document.createElement('div');
+        repliesContainer.className = 'ip-user-msg-replies';
+        repliesContainer.style.display = 'none';
+        renderRepliesSection(repliesContainer, msg, isSent);
+        card.appendChild(repliesContainer);
+
+        // ── Barre d'actions (Modifier / Supprimer) gated par permissions ─────────────────
+        // Inbox : actions destinataires (canEdit/DeleteOthersMessages — typiquement admin).
+        // Sent  : actions propriétaires (canEdit/DeleteOwnMessages).
+        var canEdit   = isSent ? _userPerms.canEditOwnMessages    : _userPerms.canEditOthersMessages;
+        var canDelete = isSent ? _userPerms.canDeleteOwnMessages  : _userPerms.canDeleteOthersMessages;
+        var actionsBar = null;
+        if ((canEdit || canDelete) && id && !(msg.isDeleted || msg.IsDeleted)) {
+            actionsBar = document.createElement('div');
+            actionsBar.className = 'ip-user-msg-actions';
+            actionsBar.style.display = 'none';
+            if (canEdit) {
+                var editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'ip-user-msg-action';
+                editBtn.textContent = t('user_msg_edit');
+                editBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    enterMessageEditMode(card, bodyEl, msg, refreshFn);
+                });
+                actionsBar.appendChild(editBtn);
+            }
+            if (canDelete) {
+                var delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'ip-user-msg-action ip-user-msg-action-danger';
+                delBtn.textContent = t('user_msg_delete');
+                delBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    softDeleteMessage(id, refreshFn);
+                });
+                actionsBar.appendChild(delBtn);
+            }
+            card.appendChild(actionsBar);
+        }
+
         // ── Toggle collapse ──────────────────────────────────────────────
         var toggle = function () {
             var collapsed = card.classList.contains('ip-collapsed');
@@ -523,6 +734,8 @@
                 card.classList.remove('ip-collapsed');
                 card.classList.add('ip-expanded');
                 bodyEl.style.display = '';
+                if (repliesContainer.children.length) repliesContainer.style.display = '';
+                if (actionsBar) actionsBar.style.display = '';
                 // Chargement paresseux du corps si absent (messages historiques)
                 if (!bodyLoaded && id) {
                     bodyLoaded = true;
@@ -532,6 +745,10 @@
                         .then(function (d) {
                             var b = d.body || d.Body || '';
                             bodyEl.innerHTML = b ? renderBody(b) : '';
+                            // Le détail récupéré peut contenir MyReply / Replies à jour.
+                            var freshMsg = Object.assign({}, msg, d);
+                            renderRepliesSection(repliesContainer, freshMsg, isSent);
+                            if (repliesContainer.children.length) repliesContainer.style.display = '';
                         })
                         .catch(function () { bodyEl.textContent = ''; });
                 }
@@ -539,6 +756,8 @@
                 card.classList.remove('ip-expanded');
                 card.classList.add('ip-collapsed');
                 bodyEl.style.display = 'none';
+                repliesContainer.style.display = 'none';
+                if (actionsBar) actionsBar.style.display = 'none';
             }
         };
         header.addEventListener('click', toggle);
@@ -567,8 +786,9 @@
                     list.appendChild(empty);
                     return;
                 }
+                var reloadSent = function () { loadSentMessages(page); };
                 msgs.forEach(function (msg) {
-                    list.appendChild(buildCollapsibleCard(msg, false));
+                    list.appendChild(buildCollapsibleCard(msg, false, 'sent', reloadSent));
                 });
             })
             .catch(function () {});
@@ -879,21 +1099,44 @@
             }
         });
 
-        // Charger les permissions pour afficher/masquer l'onglet Envoyer
+        // Charger les permissions pour afficher/masquer l'onglet Envoyer ET pour conditionner
+        // les boutons éditer / supprimer sur chaque carte de message.
         apiFetch('/InfoPopup/permissions/me')
             .then(function (res) { return res.json(); })
             .then(function (perms) {
-                var canSend = perms.canSendMessages || perms.CanSendMessages || false;
+                _userPerms = normalizePerms(perms);
                 var sendTab = page.querySelector('#ip-user-tab-send');
-                if (sendTab && canSend) {
+                if (sendTab && _userPerms.canSendMessages) {
                     sendTab.style.display = '';
                     initCompose(page);
                     loadSentMessages(page);
                 }
+                // Recharger l'inbox APRÈS avoir les perms — pour que les boutons edit/delete
+                // apparaissent dès le premier rendu plutôt qu'après un refresh manuel.
+                loadInbox(page);
             })
-            .catch(function () {});
+            .catch(function () { loadInbox(page); });
+    }
 
-        loadInbox(page);
+    // Permissions effectives de l'utilisateur courant, partagées au niveau module pour
+    // que buildCollapsibleCard les consulte sans dépendre d'un Promise.
+    var _userPerms = {
+        canSendMessages: false, canReply: false,
+        canEditOwnMessages: false, canDeleteOwnMessages: false,
+        canEditOthersMessages: false, canDeleteOthersMessages: false,
+        isAdmin: false
+    };
+    function normalizePerms(p) {
+        if (!p) return _userPerms;
+        return {
+            canSendMessages:         p.canSendMessages         || p.CanSendMessages         || false,
+            canReply:                p.canReply                || p.CanReply                || false,
+            canEditOwnMessages:      p.canEditOwnMessages      || p.CanEditOwnMessages      || false,
+            canDeleteOwnMessages:    p.canDeleteOwnMessages    || p.CanDeleteOwnMessages    || false,
+            canEditOthersMessages:   p.canEditOthersMessages   || p.CanEditOthersMessages   || false,
+            canDeleteOthersMessages: p.canDeleteOthersMessages || p.CanDeleteOthersMessages || false,
+            isAdmin:                 p.isAdmin                 || p.IsAdmin                 || false
+        };
     }
 
     // ── checkUserPage (appelé par MutationObserver dans ip-popup.js) ─────────

@@ -113,6 +113,31 @@ public class InfoPopupController : ControllerBase
         EditHistoryCount = m.EditHistory.Count
     };
 
+    /// <summary>
+    /// Variante contextuelle de <see cref="ToDetail"/> qui populate les champs
+    /// <c>MyReply</c> (la propre réponse de <paramref name="currentUserId"/> à ce message,
+    /// quand il n'en est PAS l'expéditeur) et <c>Replies</c> (toutes les réponses reçues,
+    /// quand il EST l'expéditeur). Évite les allers-retours pour l'affichage des réponses
+    /// dans l'onglet « Mes messages ».
+    /// </summary>
+    private MessageDetail ToDetailForUser(PopupMessage m, string currentUserId)
+    {
+        var d = ToDetail(m);
+        if (m.SentByUserId == currentUserId)
+        {
+            // L'utilisateur est l'expéditeur : on inclut TOUTES les réponses reçues.
+            d.Replies = _replyStore.GetByMessageId(m.Id).Select(ToReplyDto).ToList();
+        }
+        else
+        {
+            // L'utilisateur est destinataire : on inclut UNIQUEMENT sa propre réponse, si elle existe.
+            var own = _replyStore.GetByMessageId(m.Id)
+                .FirstOrDefault(r => r.UserId == currentUserId);
+            if (own is not null) d.MyReply = ToReplyDto(own);
+        }
+        return d;
+    }
+
     /// <summary>Construit un UserPermissionDto depuis un UserPermission, en résolvant le nom d'utilisateur.</summary>
     private UserPermissionDto ToPermissionDto(UserPermission p)
     {
@@ -202,6 +227,11 @@ public class InfoPopupController : ControllerBase
             // 404 et non 403 : ne pas révéler l'existence d'un message non ciblé.
             if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId) && msg.SentByUserId != userId)
                 return NotFound();
+
+            // Non-admin : on retourne le détail contextuel (MyReply / Replies selon le rôle dans
+            // la conversation), pour que l'UI puisse afficher la réponse de l'utilisateur ou les
+            // réponses reçues sans un round-trip supplémentaire.
+            return Ok(ToDetailForUser(msg, userId));
         }
 
         return Ok(ToDetail(msg));
@@ -373,12 +403,12 @@ public class InfoPopupController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        // ToDetail (et non ToSummary) : l'utilisateur est l'auteur, il peut voir le corps
-        // sans avoir besoin de cliquer pour faire un fetch supplémentaire. Évite aussi le
-        // bug où la carte affichait un corps vide parce que /messages/{id} renvoyait 404
-        // quand l'auteur n'était pas dans TargetUserIds.
+        // ToDetailForUser : l'utilisateur est l'auteur, on inclut donc TOUTES les réponses
+        // reçues sur chacun de ses messages (champ Replies) pour affichage inline dans Sent.
+        // Bonus : évite le bug où /messages/{id} renvoyait 404 à l'auteur s'il n'était pas
+        // dans TargetUserIds, ainsi que le round-trip pour récupérer les réponses.
         var all = _store.GetAll();
-        var sent = all.Where(m => m.SentByUserId == userId).Select(ToDetail);
+        var sent = all.Where(m => m.SentByUserId == userId).Select(m => ToDetailForUser(m, userId));
         return Ok(sent);
     }
 
@@ -419,7 +449,10 @@ public class InfoPopupController : ControllerBase
                 CanSendMessages = true,
                 CanReply = true,
                 CanEditOwnMessages = true,
-                CanDeleteOwnMessages = true
+                CanDeleteOwnMessages = true,
+                CanEditOthersMessages = true,
+                CanDeleteOthersMessages = true,
+                IsAdmin = true
             };
         }
         else
@@ -431,19 +464,25 @@ public class InfoPopupController : ControllerBase
                 CanSendMessages = p.CanSendMessages,
                 CanReply = cfg.AllowReplies && p.CanReply,
                 CanEditOwnMessages = p.CanEditOwnMessages,
-                CanDeleteOwnMessages = p.CanDeleteOwnMessages
+                CanDeleteOwnMessages = p.CanDeleteOwnMessages,
+                CanEditOthersMessages = p.CanEditOthersMessages,
+                CanDeleteOthersMessages = p.CanDeleteOthersMessages,
+                IsAdmin = false
             };
         }
 
+        // ToDetailForUser pour unseen ET history : permet d'afficher la propre réponse
+        // de l'utilisateur (champ MyReply) ou — si jamais il est l'expéditeur d'un de ces
+        // messages — les réponses reçues, directement dans l'inbox « Mes messages ».
         return Ok(new PopupDataResponse
         {
             Unseen = targeted
                 .Where(m => unseenIds.Contains(m.Id))
-                .Select(ToDetail)
+                .Select(m => ToDetailForUser(m, userId))
                 .ToList(),
             History = targeted
                 .Where(m => !unseenIds.Contains(m.Id))
-                .Select(ToSummary)
+                .Select(m => ToDetailForUser(m, userId))
                 .ToList(),
             Permissions = perms
         });
@@ -666,16 +705,69 @@ public class InfoPopupController : ControllerBase
         }
     }
 
-    /// <summary>Retourne toutes les réponses à un message (admin).</summary>
+    /// <summary>
+    /// Retourne toutes les réponses à un message.
+    /// Admin : toutes. Non-admin : autorisé uniquement si c'est SON message envoyé.
+    /// </summary>
     [HttpGet("messages/{id}/replies")]
-    [Authorize(Policy = "RequiresElevation")]
-    public ActionResult<IEnumerable<ReplyDto>> GetMessageReplies([FromRoute] string id)
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IEnumerable<ReplyDto>>> GetMessageReplies([FromRoute] string id)
     {
         if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
         var msg = _store.GetById(id);
         if (msg is null) return NotFound();
+
+        if (!await IsAdminAsync())
+        {
+            var userId = GetUserId();
+            if (userId is null) return Unauthorized();
+            if (msg.SentByUserId != userId) return Forbid();
+        }
+
         var replies = _replyStore.GetByMessageId(id).Select(ToReplyDto);
         return Ok(replies);
+    }
+
+    /// <summary>
+    /// Retourne les réponses « récentes » reçues par l'utilisateur courant — c.-à-d. les
+    /// réponses à des messages dont il est l'expéditeur. Mécanisme léger pour la notification
+    /// toast en temps réel ; le client poll périodiquement et compare avec son Set local des
+    /// IDs déjà notifiés. `since` est optionnel (date UTC ISO 8601) pour limiter la fenêtre.
+    /// </summary>
+    [HttpGet("replies/received")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public ActionResult<IEnumerable<ReceivedReplyNotification>> GetReceivedReplies([FromQuery] DateTime? since)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        // Liste des IDs de messages dont l'utilisateur est l'expéditeur, indexée pour O(1).
+        var ownMessages = _store.GetAll().Where(m => m.SentByUserId == userId).ToDictionary(m => m.Id, m => m.Title);
+        if (ownMessages.Count == 0) return Ok(System.Array.Empty<ReceivedReplyNotification>());
+
+        var sinceCutoff = since ?? DateTime.UtcNow.AddDays(-7);
+
+        var notifications = _replyStore.GetAll()
+            .Where(r => ownMessages.ContainsKey(r.MessageId))
+            .Where(r => r.RepliedAt >= sinceCutoff)
+            .OrderByDescending(r => r.RepliedAt)
+            .Take(50)
+            .Select(r => new ReceivedReplyNotification
+            {
+                ReplyId = r.Id,
+                MessageId = r.MessageId,
+                MessageTitle = ownMessages.TryGetValue(r.MessageId, out var t) ? t : string.Empty,
+                FromUserName = ResolveUserName(r.UserId),
+                Body = r.Body,
+                RepliedAt = r.RepliedAt
+            });
+        return Ok(notifications);
     }
 
     /// <summary>Retourne toutes les réponses groupées par message (admin), avec filtres optionnels.</summary>
@@ -835,7 +927,10 @@ public class InfoPopupController : ControllerBase
                 CanSendMessages = true,
                 CanReply = true,
                 CanEditOwnMessages = true,
-                CanDeleteOwnMessages = true
+                CanDeleteOwnMessages = true,
+                CanEditOthersMessages = true,
+                CanDeleteOthersMessages = true,
+                IsAdmin = true
             });
 
         var p = _permService.GetOrDefault(userId);
@@ -845,7 +940,10 @@ public class InfoPopupController : ControllerBase
             CanSendMessages = p.CanSendMessages,
             CanReply = cfg.AllowReplies && p.CanReply,
             CanEditOwnMessages = p.CanEditOwnMessages,
-            CanDeleteOwnMessages = p.CanDeleteOwnMessages
+            CanDeleteOwnMessages = p.CanDeleteOwnMessages,
+            CanEditOthersMessages = p.CanEditOthersMessages,
+            CanDeleteOthersMessages = p.CanDeleteOthersMessages,
+            IsAdmin = false
         });
     }
 

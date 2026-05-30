@@ -5,10 +5,6 @@
 
 A Jellyfin plugin that allows administrators to broadcast popup messages to users when they log in, with per-user permissions, reply system, and a full user messaging page.
 
-> ℹ️ **Project status**
->
-> As of **v3.7.0.0** the permission management has been overhauled (role-based UX + bulk apply), the bug where non-admins were redirected away from the Messages page (#1) is fixed, and the sidebar is compatible with the Jellyfin 10.11 experimental (React/MUI) layout. Maintenance remains best-effort due to limited time, but the plugin is functional on current Jellyfin versions.
-
 ## Table of Contents
 - [Preview](#-preview)
 - [Features](#features)

@@ -107,6 +107,47 @@ public class MessageDetail
 
     /// <summary>Nombre d'entrées dans l'historique de modifications.</summary>
     public int EditHistoryCount { get; set; }
+
+    /// <summary>
+    /// Réponse de l'utilisateur courant à ce message, ou null s'il n'a pas (encore) répondu.
+    /// Populé uniquement par les endpoints utilisateur (popup-data, GET /messages/{id})
+    /// lorsque l'utilisateur n'est PAS l'expéditeur — c'est-à-dire que c'est sa propre réponse
+    /// à un message qu'il a reçu. Permet à l'onglet « Mes messages » d'afficher sa réponse
+    /// en dessous du message sans aller-retour réseau supplémentaire.
+    /// </summary>
+    public ReplyDto? MyReply { get; set; }
+
+    /// <summary>
+    /// Réponses reçues sur ce message — populé uniquement quand l'utilisateur courant est
+    /// l'expéditeur (GET /messages/sent, GET /messages/{id} pour le propre auteur).
+    /// Permet à l'onglet « Sent » d'afficher les réponses des destinataires en ligne.
+    /// </summary>
+    public List<ReplyDto> Replies { get; set; } = new();
+}
+
+/// <summary>
+/// Notification de réponse reçue — utilisée par le mécanisme de toast en temps réel
+/// (poll régulier de /InfoPopup/replies/received).
+/// </summary>
+public class ReceivedReplyNotification
+{
+    /// <summary>ID de la réponse.</summary>
+    public string ReplyId { get; set; } = string.Empty;
+
+    /// <summary>ID du message auquel cette réponse répond.</summary>
+    public string MessageId { get; set; } = string.Empty;
+
+    /// <summary>Titre du message auquel la réponse a été envoyée.</summary>
+    public string MessageTitle { get; set; } = string.Empty;
+
+    /// <summary>Nom d'affichage de l'utilisateur qui a répondu.</summary>
+    public string FromUserName { get; set; } = string.Empty;
+
+    /// <summary>Corps de la réponse (tronqué côté client pour le toast si trop long).</summary>
+    public string Body { get; set; } = string.Empty;
+
+    /// <summary>Date UTC de la réponse.</summary>
+    public DateTime RepliedAt { get; set; }
 }
 
 /// <summary>
@@ -121,9 +162,11 @@ public class PopupDataResponse
     public List<MessageDetail> Unseen { get; set; } = new();
 
     /// <summary>
-    /// Messages déjà vus (résumés sans corps) — chargés à la demande au clic dans l'historique.
+    /// Messages déjà vus avec leur corps complet. Depuis v3.8.0.0 on renvoie aussi le corps
+    /// pour pouvoir afficher inline la réponse de l'utilisateur (`MyReply`) dans l'inbox
+    /// « Mes messages » sans aller-retour réseau supplémentaire.
     /// </summary>
-    public List<MessageSummary> History { get; set; } = new();
+    public List<MessageDetail> History { get; set; } = new();
 
     /// <summary>Droits effectifs de l'utilisateur courant pour les actions sur les messages.</summary>
     public EffectivePermissionsDto Permissions { get; set; } = new();
@@ -310,6 +353,15 @@ public class EffectivePermissionsDto
 
     /// <summary>L'utilisateur peut soft-supprimer ses propres messages.</summary>
     public bool CanDeleteOwnMessages { get; set; }
+
+    /// <summary>L'utilisateur peut modifier les messages des autres (typiquement admin ou modérateur).</summary>
+    public bool CanEditOthersMessages { get; set; }
+
+    /// <summary>L'utilisateur peut soft-supprimer les messages des autres (typiquement admin ou modérateur).</summary>
+    public bool CanDeleteOthersMessages { get; set; }
+
+    /// <summary>L'utilisateur courant est administrateur Jellyfin (raccourci pratique côté client).</summary>
+    public bool IsAdmin { get; set; }
 }
 
 /// <summary>Requête de soft-delete d'un message par un utilisateur. L'ID est dans la route.</summary>

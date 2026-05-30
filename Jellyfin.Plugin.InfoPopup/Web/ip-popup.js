@@ -492,7 +492,130 @@
             ns.checkConfigPage();
             if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
             if (typeof ns.injectSidebarEntry === 'function') ns.injectSidebarEntry();
+
+            // ── Polling léger temps réel (v3.8.0.0) ─────────────────────────────
+            // Vérifie périodiquement si de nouveaux messages sont arrivés. Une vérification
+            // toutes les 60s + une vérification dès que l'onglet redevient visible. Si la
+            // popup est active, l'onglet est caché ou la page admin est ouverte, on saute.
+            var POLL_INTERVAL_MS = 60000;
+            var REPLIES_POLL_INTERVAL_MS = 60000;
+            var lastPopupPoll = 0;
+            var lastRepliesPoll = 0;
+
+            function pollPopup() {
+                if (popupActive) return;
+                if (document.querySelector('#infoPopupConfigPage')) return;
+                if (document.visibilityState !== 'visible') return;
+                // Reset lastCheckedPath pour que checkForUnseenMessages ne soit pas court-circuité.
+                lastCheckedPath = null;
+                checkForUnseenMessages();
+            }
+
+            function pollRepliesReceived() {
+                if (document.visibilityState !== 'visible') return;
+                checkReceivedReplies();
+            }
+
+            setInterval(function () {
+                var now = Date.now();
+                if (now - lastPopupPoll >= POLL_INTERVAL_MS) { lastPopupPoll = now; pollPopup(); }
+                if (now - lastRepliesPoll >= REPLIES_POLL_INTERVAL_MS) { lastRepliesPoll = now; pollRepliesReceived(); }
+            }, 15000);
+
+            // Au retour de visibilité (changement d'onglet), check immédiatement.
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') {
+                    pollPopup();
+                    pollRepliesReceived();
+                }
+            });
         });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Notifications de réponse reçue (v3.8.0.0)
+    // ════════════════════════════════════════════════════════════════════════
+
+    // Set des IDs de réponses déjà notifiées (persisté dans localStorage pour survivre
+    // aux reloads). Évite de re-notifier les mêmes réponses à chaque poll/connexion.
+    var SEEN_REPLIES_KEY = '__ip_seen_reply_ids';
+    function loadSeenReplies() {
+        try {
+            var raw = localStorage.getItem(SEEN_REPLIES_KEY);
+            return new Set(raw ? JSON.parse(raw) : []);
+        } catch (e) { return new Set(); }
+    }
+    function persistSeenReplies(set) {
+        try {
+            // Cap à 500 entrées pour ne pas faire grossir indéfiniment.
+            var arr = Array.from(set);
+            if (arr.length > 500) arr = arr.slice(arr.length - 500);
+            localStorage.setItem(SEEN_REPLIES_KEY, JSON.stringify(arr));
+        } catch (e) { /* quota plein ou storage désactivé : silencieux */ }
+    }
+
+    function checkReceivedReplies() {
+        apiFetch('/InfoPopup/replies/received')
+            .then(function (res) { return res.ok ? res.json() : []; })
+            .then(function (replies) {
+                if (!Array.isArray(replies) || !replies.length) return;
+                var seen = loadSeenReplies();
+                // Initial bootstrap : si seen est vide, on marque tout comme déjà-vu sans
+                // notifier (sinon l'utilisateur reçoit en bloc toutes les anciennes réponses
+                // à sa première connexion sur 3.8.0.0).
+                if (seen.size === 0) {
+                    replies.forEach(function (r) { seen.add(r.replyId || r.ReplyId); });
+                    persistSeenReplies(seen);
+                    return;
+                }
+                var newOnes = replies.filter(function (r) {
+                    var id = r.replyId || r.ReplyId;
+                    return id && !seen.has(id);
+                });
+                if (!newOnes.length) return;
+                // Notifier en commençant par la plus ancienne pour respecter l'ordre temporel.
+                newOnes.reverse().forEach(function (r) {
+                    showReplyToast(r);
+                    seen.add(r.replyId || r.ReplyId);
+                });
+                persistSeenReplies(seen);
+            })
+            .catch(function () { /* silencieux : pas d'impact UX */ });
+    }
+
+    /** Affiche un toast discret en bas à droite. Auto-dismiss après 6s, click pour fermer. */
+    function showReplyToast(notif) {
+        ns.injectStyles();
+        var area = document.getElementById('ip-toast-area');
+        if (!area) {
+            area = document.createElement('div');
+            area.id = 'ip-toast-area';
+            document.body.appendChild(area);
+        }
+        var fromName = notif.fromUserName || notif.FromUserName || '';
+        var title    = notif.messageTitle || notif.MessageTitle || '';
+        var body     = notif.body         || notif.Body         || '';
+        var preview  = body.length > 80 ? body.substring(0, 80) + '…' : body;
+
+        var toast = document.createElement('div');
+        toast.className = 'ip-corner-toast';
+        var hdr = document.createElement('div');
+        hdr.className = 'ip-corner-toast-hdr';
+        hdr.textContent = t('toast_reply_received', fromName, title);
+        var bd = document.createElement('div');
+        bd.className = 'ip-corner-toast-body';
+        bd.textContent = preview;
+        toast.appendChild(hdr);
+        if (preview) toast.appendChild(bd);
+        area.appendChild(toast);
+
+        var dismiss = function () {
+            if (!toast.parentNode) return;
+            toast.classList.add('ip-corner-toast-hide');
+            setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 200);
+        };
+        toast.addEventListener('click', dismiss);
+        setTimeout(dismiss, 6000);
     }
 
     // ── Démarrage ────────────────────────────────────────────────────────────

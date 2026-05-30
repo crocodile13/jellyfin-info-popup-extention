@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.0.0] — 2026-05-30
+
+### Added
+- **Édition et suppression des messages depuis « Mes messages »** — chaque carte (Inbox côté admin, Sent pour son propre auteur) propose maintenant « Modifier » et « Supprimer » selon `CanEditOwnMessages` / `CanDeleteOwnMessages` (ou les variantes `Others` pour admin). PUT préserve l'ID et `infopopup_seen.json`. Soft-delete via l'endpoint existant `POST /messages/{id}/soft-delete`.
+- **Réponses visibles dans « Mes messages »** — l'Inbox affiche la propre réponse de l'utilisateur sous le message si elle existe ; l'onglet Sent liste les réponses reçues sous chacun de ses messages. Données incluses inline dans `popup-data` (champ `MyReply`) et `/messages/sent` (champ `Replies`) — zéro round-trip supplémentaire.
+- **Popup en temps réel (poll léger)** — vérification des messages non lus toutes les 60s + au retour de visibilité de l'onglet. Plus besoin de rafraîchir la page pour voir un nouveau popup. Sauté quand la popup est déjà active, sur la page admin, ou l'onglet caché.
+- **Notification toast pour les réponses reçues** — un petit toast discret en bas à droite (auto-dismiss 6s, clic pour fermer) apparaît quand un user répond à l'un de vos messages. Format : « X a répondu à "Y" » + aperçu. Nouvel endpoint `GET /InfoPopup/replies/received`. Set des IDs notifiés persisté en `localStorage`.
+- **Nouvelles clés i18n** (× 8 langues) : `user_msg_edit/delete/save/cancel/confirm_delete/your_reply/replies_count_s/p/no_replies/edit_err` + `toast_reply_received`.
+
+### Fixed
+- **Bouton « Mes messages » mal rangé dans la sidebar (suite)** — l'injection cherchait l'anchor logout uniquement dans `.mainDrawer-scrollContainer`, qui sur les installations avec KefinTweaks/JellyfinEnhanced ne contient que les bibliothèques. La recherche est désormais étendue à tout le document avec vérification que l'anchor est bien dans un drawer/menu. Plus de fallback `appendChild` qui pouvait atterrir dans la section Média.
+
+### Changed
+- **`EffectivePermissionsDto`** étendu avec `CanEditOthersMessages`, `CanDeleteOthersMessages`, `IsAdmin` — utilisé par l'UI pour activer les actions admin.
+- **`MessageDetail`** porte deux nouveaux champs : `MyReply` (réponse de l'utilisateur courant s'il a répondu) et `Replies` (liste si l'utilisateur est l'expéditeur). Populés contextuellement via `ToDetailForUser`.
+- **`PopupDataResponse.History`** passe de `List<MessageSummary>` à `List<MessageDetail>` pour porter `MyReply` ; le corps est désormais inclus dès le départ (un peu plus de bande passante, beaucoup moins de round-trips).
+- **`GET /messages/{id}/replies`** : autorisé pour l'expéditeur du message (pas seulement admin).
+
+---
+
 ## [3.7.11.0] — 2026-05-30
 
 ### Fixed

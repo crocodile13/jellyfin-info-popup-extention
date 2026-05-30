@@ -262,6 +262,36 @@
             '#infoPopupUserPage .ip-expanded .ip-user-msg-preview{display:none}',
             '#infoPopupUserPage .ip-user-msg-body{padding:0 16px 14px;font-size:.9rem;line-height:1.55;overflow-wrap:break-word;word-break:break-word;border-top:1px solid rgba(255,255,255,.06)}',
             '#infoPopupUserPage .ip-user-unseen-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--theme-accent-color,#00a4dc);flex-shrink:0}',
+            // ── Réponses inline (v3.8.0.0) ────────────────────────────────────
+            '#infoPopupUserPage .ip-user-msg-replies{padding:8px 16px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.12)}',
+            '#infoPopupUserPage .ip-user-msg-replies-header{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.6;margin-bottom:8px}',
+            '#infoPopupUserPage .ip-user-msg-replies-empty{font-size:.85rem;font-style:italic;opacity:.55}',
+            '#infoPopupUserPage .ip-user-msg-reply{padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.05)}',
+            '#infoPopupUserPage .ip-user-msg-reply:last-child{border-bottom:none}',
+            '#infoPopupUserPage .ip-user-msg-reply-meta{font-size:.78rem;opacity:.55;margin-bottom:2px}',
+            '#infoPopupUserPage .ip-user-msg-reply-body{font-size:.88rem;line-height:1.5;overflow-wrap:break-word;word-break:break-word;white-space:pre-wrap}',
+            // ── Barre d\'actions (Modifier / Supprimer) ────────────────────────
+            '#infoPopupUserPage .ip-user-msg-actions{display:flex;gap:8px;padding:8px 16px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.08)}',
+            '#infoPopupUserPage .ip-user-msg-action{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:inherit;border-radius:4px;padding:5px 14px;font-size:.82rem;cursor:pointer;transition:background .15s,border-color .15s}',
+            '#infoPopupUserPage .ip-user-msg-action:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3)}',
+            '#infoPopupUserPage .ip-user-msg-action-danger{color:#cf6679;border-color:rgba(207,102,121,.3)}',
+            '#infoPopupUserPage .ip-user-msg-action-danger:hover{background:rgba(207,102,121,.12);border-color:rgba(207,102,121,.5)}',
+            // ── Édition inline d\'un message ──────────────────────────────────
+            '#infoPopupUserPage .ip-user-msg-card.ip-editing .ip-user-msg-body{padding:12px 16px 14px}',
+            '#infoPopupUserPage .ip-user-msg-edit-title{display:block;width:100%;margin-bottom:10px;box-sizing:border-box}',
+            '#infoPopupUserPage .ip-user-msg-edit-body{display:block;margin-bottom:10px}',
+            '#infoPopupUserPage .ip-user-msg-edit-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
+            '#infoPopupUserPage .ip-user-msg-edit-actions button{font-size:.82rem;padding:5px 14px}',
+            '#infoPopupUserPage .ip-user-msg-edit-status{font-size:.82rem;opacity:.75}',
+            '#infoPopupUserPage .ip-user-msg-edit-status.err{color:#cf6679;opacity:1}',
+            // ── Corner toast pour notifications de réponse (v3.8.0.0) ──────────
+            '#ip-toast-area{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:99997;max-width:380px;pointer-events:none}',
+            '.ip-corner-toast{pointer-events:auto;background:rgba(28,30,34,.96);border:1px solid rgba(255,255,255,.12);border-left:3px solid var(--theme-accent-color,#00a4dc);border-radius:6px;padding:10px 14px;color:#e5e5e5;font-size:.88rem;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.5);cursor:pointer;animation:ip-corner-toast-in .25s ease-out;overflow-wrap:break-word;word-break:break-word}',
+            '.ip-corner-toast-hdr{font-weight:600;margin-bottom:4px}',
+            '.ip-corner-toast-body{font-size:.82rem;opacity:.75;line-height:1.4}',
+            '.ip-corner-toast-hide{animation:ip-corner-toast-out .2s ease-in forwards}',
+            '@keyframes ip-corner-toast-in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}',
+            '@keyframes ip-corner-toast-out{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(20px)}}',
             // ── Reply already-sent state ──────────────────────────────────────
             '.ip-reply-done{font-size:.82rem;opacity:.6;font-style:italic;padding:6px 0}'
         ].join('\n');
