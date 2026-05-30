@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.10.0] — 2026-05-30
+
+### Fixed
+- **Clic sur « Messages » bloqué après une exception silencieuse dans `showUserPage`** — `showUserPage` positionnait `_overlayOpen = true` AVANT toute la construction de l'overlay ; si une exception était levée pendant cette construction (cas révélé par les logs de diagnostic : `showUserPage failed:` avec err vide côté admin), le flag restait à `true` et **TOUS les clics suivants étaient consommés par le garde `if (_overlayOpen) return;`**. Le corps de l'overlay est désormais isolé dans `_showUserPageInner` enveloppé d'un try/catch qui réinitialise `_overlayOpen = false` en cas d'échec, et logue l'erreur complète (name + message + stack).
+
+---
+
 ## [3.7.9.0] — 2026-05-30
 
 ### Fixed

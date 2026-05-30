@@ -70,6 +70,21 @@
         console.log('[InfoPopup] showUserPage() called, _overlayOpen=' + _overlayOpen);
         if (_overlayOpen) return;
         _overlayOpen = true;
+        try {
+            _showUserPageInner();
+        } catch (err) {
+            // _overlayOpen DOIT être réinitialisé si la construction de l'overlay
+            // échoue, sinon TOUS les clics suivants sur « Messages » sont bloqués
+            // par le garde `if (_overlayOpen) return;` (bug 3.7.9.0).
+            _overlayOpen = false;
+            console.error('[InfoPopup] showUserPage threw — name=' + (err && err.name)
+                + ' message=' + (err && err.message)
+                + ' stack=' + (err && err.stack));
+            throw err;
+        }
+    }
+
+    function _showUserPageInner() {
         ns.injectStyles();
 
         // Fermer le drawer sidebar comme le ferait Jellyfin (retrait de la classe d'ouverture).
