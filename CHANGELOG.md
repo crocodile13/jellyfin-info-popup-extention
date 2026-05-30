@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.2.0] — 2026-05-30
+
+### Security
+- **Plafond sur les listes `List<string>` des DTOs** — `TargetUserIds` (Create/Update : max 2000), `Ids` (Delete/MarkSeen : max 1000), `UserIds` (BulkPermissions : max 2000). Sans ces plafonds, le body Kestrel par défaut (28 Mo) permettait ~700 K GUIDs en mémoire/disque — amplification potentielle.
+- **Quota journalier `MaxMessagesPerDay` enforced atomiquement dans `MessageStore.Create`** — auparavant le contrôleur faisait `GetUserMessageCountToday` puis `Create` séparément ; deux requêtes parallèles pouvaient toutes deux voir N < limit et créer N+1 messages. La vérification est maintenant DANS le write-lock.
+- **Comparaisons `isOwner` normalisées** via nouveau helper `IsOwner(sentByUserId, userId)` qui passe par `PermissionService.NormalizeUserId` — durcissement défensif contre les mismatches de format GUID ("D" vs "N"), même piège que celui corrigé en v3.7.4.0 côté droits. Appliqué à `UpdateMessage`, `SoftDeleteMessage`, `GetMessage` (bypass owner), `GetMessageReplies` et `ToDetailForUser`.
+- **En-têtes durcies sur l'endpoint JS** — `X-Content-Type-Options: nosniff` ajouté et `Content-Type: application/javascript; charset=utf-8` explicite sur `GET /InfoPopup/{module}.js`. Défense en profondeur contre MIME sniffing.
+
+### Fixed
+- **Entrée « Mes messages » prend toute la hauteur de la sidebar** (régression 3.8.1.0) — `appendChild` direct sur `.mainDrawer` (flex column) faisait s'étirer le link. Scope restauré à `.mainDrawer-scrollContainer` (comportement 3.7.x) avec en plus `flex:0 0 auto; min-height:40px; max-height:48px; box-sizing:border-box` sur le link pour résister à n'importe quel parent flex.
+
+---
+
 ## [3.8.1.0] — 2026-05-30
 
 ### Fixed

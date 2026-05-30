@@ -31,7 +31,11 @@
       "Bash(gh release *)",
       "Bash(git --no-pager log --oneline -4)",
       "Bash(sed -n '/## \\\\[3.7.8.0\\\\]/,/## \\\\[3.7.7.0\\\\]/p')",
-      "Bash(sed -n '/## \\\\[3.7.8.0\\\\]/,/## \\\\[3.7.7.0\\\\]/p' CHANGELOG.md)"
+      "Bash(sed -n '/## \\\\[3.7.8.0\\\\]/,/## \\\\[3.7.7.0\\\\]/p' CHANGELOG.md)",
+      "Bash(sed -n '363,395p' Jellyfin.Plugin.InfoPopup/Controllers/InfoPopupController.cs)",
+      "Bash(sed -n '521,565p' Jellyfin.Plugin.InfoPopup/Controllers/InfoPopupController.cs)",
+      "Bash(sed -n '127,170p' Jellyfin.Plugin.InfoPopup/Services/ReplyStoreService.cs)",
+      "Bash(sed -n '805,830p' Jellyfin.Plugin.InfoPopup/Controllers/InfoPopupController.cs)"
     ]
   }
 }

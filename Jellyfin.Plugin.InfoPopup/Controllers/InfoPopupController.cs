@@ -77,6 +77,15 @@ public class InfoPopupController : ControllerBase
     private static bool AreValidUserIds(IEnumerable<string> ids) =>
         ids.All(uid => !string.IsNullOrWhiteSpace(uid) && Guid.TryParse(uid, out _));
 
+    /// <summary>
+    /// Compare deux IDs utilisateurs en normalisant les formats (sécurité v3.8.2.0).
+    /// Pour la même raison que [[guid-format-userid]] côté permissions, on évite
+    /// les comparaisons brutes `==` sur des IDs qui pourraient avoir des formats
+    /// hétérogènes ("D" vs "N"). Utilisé pour tous les checks de propriété (isOwner).
+    /// </summary>
+    private static bool IsOwner(string? sentByUserId, string? userId) =>
+        PermissionService.NormalizeUserId(sentByUserId) == PermissionService.NormalizeUserId(userId);
+
     /// <summary>Résout le nom d'utilisateur à partir de son ID Jellyfin.</summary>
     private string ResolveUserName(string? userId)
     {
@@ -123,7 +132,7 @@ public class InfoPopupController : ControllerBase
     private MessageDetail ToDetailForUser(PopupMessage m, string currentUserId)
     {
         var d = ToDetail(m);
-        if (m.SentByUserId == currentUserId)
+        if (IsOwner(m.SentByUserId, currentUserId))
         {
             // L'utilisateur est l'expéditeur : on inclut TOUTES les réponses reçues.
             d.Replies = _replyStore.GetByMessageId(m.Id).Select(ToReplyDto).ToList();
@@ -131,8 +140,9 @@ public class InfoPopupController : ControllerBase
         else
         {
             // L'utilisateur est destinataire : on inclut UNIQUEMENT sa propre réponse, si elle existe.
+            var normalized = PermissionService.NormalizeUserId(currentUserId);
             var own = _replyStore.GetByMessageId(m.Id)
-                .FirstOrDefault(r => r.UserId == currentUserId);
+                .FirstOrDefault(r => PermissionService.NormalizeUserId(r.UserId) == normalized);
             if (own is not null) d.MyReply = ToReplyDto(own);
         }
         return d;
@@ -225,7 +235,7 @@ public class InfoPopupController : ControllerBase
 
             // L'auteur du message peut toujours lire son propre message (utile pour la Sent tab).
             // 404 et non 403 : ne pas révéler l'existence d'un message non ciblé.
-            if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId) && msg.SentByUserId != userId)
+            if (msg.TargetUserIds.Count > 0 && !msg.TargetUserIds.Contains(userId) && !IsOwner(msg.SentByUserId, userId))
                 return NotFound();
 
             // Non-admin : on retourne le détail contextuel (MyReply / Replies selon le rôle dans
@@ -263,22 +273,25 @@ public class InfoPopupController : ControllerBase
 
         var isAdmin = await IsAdminAsync();
 
+        // Pré-check de droit (CanSendMessages) hors lock pour retourner 403 vite.
+        // Le quota journalier est appliqué ATOMIQUEMENT dans Create (sécurité v3.8.2.0)
+        // pour éviter une race entre count check et insertion.
+        var maxPerDay = 0;
         if (!isAdmin)
         {
             var perm = _permService.GetOrDefault(userId);
             if (!perm.CanSendMessages) return Forbid();
-
-            var cfg2 = Plugin.Instance!.Configuration;
-            if (perm.MaxMessagesPerDay > 0 && _store.GetUserMessageCountToday(userId) >= perm.MaxMessagesPerDay)
-                return StatusCode(429, new { error = "Limite journalière de messages atteinte." });
+            maxPerDay = perm.MaxMessagesPerDay;
         }
 
         try
         {
-            var msg = _store.Create(request.Title, request.Body, userId, request.TargetUserIds, isSentByAdmin: isAdmin);
+            var msg = _store.Create(request.Title, request.Body, userId, request.TargetUserIds,
+                isSentByAdmin: isAdmin, maxPerDayPerUser: maxPerDay);
             return CreatedAtAction(nameof(GetMessage), new { id = msg.Id }, ToDetail(msg));
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return StatusCode(429, new { error = ex.Message }); }
     }
 
     // POST /InfoPopup/messages/delete ── ADMIN ONLY ──────────────────────────────────
@@ -335,8 +348,9 @@ public class InfoPopupController : ControllerBase
             if (msg0 is null) return NotFound(new { error = "Message introuvable." });
 
             var perm = _permService.GetOrDefault(userId);
-            bool isOwner = msg0.SentByUserId == userId;
-
+            // Comparaison via IsOwner (NormalizeUserId) : durcissement défensif contre
+            // les mismatches de format GUID ("D" vs "N"), sécurité v3.8.2.0.
+            bool isOwner = IsOwner(msg0.SentByUserId, userId);
             if (isOwner && !perm.CanEditOwnMessages) return Forbid();
             if (!isOwner && !perm.CanEditOthersMessages) return Forbid();
         }
@@ -379,8 +393,7 @@ public class InfoPopupController : ControllerBase
         if (!isAdmin)
         {
             var perm = _permService.GetOrDefault(userId);
-            bool isOwner = msg.SentByUserId == userId;
-
+            bool isOwner = IsOwner(msg.SentByUserId, userId);
             if (isOwner && !perm.CanDeleteOwnMessages) return Forbid();
             if (!isOwner && !perm.CanDeleteOthersMessages) return Forbid();
         }
@@ -725,7 +738,7 @@ public class InfoPopupController : ControllerBase
         {
             var userId = GetUserId();
             if (userId is null) return Unauthorized();
-            if (msg.SentByUserId != userId) return Forbid();
+            if (!IsOwner(msg.SentByUserId, userId)) return Forbid();
         }
 
         var replies = _replyStore.GetByMessageId(id).Select(ToReplyDto);
@@ -1058,6 +1071,14 @@ public class InfoPopupController : ControllerBase
             _logger.LogError("InfoPopup: ressource embarquée {Resource} introuvable dans l'assembly", resourceName);
             return NotFound();
         }
-        return File(stream, "application/javascript");
+
+        // En-têtes durcies (v3.8.2.0) :
+        // - `X-Content-Type-Options: nosniff` : empêche les navigateurs de re-deviner le type
+        //   (défense en profondeur même si la whitelist garantit que c'est du JS embarqué nous).
+        // - Content-Type explicite avec charset=utf-8 : prévient toute ambiguïté d'encodage
+        //   (corollaire historique : sur 10.10/10.11 l'absence de charset faisait afficher
+        //   les caractères accentués en mojibake dans l'onglet brut du navigateur).
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(stream, "application/javascript; charset=utf-8");
     }
 }

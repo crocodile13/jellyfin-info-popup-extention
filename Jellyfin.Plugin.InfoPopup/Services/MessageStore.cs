@@ -73,7 +73,8 @@ public class MessageStore
         string body,
         string publishedBy,
         List<string>? targetUserIds = null,
-        bool isSentByAdmin = true)
+        bool isSentByAdmin = true,
+        int maxPerDayPerUser = 0)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Le titre ne peut pas être vide.", nameof(title));
@@ -102,6 +103,20 @@ public class MessageStore
             // Capturer la référence une seule fois pour travailler sur le même objet
             // pendant toute la durée de l'opération (cohérence si rechargement config).
             var cfg = GetConfig();
+
+            // Vérification atomique du quota journalier DANS le lock d'écriture
+            // (sécurité v3.8.2.0) : avant cette version, le controller checkait
+            // GetUserMessageCountToday SÉPARÉMENT du Create — deux requêtes parallèles
+            // pouvaient toutes deux voir N < limit, puis créer N+1 messages.
+            if (maxPerDayPerUser > 0)
+            {
+                var today = DateTime.UtcNow.Date;
+                var countToday = cfg.Messages.Count(m =>
+                    m.SentByUserId == publishedBy && m.PublishedAt >= today && !m.IsDeleted);
+                if (countToday >= maxPerDayPerUser)
+                    throw new InvalidOperationException("Limite journalière de messages atteinte.");
+            }
+
             cfg.Messages.Add(message);
             SaveConfig();
 

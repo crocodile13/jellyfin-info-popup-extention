@@ -16,15 +16,18 @@ public class CreateMessageRequest
     /// <summary>
     /// IDs Jellyfin des utilisateurs cibles.
     /// Liste vide ou absente = tous les utilisateurs.
+    /// Plafond 2000 entrées : protection contre l'amplification mémoire (sécurité v3.8.2.0).
+    /// Le `body` limit Kestrel ne suffit pas seul : 28 Mo de GUIDs permettent ~700 K entrées.
+    /// 2000 est largement au-dessus de la taille de toute installation Jellyfin réaliste.
     /// </summary>
-    public List<string> TargetUserIds { get; set; } = new();
+    [MaxLength(2000)] public List<string> TargetUserIds { get; set; } = new();
 }
 
 /// <summary>Requête de suppression groupée.</summary>
 public class DeleteMessagesRequest
 {
-    /// <summary>IDs à supprimer définitivement.</summary>
-    [Required] public List<string> Ids { get; set; } = new();
+    /// <summary>IDs à supprimer définitivement. Plafonné à 1000 (sécurité v3.8.2.0).</summary>
+    [Required][MaxLength(1000)] public List<string> Ids { get; set; } = new();
 }
 
 /// <summary>Requête de modification d'un message existant.</summary>
@@ -39,15 +42,16 @@ public class UpdateMessageRequest
     /// <summary>
     /// IDs Jellyfin des utilisateurs cibles.
     /// Liste vide = tous les utilisateurs (même comportement que CreateMessageRequest).
+    /// Plafonné à 2000 (sécurité v3.8.2.0, cf. CreateMessageRequest).
     /// </summary>
-    public List<string> TargetUserIds { get; set; } = new();
+    [MaxLength(2000)] public List<string> TargetUserIds { get; set; } = new();
 }
 
 /// <summary>Requête de marquage comme vu (batch).</summary>
 public class MarkSeenRequest
 {
-    /// <summary>IDs à marquer comme vus.</summary>
-    [Required] public List<string> Ids { get; set; } = new();
+    /// <summary>IDs à marquer comme vus. Plafonné à 1000 (sécurité v3.8.2.0).</summary>
+    [Required][MaxLength(1000)] public List<string> Ids { get; set; } = new();
 }
 
 /// <summary>Vue résumée d'un message (sans body).</summary>
@@ -373,8 +377,8 @@ public class SoftDeleteMessageRequest
 /// <summary>Requête de mise à jour groupée des droits de plusieurs utilisateurs.</summary>
 public class BulkUpdatePermissionsRequest
 {
-    /// <summary>IDs Jellyfin des utilisateurs à mettre à jour.</summary>
-    [Required] public List<string> UserIds { get; set; } = new();
+    /// <summary>IDs Jellyfin des utilisateurs à mettre à jour. Plafonné à 2000 (sécurité v3.8.2.0).</summary>
+    [Required][MaxLength(2000)] public List<string> UserIds { get; set; } = new();
 
     /// <summary>Autoriser l'utilisateur à envoyer des messages popup.</summary>
     public bool CanSendMessages { get; set; }

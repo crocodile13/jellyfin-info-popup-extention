@@ -276,45 +276,40 @@
     }
 
     function injectIntoClassicSidebar() {
-        // Cibler STRICTEMENT le main drawer (`.mainDrawer`) — PAS la sidebar dashboard admin
-        // qui a sa propre structure mais utilise aussi `.navMenuOption` (3.8.0.0 plaçait l'entrée
-        // sous « Tableau de bord » par erreur quand la recherche était document-wide).
-        // On accepte `.mainDrawer-scrollContainer` en fallback pour les skins qui ne rendent
-        // pas `.mainDrawer` comme un nœud distinct.
-        var drawer = document.querySelector('.mainDrawer')
-                  || document.querySelector('.mainDrawer-scrollContainer');
-        if (!drawer || drawer.closest('.hide')) return false;
-        if (drawer.querySelector('#ip-nav-messages')) return true;
+        // Scope d'insertion = `.mainDrawer-scrollContainer` (le conteneur scrollable du main
+        // drawer, jamais la sidebar dashboard admin qui a sa propre structure). Toujours
+        // utiliser ce conteneur pour l'insertion — `appendChild` direct sur `.mainDrawer` qui
+        // est un flex-column faisait s'étirer l'entrée sur toute la hauteur (bug 3.8.1.0).
+        var container = document.querySelector('.mainDrawer-scrollContainer');
+        if (!container || container.closest('.hide')) return false;
+        if (container.querySelector('#ip-nav-messages')) return true;
 
-        // Cherche un anchor de la zone utilisateur DANS le main drawer uniquement.
-        var anchor = drawer.querySelector('a[href*="#!/logout.html"]')
-                  || drawer.querySelector('a[href*="logout"]')
-                  || drawer.querySelector('a[href*="quickconnect"]')
-                  || drawer.querySelector('a[href*="mypreferencesmenu"]')
-                  || drawer.querySelector('a[href*="myprofile"]')
-                  || drawer.querySelector('a[href*="userprofile"]');
+        // Cherche un anchor de la zone utilisateur DANS le scroll container du main drawer.
+        var anchor = container.querySelector('a[href*="#!/logout.html"]')
+                  || container.querySelector('a[href*="logout"]')
+                  || container.querySelector('a[href*="quickconnect"]')
+                  || container.querySelector('a[href*="mypreferencesmenu"]')
+                  || container.querySelector('a[href*="myprofile"]');
 
         var parts = createSidebarLink();
         parts.link.className = 'navMenuOption';
+        // `flex:0 0 auto` + `min/max-height` explicites : protège contre les conteneurs
+        // flex-column où un enfant peut s'étirer sur toute la hauteur (bug 3.8.1.0 quand
+        // le link était inséré comme dernier enfant d'un parent flex sans frères).
         parts.link.style.cssText = 'display:flex;align-items:center;padding:8px 20px;cursor:pointer;' +
-            'color:inherit;text-decoration:none;transition:background .15s;';
+            'color:inherit;text-decoration:none;transition:background .15s;' +
+            'flex:0 0 auto;min-height:40px;max-height:48px;box-sizing:border-box;';
         parts.icon.classList.add('navMenuOptionIcon');
         parts.label.classList.add('navMenuOptionText');
 
         if (anchor) {
-            // Insertion juste avant l'anchor user (donc au-dessus de logout/preferences).
+            // Insertion juste avant l'anchor user (au-dessus de logout/preferences).
             anchor.parentNode.insertBefore(parts.link, anchor);
         } else {
-            // Pas d'anchor user identifié : on insère APRÈS le dernier `.navMenuOption` existant
-            // du drawer pour rester groupé avec les autres entrées (vs un appendChild brut qui
-            // pourrait atterrir avant des séparateurs cachés). Mieux qu'une absence totale (3.8.0.0).
-            var lastNav = drawer.querySelectorAll('a.navMenuOption, button.navMenuOption');
-            if (lastNav.length) {
-                var ref = lastNav[lastNav.length - 1];
-                ref.parentNode.insertBefore(parts.link, ref.nextSibling);
-            } else {
-                drawer.appendChild(parts.link);
-            }
+            // Pas d'anchor user identifié : append au scrollContainer (comportement 3.7.x).
+            // Sur les skins KefinTweaks/JellyfinEnhanced ça peut atterrir en fin de section
+            // bibliothèques — placement imparfait mais fonctionnel et sans bug de hauteur.
+            container.appendChild(parts.link);
         }
 
         parts.link.addEventListener('mouseenter', function () { parts.link.style.background = 'rgba(255,255,255,.06)'; });
