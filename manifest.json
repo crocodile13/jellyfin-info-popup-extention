@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.8.2.0",
+        "changelog": "Security\n- Plafond sur les listes List<string> des DTOs — TargetUserIds (Create/Update : max 2000), Ids (Delete/MarkSeen : max 1000), UserIds (BulkPermissions : max 2000). Sans ces plafonds, le body Kestrel par défaut (28 Mo) permettait ~700 K GUIDs en mémoire/disque — amplification potentielle.\n- Quota journalier MaxMessagesPerDay enforced atomiquement dans MessageStore.Create — auparavant le contrôleur faisait GetUserMessageCountToday puis Create séparément ; deux requêtes parallèles pouvaient toutes deux voir N < limit et créer N+1 messages. La vérification est maintenant DANS le write-lock.\n- Comparaisons isOwner normalisées via nouveau helper IsOwner(sentByUserId, userId) qui passe par PermissionService.NormalizeUserId — durcissement défensif contre les mismatches de format GUID (\"D\" vs \"N\"), même piège que celui corrigé en v3.7.4.0 côté droits. Appliqué à UpdateMessage, SoftDeleteMessage, GetMessage (bypass owner), GetMessageReplies et ToDetailForUser.\n- En-têtes durcies sur l'endpoint JS — X-Content-Type-Options: nosniff ajouté et Content-Type: application/javascript; charset=utf-8 explicite sur GET /InfoPopup/{module}.js. Défense en profondeur contre MIME sniffing.\nFixed\n- Entrée « Mes messages » prend toute la hauteur de la sidebar (régression 3.8.1.0) — appendChild direct sur .mainDrawer (flex column) faisait s'étirer le link. Scope restauré à .mainDrawer-scrollContainer (comportement 3.7.x) avec en plus flex:0 0 auto; min-height:40px; max-height:48px; box-sizing:border-box sur le link pour résister à n'importe quel parent flex.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.8.2.0/infopopup_3.8.2.0.zip",
+        "checksum": "453064691f5a670911c83f8be0b6e865",
+        "timestamp": "2026-05-30T16:05:29Z"
+      },
+      {
         "version": "3.8.1.0",
         "changelog": "Fixed\n- Entrée « Mes messages » absente côté user et placée dans le dashboard admin (régression 3.8.0.0) — la recherche d'anchor élargie au document avec closest('… [class*=\"navMenuOption\"] …') matchait aussi la sidebar du dashboard admin (qui utilise a.navMenuOption), plaçant l'entrée sous « Tableau de bord ». Et pour les users sans dashboard, l'absence d'anchor matchant faisait return false → plus d'entrée du tout. Restriction de la recherche au .mainDrawer uniquement (avec fallback .mainDrawer-scrollContainer), insertion APRÈS le dernier .navMenuOption du drawer si aucun anchor user identifié.",
         "targetAbi": "10.11.0.0",
