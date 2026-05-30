@@ -44,3 +44,9 @@ desktop.ini
 
 # ── Logs ─────────────────────────────────────────────────────────────────────
 *.log
+
+# ── Claude Code ──────────────────────────────────────────────────────────────
+# settings.local.json contient les permissions CLI personnelles (allowlist de
+# commandes auto-approuvées). Spécifique à la machine du dev, pas portable, et
+# grossit à chaque session — pas pertinent dans le tracking git.
+.claude/
