@@ -276,31 +276,23 @@
     }
 
     function injectIntoClassicSidebar() {
-        if (document.querySelector('#ip-nav-messages')) return true;
+        // Cibler STRICTEMENT le main drawer (`.mainDrawer`) — PAS la sidebar dashboard admin
+        // qui a sa propre structure mais utilise aussi `.navMenuOption` (3.8.0.0 plaçait l'entrée
+        // sous « Tableau de bord » par erreur quand la recherche était document-wide).
+        // On accepte `.mainDrawer-scrollContainer` en fallback pour les skins qui ne rendent
+        // pas `.mainDrawer` comme un nœud distinct.
+        var drawer = document.querySelector('.mainDrawer')
+                  || document.querySelector('.mainDrawer-scrollContainer');
+        if (!drawer || drawer.closest('.hide')) return false;
+        if (drawer.querySelector('#ip-nav-messages')) return true;
 
-        // Recherche élargie au document : sur les installations avec KefinTweaks / JellyfinEnhanced
-        // ou autres customizations, `.mainDrawer-scrollContainer` peut ne contenir QUE les
-        // bibliothèques et pas la zone utilisateur — fallback `appendChild` aboutissait alors
-        // dans la section Média (corrigé en v3.8.0.0). On cible un anchor de la zone utilisateur
-        // (logout / quickconnect / preferences) puis on remonte au container scrollable du drawer.
-        var anchorSelectors = [
-            'a[href*="#!/logout.html"]',
-            'a[href*="logout"]',
-            'a[href*="quickconnect"]',
-            'a[href*="mypreferencesmenu"]',
-            'a[href*="myprofile"]',
-            'a[href*="userprofile"]'
-        ];
-        var anchor = null;
-        for (var i = 0; i < anchorSelectors.length; i++) {
-            var candidate = document.querySelector(anchorSelectors[i]);
-            if (candidate && candidate.closest('.mainDrawer, .mainDrawer-scrollContainer, [class*="navMenuOption"]')) {
-                anchor = candidate;
-                break;
-            }
-        }
-        if (!anchor) return false;
-        if (anchor.parentNode.querySelector('#ip-nav-messages')) return true;
+        // Cherche un anchor de la zone utilisateur DANS le main drawer uniquement.
+        var anchor = drawer.querySelector('a[href*="#!/logout.html"]')
+                  || drawer.querySelector('a[href*="logout"]')
+                  || drawer.querySelector('a[href*="quickconnect"]')
+                  || drawer.querySelector('a[href*="mypreferencesmenu"]')
+                  || drawer.querySelector('a[href*="myprofile"]')
+                  || drawer.querySelector('a[href*="userprofile"]');
 
         var parts = createSidebarLink();
         parts.link.className = 'navMenuOption';
@@ -309,7 +301,21 @@
         parts.icon.classList.add('navMenuOptionIcon');
         parts.label.classList.add('navMenuOptionText');
 
-        anchor.parentNode.insertBefore(parts.link, anchor);
+        if (anchor) {
+            // Insertion juste avant l'anchor user (donc au-dessus de logout/preferences).
+            anchor.parentNode.insertBefore(parts.link, anchor);
+        } else {
+            // Pas d'anchor user identifié : on insère APRÈS le dernier `.navMenuOption` existant
+            // du drawer pour rester groupé avec les autres entrées (vs un appendChild brut qui
+            // pourrait atterrir avant des séparateurs cachés). Mieux qu'une absence totale (3.8.0.0).
+            var lastNav = drawer.querySelectorAll('a.navMenuOption, button.navMenuOption');
+            if (lastNav.length) {
+                var ref = lastNav[lastNav.length - 1];
+                ref.parentNode.insertBefore(parts.link, ref.nextSibling);
+            } else {
+                drawer.appendChild(parts.link);
+            }
+        }
 
         parts.link.addEventListener('mouseenter', function () { parts.link.style.background = 'rgba(255,255,255,.06)'; });
         parts.link.addEventListener('mouseleave', function () { parts.link.style.background = ''; });

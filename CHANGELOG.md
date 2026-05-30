@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.1.0] — 2026-05-30
+
+### Fixed
+- **Entrée « Mes messages » absente côté user et placée dans le dashboard admin** (régression 3.8.0.0) — la recherche d'anchor élargie au document avec `closest('… [class*="navMenuOption"] …')` matchait aussi la sidebar du dashboard admin (qui utilise `a.navMenuOption`), plaçant l'entrée sous « Tableau de bord ». Et pour les users sans dashboard, l'absence d'anchor matchant faisait `return false` → plus d'entrée du tout. Restriction de la recherche au `.mainDrawer` uniquement (avec fallback `.mainDrawer-scrollContainer`), insertion APRÈS le dernier `.navMenuOption` du drawer si aucun anchor user identifié.
+
+---
+
 ## [3.8.0.0] — 2026-05-30
 
 ### Added
