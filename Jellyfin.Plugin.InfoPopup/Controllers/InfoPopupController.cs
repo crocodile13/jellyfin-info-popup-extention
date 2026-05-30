@@ -128,16 +128,74 @@ public class InfoPopupController : ControllerBase
         return false;
     }
 
-    /// <summary>Résout le nom d'utilisateur à partir de son ID Jellyfin.</summary>
+    /// <summary>
+    /// Cache de noms d'utilisateurs au scope de la requête (v3.8.4.0).
+    /// Le contrôleur est scoped par requête → ce dictionnaire vit le temps d'un appel HTTP.
+    /// Évite les `_userManager.GetUserById(Guid.Parse(...))` répétés quand une même méthode
+    /// itère sur N messages/réponses/permissions et résout les mêmes IDs plusieurs fois
+    /// (ex. GetAllPermissions, GetPopupData, GetSentMessages — autrefois O(N) lookups
+    /// dans Jellyfin, maintenant O(1) après le premier).
+    /// </summary>
+    private readonly Dictionary<string, string> _userNameCache = new();
+
+    /// <summary>Résout le nom d'utilisateur à partir de son ID Jellyfin (caché par requête).</summary>
     private string ResolveUserName(string? userId)
     {
         if (string.IsNullOrEmpty(userId)) return string.Empty;
+        if (_userNameCache.TryGetValue(userId, out var cached)) return cached;
+        string name;
         try
         {
             var user = _userManager.GetUserById(Guid.Parse(userId));
-            return user?.Username ?? string.Empty;
+            name = user?.Username ?? string.Empty;
         }
-        catch { return string.Empty; }
+        catch { name = string.Empty; }
+        _userNameCache[userId] = name;
+        return name;
+    }
+
+    /// <summary>
+    /// Cache d'permissions au scope de la requête (v3.8.4.0).
+    /// `_permService.GetOrDefault(id)` acquiert un read-lock sur le store et fait une recherche
+    /// linéaire. Quand on calcule N badges de rôle sur N messages, on évite ainsi N×log/scan
+    /// pour les mêmes auteurs.
+    /// </summary>
+    private readonly Dictionary<string, UserPermission> _permCache = new();
+    private UserPermission GetPermCached(string userId)
+    {
+        if (_permCache.TryGetValue(userId, out var cached)) return cached;
+        var p = _permService.GetOrDefault(userId);
+        _permCache[userId] = p;
+        return p;
+    }
+
+    /// <summary>
+    /// Cache des réponses groupées par MessageId au scope de la requête (v3.8.4.0).
+    /// Évite que <see cref="ToDetailForUser"/> appelle <c>_replyStore.GetByMessageId(m.Id)</c>
+    /// pour chaque message — chaque appel acquiert un read-lock et fait un scan O(R). Pour N
+    /// messages × R réponses, c'est O(N·R) sous lock répété. Avec ce cache, c'est O(R) une
+    /// seule fois (préchargé par <see cref="PreloadRepliesByMessage"/>).
+    /// </summary>
+    private Dictionary<string, List<MessageReply>>? _repliesByMessage;
+    private void PreloadRepliesByMessage()
+    {
+        if (_repliesByMessage is not null) return;
+        var all = _replyStore.GetAll();  // single read-lock, single pass
+        _repliesByMessage = new Dictionary<string, List<MessageReply>>(all.Count);
+        foreach (var r in all)
+        {
+            if (!_repliesByMessage.TryGetValue(r.MessageId, out var list))
+            {
+                list = new List<MessageReply>();
+                _repliesByMessage[r.MessageId] = list;
+            }
+            list.Add(r);
+        }
+    }
+    private List<MessageReply> GetRepliesForMessage(string messageId)
+    {
+        if (_repliesByMessage is null) return _replyStore.GetByMessageId(messageId);
+        return _repliesByMessage.TryGetValue(messageId, out var list) ? list : new List<MessageReply>();
     }
 
     private MessageSummary ToSummary(PopupMessage m) => new()
@@ -176,7 +234,7 @@ public class InfoPopupController : ControllerBase
         if (string.IsNullOrEmpty(m.SentByUserId)) return "system";
         try
         {
-            var perm = _permService.GetOrDefault(m.SentByUserId);
+            var perm = GetPermCached(m.SentByUserId);
             if (perm.Role == "moderator") return "moderator";
             if (perm.CanEditOthersMessages && perm.CanDeleteOthersMessages) return "moderator";
         }
@@ -194,34 +252,41 @@ public class InfoPopupController : ControllerBase
     private MessageDetail ToDetailForUser(PopupMessage m, string currentUserId)
     {
         var d = ToDetail(m);
+        // Cache batch — chargé une seule fois par requête, partagé entre toutes les itérations.
+        var replies = GetRepliesForMessage(m.Id);
         if (IsOwner(m.SentByUserId, currentUserId))
         {
             // L'utilisateur est l'expéditeur : on inclut TOUTES les réponses reçues.
-            d.Replies = _replyStore.GetByMessageId(m.Id).Select(ToReplyDto).ToList();
+            d.Replies = replies.OrderBy(r => r.RepliedAt).Select(ToReplyDto).ToList();
         }
         else
         {
             // L'utilisateur est destinataire : on inclut UNIQUEMENT sa propre réponse, si elle existe.
             var normalized = PermissionService.NormalizeUserId(currentUserId);
-            var own = _replyStore.GetByMessageId(m.Id)
-                .FirstOrDefault(r => PermissionService.NormalizeUserId(r.UserId) == normalized);
+            var own = replies.FirstOrDefault(r => PermissionService.NormalizeUserId(r.UserId) == normalized);
             if (own is not null) d.MyReply = ToReplyDto(own);
         }
         return d;
     }
 
-    /// <summary>Construit un UserPermissionDto depuis un UserPermission, en résolvant le nom d'utilisateur.</summary>
-    private UserPermissionDto ToPermissionDto(UserPermission p)
+    /// <summary>
+    /// Construit un UserPermissionDto depuis un UserPermission, en résolvant le nom d'utilisateur.
+    /// Optim v3.8.4.0 : `precomputedName` court-circuite la résolution si déjà connue (cas de
+    /// GetAllPermissions où EnumerateUsers vient déjà de fournir le nom).
+    /// </summary>
+    private UserPermissionDto ToPermissionDto(UserPermission p, string? precomputedName = null)
     {
         string userName;
-        try
+        if (!string.IsNullOrEmpty(precomputedName))
         {
-            var u = _userManager.GetUserById(Guid.Parse(p.UserId));
-            userName = u?.Username ?? p.UserId[..Math.Min(8, p.UserId.Length)] + "…";
+            userName = precomputedName;
         }
-        catch
+        else
         {
-            userName = p.UserId[..Math.Min(8, p.UserId.Length)] + "…";
+            var resolved = ResolveUserName(p.UserId);
+            userName = !string.IsNullOrEmpty(resolved)
+                ? resolved
+                : p.UserId[..Math.Min(8, p.UserId.Length)] + "…";
         }
         return new UserPermissionDto
         {
@@ -482,8 +547,13 @@ public class InfoPopupController : ControllerBase
         // reçues sur chacun de ses messages (champ Replies) pour affichage inline dans Sent.
         // Bonus : évite le bug où /messages/{id} renvoyait 404 à l'auteur s'il n'était pas
         // dans TargetUserIds, ainsi que le round-trip pour récupérer les réponses.
+        //
+        // Optim v3.8.4.0 : préchargement des réponses en un seul scan → évite N appels
+        // `_replyStore.GetByMessageId` (chacun sous read-lock + scan O(R)). Pour N messages
+        // envoyés × R réponses : O(R) une seule fois au lieu de O(N·R).
+        PreloadRepliesByMessage();
         var all = _store.GetAll();
-        var sent = all.Where(m => m.SentByUserId == userId).Select(m => ToDetailForUser(m, userId));
+        var sent = all.Where(m => m.SentByUserId == userId).Select(m => ToDetailForUser(m, userId)).ToList();
         return Ok(sent);
     }
 
@@ -549,6 +619,8 @@ public class InfoPopupController : ControllerBase
         // ToDetailForUser pour unseen ET history : permet d'afficher la propre réponse
         // de l'utilisateur (champ MyReply) ou — si jamais il est l'expéditeur d'un de ces
         // messages — les réponses reçues, directement dans l'inbox « Mes messages ».
+        // Optim v3.8.4.0 : préchargement des réponses (cf. GetSentMessages).
+        PreloadRepliesByMessage();
         return Ok(new PopupDataResponse
         {
             Unseen = targeted
@@ -927,14 +999,22 @@ public class InfoPopupController : ControllerBase
     public ActionResult<IEnumerable<UserPermissionDto>> GetAllPermissions()
     {
         var perms = _permService.GetAll();
+        // Optim v3.8.4.0 : on indexe les permissions par UserId normalisé une seule fois,
+        // au lieu de faire un `perms.FirstOrDefault(...)` O(P) par utilisateur (autrefois
+        // O(P·U) sur la liste totale). On passe aussi `userName` directement à ToPermissionDto
+        // pour éviter le second `_userManager.GetUserById` redondant.
+        var permIndex = new Dictionary<string, UserPermission>(perms.Count);
+        foreach (var p in perms)
+        {
+            permIndex[PermissionService.NormalizeUserId(p.UserId)] = p;
+        }
 
         var result = new List<UserPermissionDto>();
         foreach (var (uid, userName, isAdmin) in EnumerateUsers())
         {
-            var perm = perms.FirstOrDefault(p => PermissionService.NormalizeUserId(p.UserId) == PermissionService.NormalizeUserId(uid))
-                       ?? new UserPermission { UserId = uid };
-            var dto = ToPermissionDto(perm);
-            if (!string.IsNullOrEmpty(userName)) dto.UserName = userName;
+            var norm = PermissionService.NormalizeUserId(uid);
+            var perm = permIndex.TryGetValue(norm, out var p) ? p : new UserPermission { UserId = uid };
+            var dto = ToPermissionDto(perm, userName);
             dto.IsAdmin = isAdmin;
             result.Add(dto);
         }
@@ -1143,6 +1223,21 @@ public class InfoPopupController : ControllerBase
         //   (corollaire historique : sur 10.10/10.11 l'absence de charset faisait afficher
         //   les caractères accentués en mojibake dans l'onglet brut du navigateur).
         Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        // Cache long (v3.8.4.0) : les modules sont servis avec une query `?v=X.Y.Z.W` ajoutée
+        // par `ScriptInjectionMiddleware` et propagée par `client.js`. Le contenu est donc
+        // *immuable* pour une version donnée — chaque release change le query string et invalide
+        // naturellement le cache. Sans Cache-Control, le navigateur re-fetch (200 OK avec corps)
+        // les 6 modules à chaque navigation SPA → ~50-150 ms gaspillés par transition. Avec
+        // `immutable`, le navigateur ne revalide même pas, le service worker Jellyfin sert
+        // depuis son cache HTTP. Quand l'admin met à jour le plugin, le nouveau ?v force le
+        // re-download. Si la query est absente (cas dégénéré, ex. requête manuelle), on retombe
+        // sur un cache court 5 minutes — pas de cache permanent sur du contenu non-versionné.
+        var hasVersionQuery = HttpContext.Request.Query.ContainsKey("v");
+        Response.Headers["Cache-Control"] = hasVersionQuery
+            ? "public, max-age=31536000, immutable"
+            : "public, max-age=300";
+
         return File(stream, "application/javascript; charset=utf-8");
     }
 }

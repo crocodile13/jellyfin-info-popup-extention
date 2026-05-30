@@ -376,6 +376,12 @@
         var close = function () {
             // Annuler le countdown si l'utilisateur ferme manuellement avant la fin.
             if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null; }
+            // Fix fuite mémoire v3.8.4.0 : retirer le listener document keydown enregistré
+            // plus bas. Avant ce fix, seule une fermeture via Escape déclenchait le
+            // removeEventListener (ligne du onKey lui-même) ; une fermeture par bouton X ou
+            // clic backdrop laissait le listener attaché à document → chaque cycle
+            // ouverture/fermeture par clic ajoutait un listener jamais nettoyé.
+            if (typeof onKey === 'function') document.removeEventListener('keydown', onKey);
             backdrop.remove();
             // popupActive reste true jusqu'à confirmation serveur (R4).
             // Évite la race condition entre "Fermer" et l'acquittement du POST /seen.

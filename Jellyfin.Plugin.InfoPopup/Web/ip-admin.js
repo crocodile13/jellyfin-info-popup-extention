@@ -2038,11 +2038,13 @@
             });
         }
 
-        // Chargement initial : utilisateurs puis messages
-        fetchUsers().then(function (users) {
-            renderTargetPicker(page, users);
-            return loadMessages(page, selectedIds, onEdit);
-        });
+        // Chargement initial — optim v3.8.4.0 : fetchUsers et loadMessages en PARALLÈLE.
+        // loadMessages ne dépend pas des users (les noms d'auteur sont déjà résolus
+        // côté serveur dans MessageSummary.SentByUserName). Le picker de destinataires
+        // se rafraîchit dès que fetchUsers retourne, indépendamment du rendu de la liste.
+        // Gain : 1 RTT au lieu de 2 séquentiels sur l'ouverture du dashboard.
+        fetchUsers().then(function (users) { renderTargetPicker(page, users); });
+        loadMessages(page, selectedIds, onEdit);
     }
 
     // ── Détection et initialisation depuis l'observer ────────────────────────

@@ -55,11 +55,26 @@
 
     // ── Overlay page utilisateur ────────────────────────────────────────────
     var _overlayOpen = false;
+    // Listeners attachés à document/window quand l'overlay est ouvert. Stockés au scope
+    // module pour que closeUserOverlay puisse les détacher (fix fuite mémoire v3.8.4.0).
+    // Sans ça, une fermeture autre que par Escape (back button, hash change, etc.)
+    // laissait keydown/hashchange/popstate attachés à document → fuite cumulative à chaque
+    // cycle ouverture/fermeture de « Mes messages ».
+    var _overlayListeners = null;
 
     function closeUserOverlay() {
         var overlay = document.getElementById('ip-user-overlay');
         if (overlay) overlay.remove();
         _overlayOpen = false;
+        // Détacher tous les listeners enregistrés à l'ouverture (fix fuite mémoire v3.8.4.0).
+        if (_overlayListeners) {
+            if (_overlayListeners.onKey) document.removeEventListener('keydown', _overlayListeners.onKey);
+            if (_overlayListeners.onNav) {
+                window.removeEventListener('hashchange', _overlayListeners.onNav);
+                window.removeEventListener('popstate', _overlayListeners.onNav);
+            }
+            _overlayListeners = null;
+        }
         // Restaure la barre latérale classique : showUserPage la fermait, il ne faut pas
         // la laisser dans un état cassé (la classe `hide` la masquerait définitivement).
         var drawer = document.querySelector('.mainDrawer');
@@ -200,9 +215,11 @@
         // ── Init ────────────────────────────────────────────────────────
         initUserPage(content);
 
-        // Escape ferme l'overlay
+        // Escape ferme l'overlay. Listener enregistré dans `_overlayListeners` au scope
+        // module pour que `closeUserOverlay` puisse le détacher quelle que soit la voie
+        // de fermeture (back button, hash change, etc.) — voir fuite mémoire v3.8.4.0.
         var onKey = function (e) {
-            if (e.key === 'Escape') { closeUserOverlay(); document.removeEventListener('keydown', onKey); }
+            if (e.key === 'Escape') closeUserOverlay();
         };
         document.addEventListener('keydown', onKey);
 
@@ -212,13 +229,12 @@
         // immédiatement → symptôme « clic sans effet ».
         var onNav = function () {
             if (_overlayOpen) closeUserOverlay();
-            window.removeEventListener('hashchange', onNav);
-            window.removeEventListener('popstate', onNav);
         };
         setTimeout(function () {
             window.addEventListener('hashchange', onNav);
             window.addEventListener('popstate', onNav);
         }, 0);
+        _overlayListeners = { onKey: onKey, onNav: onNav };
     }
 
     function createSidebarLink() {
@@ -416,7 +432,7 @@
     // Inbox — messages repliables
     // ══════════════════════════════════════════════════════════════════════════
 
-    function loadInbox(page) {
+    function loadInbox(page, onPermsLoaded) {
         var list = page.querySelector('#ip-user-inbox-list');
         if (!list) return;
         apiFetch('/InfoPopup/popup-data')
@@ -424,6 +440,16 @@
             .then(function (data) {
                 var unseen  = data.unseen  || data.Unseen  || [];
                 var history = data.history || data.History || [];
+
+                // Optim v3.8.4.0 : popup-data RETOURNE DÉJÀ les permissions effectives de
+                // l'utilisateur (champ Permissions). On les propage à initUserPage via le
+                // callback `onPermsLoaded` pour éviter un GET /permissions/me redondant —
+                // gain : 1 round-trip de moins à l'ouverture de l'overlay.
+                if (typeof onPermsLoaded === 'function') {
+                    var perms = data.permissions || data.Permissions;
+                    if (perms) onPermsLoaded(normalizePerms(perms));
+                }
+
                 list.innerHTML = '';
                 if (!unseen.length && !history.length) {
                     var empty = document.createElement('p');
@@ -1112,23 +1138,25 @@
             }
         });
 
-        // Charger les permissions pour afficher/masquer l'onglet Envoyer ET pour conditionner
-        // les boutons éditer / supprimer sur chaque carte de message.
-        apiFetch('/InfoPopup/permissions/me')
-            .then(function (res) { return res.json(); })
-            .then(function (perms) {
-                _userPerms = normalizePerms(perms);
-                var sendTab = page.querySelector('#ip-user-tab-send');
-                if (sendTab && _userPerms.canSendMessages) {
-                    sendTab.style.display = '';
-                    initCompose(page);
+        // Optim v3.8.4.0 : on supprime le `GET /permissions/me` redondant — popup-data
+        // retourne déjà les permissions effectives. Le callback `onPermsLoaded` est invoqué
+        // par loadInbox dès que la réponse arrive, et conditionne l'onglet « Envoyer ».
+        // En parallèle, loadSentMessages est lancé immédiatement : si l'utilisateur n'a pas
+        // CanSendMessages, le serveur retourne une liste vide (pas un 403) — coût négligeable
+        // et on évite la latence séquentielle perms → sent.
+        var sentLoadedEarly = false;
+        loadInbox(page, function (perms) {
+            _userPerms = perms;
+            var sendTab = page.querySelector('#ip-user-tab-send');
+            if (sendTab && _userPerms.canSendMessages) {
+                sendTab.style.display = '';
+                initCompose(page);
+                if (!sentLoadedEarly) {
+                    sentLoadedEarly = true;
                     loadSentMessages(page);
                 }
-                // Recharger l'inbox APRÈS avoir les perms — pour que les boutons edit/delete
-                // apparaissent dès le premier rendu plutôt qu'après un refresh manuel.
-                loadInbox(page);
-            })
-            .catch(function () { loadInbox(page); });
+            }
+        });
     }
 
     // Permissions effectives de l'utilisateur courant, partagées au niveau module pour

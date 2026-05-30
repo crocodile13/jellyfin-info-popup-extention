@@ -6,6 +6,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.4.0] — 2026-05-30
+
+### Changed
+- **Faster page loads, especially admin tabs and "My Messages"** — bundle of latency optimizations with no behavioral change.
+
+### Added
+- **Long-lived HTTP cache on versioned JS modules** — `Cache-Control: public, max-age=31536000, immutable` on `/InfoPopup/*.js?v=X.Y.Z.W`. Each release changes the query string and naturally invalidates the cache. SPA navigations no longer re-fetch the 6 modules; the browser/service-worker serves them locally. Falls back to 5-minute cache when the version query is absent.
+- **Parallel JS module loader** — `client.js` now inserts all 6 `<script async=false>` tags into `<head>` in one batch instead of chaining `load` events. The browser fetches them in parallel while preserving execution order — 1 RTT instead of 6 on cold cache.
+- **Per-request server-side caches** — `InfoPopupController` now memoizes user-name lookups (`_userNameCache`), permission reads (`_permCache`), and pre-builds a `MessageId → List<Reply>` map (`PreloadRepliesByMessage`) once per request. `GetPopupData`, `GetSentMessages`, and `GetAllPermissions` go from O(N·R) or O(N·U) lookups under repeated locks to O(N+R) or O(N+U). Visible mostly on installs with many messages or users.
+- **Parallel admin init** — admin config page now fires `fetchUsers()` and `loadMessages()` in parallel instead of chaining them. `loadMessages` doesn't depend on the user list (sender names are pre-resolved server-side).
+- **`popup-data` reused for "My Messages" permissions** — the user overlay no longer issues a separate `GET /permissions/me`; permissions are extracted from the `popup-data` response that the inbox already needs. Saves one round-trip per overlay open.
+
+### Fixed
+- **Memory leak: popup `keydown` listener** — closing the popup via the X button or backdrop click left a `document.addEventListener('keydown', …)` permanently attached. Each open/close cycle accumulated one listener. `close()` now removes it on every path (previously only the Escape path cleaned up).
+- **Memory leak: "My Messages" overlay listeners** — `keydown`, `hashchange`, and `popstate` listeners were registered on `document`/`window` when the overlay opened but only removed on the Escape close path. Back-button close, sidebar reuse, and route-driven close all leaked them. Listeners are now tracked at module scope and detached in `closeUserOverlay()` regardless of close cause.
+
+---
+
 ## [3.8.3.0] — 2026-05-30
 
 ### Added
