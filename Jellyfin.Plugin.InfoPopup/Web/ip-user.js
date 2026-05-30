@@ -186,27 +186,42 @@
         };
         document.addEventListener('keydown', onKey);
 
-        // Fermer si on navigue ailleurs
+        // Fermer si on navigue ailleurs. Enregistrement déféré au prochain tick : sinon un
+        // hashchange synchrone provoqué par la fermeture du drawer MUI (backdrop.click) ou par
+        // un routeur Jellyfin déclenché pendant le clic d'ouverture refermerait l'overlay
+        // immédiatement → symptôme « clic sans effet ».
         var onNav = function () {
             if (_overlayOpen) closeUserOverlay();
             window.removeEventListener('hashchange', onNav);
             window.removeEventListener('popstate', onNav);
         };
-        window.addEventListener('hashchange', onNav);
-        window.addEventListener('popstate', onNav);
+        setTimeout(function () {
+            window.addEventListener('hashchange', onNav);
+            window.addEventListener('popstate', onNav);
+        }, 0);
     }
 
     function createSidebarLink() {
+        // <a> SANS href : un href="#" déclenche le routeur Jellyfin (capté avant nos handlers
+        // par leur navigation interne) et un hashchange synchrone qui referme l'overlay juste
+        // après son ouverture — symptôme : clic sans aucun effet visible (3.7.6.0 / 3.7.7.0).
+        // role="button" et tabindex="0" préservent l'accessibilité clavier.
         var link = document.createElement('a');
         link.id = 'ip-nav-messages';
-        link.href = '#';
+        link.setAttribute('role', 'button');
+        link.setAttribute('tabindex', '0');
         // L'écouteur direct est doublé d'une délégation document (voir bindSidebarClick) :
         // dans la sidebar MUI Jellyfin 10.11, le clic peut être consommé par un handler React
         // parent avant d'atteindre le nôtre, ou le DOM peut être recréé sans préserver l'écouteur.
-        link.addEventListener('click', function (e) {
+        var handleActivate = function (e) {
             e.preventDefault();
             e.stopPropagation();
-            showUserPage();
+            try { showUserPage(); }
+            catch (err) { console.error('[InfoPopup] showUserPage failed:', err); }
+        };
+        link.addEventListener('click', handleActivate);
+        link.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') handleActivate(e);
         });
         var icon = document.createElement('span');
         icon.className = 'material-icons';
@@ -220,18 +235,23 @@
 
     // Délégation document : robuste si la sidebar est recréée par React/MUI sans préserver
     // les listeners attachés aux <a>, ou si un handler parent consomme le clic.
-    // Posé une seule fois, en capture pour passer avant les handlers MUI parents.
+    // Posée une seule fois, en capture pour passer avant les handlers MUI parents.
     var _sidebarClickBound = false;
     function bindSidebarClick() {
         if (_sidebarClickBound) return;
         _sidebarClickBound = true;
-        document.addEventListener('click', function (e) {
+        var handler = function (e) {
             var link = e.target && e.target.closest && e.target.closest('#ip-nav-messages');
             if (!link) return;
             e.preventDefault();
             e.stopPropagation();
-            showUserPage();
-        }, true);
+            try { showUserPage(); }
+            catch (err) { console.error('[InfoPopup] showUserPage failed:', err); }
+        };
+        // Capture sur document ET window : certains routeurs Jellyfin captent au niveau document
+        // avant qu'on soit chargé ; window est l'enveloppe la plus externe.
+        document.addEventListener('click', handler, true);
+        window.addEventListener('click', handler, true);
     }
 
     function injectIntoClassicSidebar() {

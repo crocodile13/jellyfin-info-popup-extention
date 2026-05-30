@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.8.0] — 2026-05-30
+
+### Fixed
+- **Clic sur « Messages » sans effet (3.7.7.0 incomplet)** — le `<a href="#">` déclenchait le routeur Jellyfin et un `hashchange` synchrone qui refermait l'overlay juste après son ouverture. Le `<a>` n'a plus de href (`role="button"` + `tabindex="0"`) ; l'enregistrement des listeners `hashchange`/`popstate` de l'overlay est différé d'un `setTimeout(0)` pour ignorer toute navigation synchrone provoquée par le clic. Délégation clic doublée sur `window` en plus de `document` pour résister aux routeurs Jellyfin qui captent au niveau document.
+
+---
+
 ## [3.7.7.0] — 2026-05-29
 
 ### Fixed
