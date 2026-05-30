@@ -1107,10 +1107,12 @@
         var userId   = u.userId   || u.UserId   || '';
         var userName = u.userName || u.UserName  || userId;
         var role     = detectRole(u);
+        var isAdmin  = u.isAdmin  || u.IsAdmin  || false;
 
         var card = document.createElement('div');
-        card.className = 'ip-perm-card';
+        card.className = 'ip-perm-card' + (isAdmin ? ' ip-perm-card-admin' : '');
         card.dataset.userId = userId;
+        if (isAdmin) card.title = t('perm_admin_hint');
 
         // ── Header row ──────────────────────────────────────────────────
         var header = document.createElement('div');
@@ -1120,12 +1122,22 @@
         selChk.type = 'checkbox';
         selChk.className = 'ip-perm-card-sel';
         selChk.setAttribute('aria-label', t('perm_sel_all'));
+        if (isAdmin) selChk.disabled = true;
         header.appendChild(selChk);
 
         var nameEl = document.createElement('span');
         nameEl.className = 'ip-perm-card-name';
         nameEl.textContent = userName;
         header.appendChild(nameEl);
+
+        // Badge ADMIN (v3.8.3.0) : indique clairement les comptes admin dont les droits
+        // sont toujours intégraux, et que le tableau de droits ne contrôle pas.
+        if (isAdmin) {
+            var adminBadge = document.createElement('span');
+            adminBadge.className = 'ip-role-badge ip-role-badge-admin';
+            adminBadge.textContent = t('perm_admin_badge');
+            header.appendChild(adminBadge);
+        }
 
         var roleWrap = document.createElement('span');
         roleWrap.className = 'ip-perm-card-role';
@@ -1241,10 +1253,21 @@
 
         if (role === 'custom') details.classList.add('open');
 
+        // Admin (v3.8.3.0) : on grise tous les contrôles. Le user reste visible dans la liste
+        // pour transparence (« voilà l'admin, ses droits sont intégraux par défaut »), mais
+        // rien n'est modifiable ni inclus dans la sauvegarde globale (cf. loadPermissions).
+        if (isAdmin) {
+            roleSel.disabled = true;
+            inpMsgs.disabled = true;
+            inpRep.disabled  = true;
+            detailsBtn.disabled = true;
+            Object.keys(checkboxMap).forEach(function (k) { checkboxMap[k].disabled = true; });
+        }
+
         allCards.push({
             card: card, roleSel: roleSel, checkboxMap: checkboxMap,
             inpMsgs: inpMsgs, inpRep: inpRep, userId: userId, details: details,
-            selChk: selChk, applyRole: applyRole
+            selChk: selChk, applyRole: applyRole, isAdmin: isAdmin
         });
         return card;
     }
@@ -1333,14 +1356,16 @@
                 });
 
                 function updateSelCount() {
-                    var n = allCards.filter(function (c) { return c.selChk.checked; }).length;
+                    var n = allCards.filter(function (c) { return c.selChk.checked && !c.isAdmin; }).length;
                     selCount.textContent = t('perm_sel_count', n);
                 }
                 allCards.forEach(function (c) { c.selChk.addEventListener('change', updateSelCount); });
                 updateSelCount();
 
+                // Les admins sont exclus de la sélection (leurs droits sont intégraux par défaut,
+                // les modifier serait sans effet et trompeur — v3.8.3.0).
                 btnSelAll.addEventListener('click', function () {
-                    allCards.forEach(function (c) { c.selChk.checked = true; });
+                    allCards.forEach(function (c) { if (!c.isAdmin) c.selChk.checked = true; });
                     updateSelCount();
                 });
                 btnSelNone.addEventListener('click', function () {
@@ -1348,7 +1373,7 @@
                     updateSelCount();
                 });
                 btnSelInvert.addEventListener('click', function () {
-                    allCards.forEach(function (c) { c.selChk.checked = !c.selChk.checked; });
+                    allCards.forEach(function (c) { if (!c.isAdmin) c.selChk.checked = !c.selChk.checked; });
                     updateSelCount();
                 });
 
@@ -1357,7 +1382,7 @@
                 bulkBtn.addEventListener('click', function () {
                     var role = bulkSel.value;
                     if (!ROLES[role]) return;
-                    var selected = allCards.filter(function (c) { return c.selChk.checked; });
+                    var selected = allCards.filter(function (c) { return c.selChk.checked && !c.isAdmin; });
                     if (!selected.length) { flashSaveStatus(t('perm_bulk_none_selected'), false); return; }
                     var mMsgs = bulkMsgs.value;
                     var mRep  = bulkRep.value;
@@ -1400,7 +1425,9 @@
                     if (statusTimer) clearTimeout(statusTimer);
                     saveStatus.textContent = '';
                     saveStatus.className = 'ip-perm-save-status';
-                    var reqs = allCards.map(function (c) {
+                    // Skip les admins (v3.8.3.0) : leurs droits effectifs sont toujours
+                    // intégraux côté serveur, persister leur état d'UI serait sans effet.
+                    var reqs = allCards.filter(function (c) { return !c.isAdmin; }).map(function (c) {
                         var payload = {
                             canSendMessages:         c.checkboxMap.canSendMessages.checked,
                             canReply:                c.checkboxMap.canReply.checked,

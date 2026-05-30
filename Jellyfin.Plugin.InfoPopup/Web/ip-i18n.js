@@ -208,7 +208,13 @@
             user_msg_replies_count_p:'{0} r\u00e9ponses re\u00e7ues',
             user_msg_no_replies:     "Aucune r\u00e9ponse re\u00e7ue pour l'instant.",
             user_msg_edit_err:       "Erreur lors de l'enregistrement.",
-            toast_reply_received:    '{0} a r\u00e9pondu \u00e0 \u00ab {1} \u00bb',
+            toast_reply_received:    'R\u00e9ponse de {0}',
+            role_admin:              'ADMIN',
+            role_moderator:          'MOD\u00c9RATEUR',
+            role_user:               'UTILISATEUR',
+            role_system:             'SYST\u00c8ME',
+            perm_admin_badge:        'ADMIN',
+            perm_admin_hint:         "L'administrateur a toujours tous les droits \u2014 non modifiable.",
 
             // ── Badges message ───────────────────────────────────────────────
             msg_deleted_label:      '(supprim\u00e9)',
@@ -422,7 +428,13 @@
             user_msg_replies_count_p:'{0} replies received',
             user_msg_no_replies:     'No replies received yet.',
             user_msg_edit_err:       'Save failed.',
-            toast_reply_received:    '{0} replied to "{1}"',
+            toast_reply_received:    'Reply from {0}',
+            role_admin:              'ADMIN',
+            role_moderator:          'MODERATOR',
+            role_user:               'USER',
+            role_system:             'SYSTEM',
+            perm_admin_badge:        'ADMIN',
+            perm_admin_hint:         'Administrator always has all rights — not editable.',
 
             // ── Message badges ───────────────────────────────────────────────
             msg_deleted_label:      '(deleted)',
@@ -636,7 +648,13 @@
             user_msg_replies_count_p:'{0} respuestas recibidas',
             user_msg_no_replies:     'Sin respuestas todavía.',
             user_msg_edit_err:       'Error al guardar.',
-            toast_reply_received:    '{0} respondió a «{1}»',
+            toast_reply_received:    'Respuesta de {0}',
+            role_admin:              'ADMIN',
+            role_moderator:          'MODERADOR',
+            role_user:               'USUARIO',
+            role_system:             'SISTEMA',
+            perm_admin_badge:        'ADMIN',
+            perm_admin_hint:         'El administrador siempre tiene todos los permisos — no editable.',
 
             // ── Insignias de mensaje ─────────────────────────────────────────
             msg_deleted_label:      '(eliminado)',
@@ -850,7 +868,13 @@
             user_msg_replies_count_p:'{0} Antworten erhalten',
             user_msg_no_replies:     'Noch keine Antworten.',
             user_msg_edit_err:       'Speichern fehlgeschlagen.',
-            toast_reply_received:    '{0} hat auf „{1}" geantwortet',
+            toast_reply_received:    'Antwort von {0}',
+            role_admin:              'ADMIN',
+            role_moderator:          'MODERATOR',
+            role_user:               'BENUTZER',
+            role_system:             'SYSTEM',
+            perm_admin_badge:        'ADMIN',
+            perm_admin_hint:         'Administrator hat immer alle Rechte — nicht bearbeitbar.',
 
             // ── Nachrichten-Badges ───────────────────────────────────────────
             msg_deleted_label:      '(gel\u00f6scht)',
@@ -1064,7 +1088,13 @@
             user_msg_replies_count_p:'{0} respostas recebidas',
             user_msg_no_replies:     'Nenhuma resposta ainda.',
             user_msg_edit_err:       'Falha ao salvar.',
-            toast_reply_received:    '{0} respondeu a «{1}»',
+            toast_reply_received:    'Resposta de {0}',
+            role_admin:              'ADMIN',
+            role_moderator:          'MODERADOR',
+            role_user:               'UTILIZADOR',
+            role_system:             'SISTEMA',
+            perm_admin_badge:        'ADMIN',
+            perm_admin_hint:         'O administrador tem sempre todos os direitos — não editável.',
 
             // ── Badges de mensagem ───────────────────────────────────────────
             msg_deleted_label:      '(exclu\u00eddo)',
@@ -1278,7 +1308,13 @@
             user_msg_replies_count_p:'{0} risposte ricevute',
             user_msg_no_replies:     'Nessuna risposta ancora.',
             user_msg_edit_err:       'Salvataggio fallito.',
-            toast_reply_received:    '{0} ha risposto a «{1}»',
+            toast_reply_received:    'Risposta da {0}',
+            role_admin:              'ADMIN',
+            role_moderator:          'MODERATORE',
+            role_user:               'UTENTE',
+            role_system:             'SISTEMA',
+            perm_admin_badge:        'ADMIN',
+            perm_admin_hint:         "L'amministratore ha sempre tutti i diritti — non modificabile.",
 
             // ── Badge messaggio ──────────────────────────────────────────────
             msg_deleted_label:      '(eliminato)',
@@ -1492,7 +1528,13 @@
             user_msg_replies_count_p:'{0}\u4ef6\u306e\u8fd4\u4fe1\u3092\u53d7\u4fe1',
             user_msg_no_replies:     '\u307e\u3060\u8fd4\u4fe1\u306f\u3042\u308a\u307e\u305b\u3093\u3002',
             user_msg_edit_err:       '\u4fdd\u5b58\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002',
-            toast_reply_received:    '{0}\u3055\u3093\u304c\u300c{1}\u300d\u306b\u8fd4\u4fe1\u3057\u307e\u3057\u305f',
+            toast_reply_received:    '{0}\u3055\u3093\u304b\u3089\u8fd4\u4fe1',
+            role_admin:              '\u7ba1\u7406\u8005',
+            role_moderator:          '\u30e2\u30c7\u30ec\u30fc\u30bf\u30fc',
+            role_user:               '\u30e6\u30fc\u30b6\u30fc',
+            role_system:             '\u30b7\u30b9\u30c6\u30e0',
+            perm_admin_badge:        '\u7ba1\u7406\u8005',
+            perm_admin_hint:         '\u7ba1\u7406\u8005\u306f\u5e38\u306b\u3059\u3079\u3066\u306e\u6a29\u9650\u3092\u6301\u3061\u307e\u3059 \u2014 \u7de8\u96c6\u3067\u304d\u307e\u305b\u3093\u3002',
 
             // ── メッセージバッジ ──────────────────────────────────────────────
             msg_deleted_label:      '(\u524a\u9664\u6e08\u307f)',
@@ -1706,7 +1748,13 @@
             user_msg_replies_count_p:'\u6536\u5230 {0} \u6761\u56de\u590d',
             user_msg_no_replies:     '\u5c1a\u65e0\u56de\u590d\u3002',
             user_msg_edit_err:       '\u4fdd\u5b58\u5931\u8d25\u3002',
-            toast_reply_received:    '{0} \u56de\u590d\u4e86"{1}"',
+            toast_reply_received:    '{0} \u7684\u56de\u590d',
+            role_admin:              '\u7ba1\u7406\u5458',
+            role_moderator:          '\u7248\u4e3b',
+            role_user:               '\u7528\u6237',
+            role_system:             '\u7cfb\u7edf',
+            perm_admin_badge:        '\u7ba1\u7406\u5458',
+            perm_admin_hint:         '\u7ba1\u7406\u5458\u59cb\u7ec8\u62e5\u6709\u6240\u6709\u6743\u9650 \u2014 \u4e0d\u53ef\u7f16\u8f91\u3002',
 
             // ── 消息标签 ──────────────────────────────────────────────────────
             msg_deleted_label:      '(\u5df2\u5220\u9664)',

@@ -286,12 +286,27 @@
             '#infoPopupUserPage .ip-user-msg-edit-status.err{color:#cf6679;opacity:1}',
             // ── Corner toast pour notifications de réponse (v3.8.0.0) ──────────
             '#ip-toast-area{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:99997;max-width:380px;pointer-events:none}',
-            '.ip-corner-toast{pointer-events:auto;background:rgba(28,30,34,.96);border:1px solid rgba(255,255,255,.12);border-left:3px solid var(--theme-accent-color,#00a4dc);border-radius:6px;padding:10px 14px;color:#e5e5e5;font-size:.88rem;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.5);cursor:pointer;animation:ip-corner-toast-in .25s ease-out;overflow-wrap:break-word;word-break:break-word}',
+            // Toast version compacte v3.8.3.0 : juste « Réponse de X », pas de body — l'utilisateur
+            // ouvre « Mes messages » pour le détail. Padding réduit, font-weight normal.
+            '.ip-corner-toast{pointer-events:auto;background:rgba(28,30,34,.96);border:1px solid rgba(255,255,255,.12);border-left:3px solid var(--theme-accent-color,#00a4dc);border-radius:6px;padding:8px 14px;color:#e5e5e5;font-size:.86rem;line-height:1.3;box-shadow:0 6px 20px rgba(0,0,0,.5);cursor:pointer;animation:ip-corner-toast-in .25s ease-out;overflow-wrap:break-word;word-break:break-word}',
             '.ip-corner-toast-hdr{font-weight:600;margin-bottom:4px}',
             '.ip-corner-toast-body{font-size:.82rem;opacity:.75;line-height:1.4}',
             '.ip-corner-toast-hide{animation:ip-corner-toast-out .2s ease-in forwards}',
             '@keyframes ip-corner-toast-in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}',
             '@keyframes ip-corner-toast-out{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(20px)}}',
+            // ── Badges de rôle (v3.8.3.0) ──────────────────────────────────────
+            // Discret : font-size minuscule, padding minimal, border-radius pour la pilule.
+            '.ip-role-badge{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.05em;padding:2px 7px;border-radius:10px;text-transform:uppercase;line-height:1.3;vertical-align:middle;margin-left:6px;flex-shrink:0;border:1px solid transparent}',
+            '.ip-role-badge-admin{background:rgba(255,193,7,.18);color:#ffd54f;border-color:rgba(255,193,7,.35)}',
+            '.ip-role-badge-moderator{background:rgba(186,104,200,.18);color:#ce93d8;border-color:rgba(186,104,200,.35)}',
+            '.ip-role-badge-user{background:rgba(255,255,255,.06);color:#bdbdbd;border-color:rgba(255,255,255,.12)}',
+            '.ip-role-badge-system{background:rgba(96,125,139,.18);color:#90a4ae;border-color:rgba(96,125,139,.35)}',
+            // ── Carte droits admin grisée (v3.8.3.0) ───────────────────────────
+            '.ip-perm-card-admin{opacity:.55;background:rgba(255,193,7,.04);border-color:rgba(255,193,7,.18)}',
+            '.ip-perm-card-admin .ip-perm-card-name{color:#ffd54f}',
+            '.ip-perm-card-admin .ip-perm-card-sel{cursor:not-allowed}',
+            '.ip-perm-card-admin .ip-perm-toggle-details{cursor:not-allowed}',
+            '.ip-perm-card-admin input:disabled,.ip-perm-card-admin select:disabled,.ip-perm-card-admin button:disabled{cursor:not-allowed;opacity:.6}',
             // ── Reply already-sent state ──────────────────────────────────────
             '.ip-reply-done{font-size:.82rem;opacity:.6;font-style:italic;padding:6px 0}'
         ].join('\n');

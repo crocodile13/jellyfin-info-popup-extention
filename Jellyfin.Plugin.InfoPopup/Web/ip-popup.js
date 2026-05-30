@@ -290,14 +290,27 @@
             '" title="' + escHtml(t('popup_close_aria')) + '">\u2715</button>';
         dialog.appendChild(header);
 
-        // Construit la ligne « De : ... » (ou null si pas d'auteur connu).
+        // Construit la ligne « De : ... » (ou null si pas d'auteur connu) avec un badge de
+        // rôle discret (admin / modérateur / utilisateur) — v3.8.3.0.
         function buildSenderLine(msg) {
             var sender = msg.sentByUserName || msg.SentByUserName || '';
+            var role   = msg.senderRole || msg.SenderRole || 'user';
             if (!sender) return null;
             var line = document.createElement('div');
             line.className = 'ip-msg-sender';
-            line.textContent = t('popup_from') + ' ' + sender;
+            var label = document.createElement('span');
+            label.textContent = t('popup_from') + ' ' + sender;
+            line.appendChild(label);
+            line.appendChild(makeRoleBadge(role));
             return line;
+        }
+
+        function makeRoleBadge(role) {
+            var key = (role === 'admin' || role === 'moderator' || role === 'system') ? role : 'user';
+            var b = document.createElement('span');
+            b.className = 'ip-role-badge ip-role-badge-' + key;
+            b.textContent = t('role_' + key);
+            return b;
         }
 
         if (isSingle) {
@@ -493,12 +506,12 @@
             if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
             if (typeof ns.injectSidebarEntry === 'function') ns.injectSidebarEntry();
 
-            // ── Polling léger temps réel (v3.8.0.0) ─────────────────────────────
-            // Vérifie périodiquement si de nouveaux messages sont arrivés. Une vérification
-            // toutes les 60s + une vérification dès que l'onglet redevient visible. Si la
-            // popup est active, l'onglet est caché ou la page admin est ouverte, on saute.
-            var POLL_INTERVAL_MS = 60000;
-            var REPLIES_POLL_INTERVAL_MS = 60000;
+            // ── Polling léger temps réel (v3.8.0.0, intervalle réduit en v3.8.3.0) ─────
+            // Vérification toutes les 30s (popup) / 45s (réponses) + au retour de visibilité.
+            // Skip quand popup active, page admin ouverte ou onglet caché → quasi zéro coût
+            // CPU/réseau quand inactif.
+            var POLL_INTERVAL_MS = 30000;
+            var REPLIES_POLL_INTERVAL_MS = 45000;
             var lastPopupPoll = 0;
             var lastRepliesPoll = 0;
 
@@ -520,7 +533,7 @@
                 var now = Date.now();
                 if (now - lastPopupPoll >= POLL_INTERVAL_MS) { lastPopupPoll = now; pollPopup(); }
                 if (now - lastRepliesPoll >= REPLIES_POLL_INTERVAL_MS) { lastRepliesPoll = now; pollRepliesReceived(); }
-            }, 15000);
+            }, 10000);
 
             // Au retour de visibilité (changement d'onglet), check immédiatement.
             document.addEventListener('visibilitychange', function () {
@@ -583,7 +596,11 @@
             .catch(function () { /* silencieux : pas d'impact UX */ });
     }
 
-    /** Affiche un toast discret en bas à droite. Auto-dismiss après 6s, click pour fermer. */
+    /**
+     * Affiche une notif DISCRÈTE en bas à droite : juste « Réponse de X » (v3.8.3.0).
+     * Pas de body, pas de titre de message — l'utilisateur peut ouvrir « Mes messages »
+     * pour le détail. Auto-dismiss 4s, click pour fermer.
+     */
     function showReplyToast(notif) {
         ns.injectStyles();
         var area = document.getElementById('ip-toast-area');
@@ -593,20 +610,10 @@
             document.body.appendChild(area);
         }
         var fromName = notif.fromUserName || notif.FromUserName || '';
-        var title    = notif.messageTitle || notif.MessageTitle || '';
-        var body     = notif.body         || notif.Body         || '';
-        var preview  = body.length > 80 ? body.substring(0, 80) + '…' : body;
 
         var toast = document.createElement('div');
         toast.className = 'ip-corner-toast';
-        var hdr = document.createElement('div');
-        hdr.className = 'ip-corner-toast-hdr';
-        hdr.textContent = t('toast_reply_received', fromName, title);
-        var bd = document.createElement('div');
-        bd.className = 'ip-corner-toast-body';
-        bd.textContent = preview;
-        toast.appendChild(hdr);
-        if (preview) toast.appendChild(bd);
+        toast.textContent = t('toast_reply_received', fromName);
         area.appendChild(toast);
 
         var dismiss = function () {
@@ -615,7 +622,7 @@
             setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 200);
         };
         toast.addEventListener('click', dismiss);
-        setTimeout(dismiss, 6000);
+        setTimeout(dismiss, 4000);
     }
 
     // ── Démarrage ────────────────────────────────────────────────────────────

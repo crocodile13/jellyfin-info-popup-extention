@@ -86,6 +86,48 @@ public class InfoPopupController : ControllerBase
     private static bool IsOwner(string? sentByUserId, string? userId) =>
         PermissionService.NormalizeUserId(sentByUserId) == PermissionService.NormalizeUserId(userId);
 
+    /// <summary>
+    /// Détermine via réflexion si un User Jellyfin est administrateur.
+    /// Essaie successivement : (1) `user.Policy.IsAdministrator` (10.10 / début 10.11),
+    /// (2) `user.HasPermission(PermissionKind.IsAdministrator)` (10.11.9+, plus statique).
+    /// Tout échec → false (permission par défaut la plus restrictive).
+    /// </summary>
+    private static bool ResolveIsAdmin(object user, Type type)
+    {
+        try
+        {
+            // Path 1: user.Policy.IsAdministrator
+            var policy = type.GetProperty("Policy")?.GetValue(user);
+            if (policy is not null)
+            {
+                var isAdminProp = policy.GetType().GetProperty("IsAdministrator");
+                if (isAdminProp is not null && isAdminProp.GetValue(policy) is bool b)
+                    return b;
+            }
+            // Path 2: user.HasPermission(PermissionKind.IsAdministrator) — chemin réflexif.
+            // PermissionKind est un enum dans Jellyfin.Data ; on cherche la valeur nommée
+            // "IsAdministrator" puis on invoke HasPermission(enum).
+            var hasPerm = type.GetMethod("HasPermission");
+            if (hasPerm is not null)
+            {
+                var enumParam = hasPerm.GetParameters().FirstOrDefault()?.ParameterType;
+                if (enumParam is not null && enumParam.IsEnum)
+                {
+                    var adminVal = System.Enum.GetNames(enumParam).FirstOrDefault(n =>
+                        string.Equals(n, "IsAdministrator", System.StringComparison.OrdinalIgnoreCase));
+                    if (adminVal is not null)
+                    {
+                        var enumVal = System.Enum.Parse(enumParam, adminVal);
+                        var res = hasPerm.Invoke(user, new[] { enumVal });
+                        if (res is bool b2) return b2;
+                    }
+                }
+            }
+        }
+        catch { /* ignoré — défaut : non-admin */ }
+        return false;
+    }
+
     /// <summary>Résout le nom d'utilisateur à partir de son ID Jellyfin.</summary>
     private string ResolveUserName(string? userId)
     {
@@ -119,8 +161,28 @@ public class InfoPopupController : ControllerBase
         SentByUserId = m.SentByUserId,
         SentByUserName = ResolveUserName(m.SentByUserId),
         IsDeleted = m.IsDeleted,
-        EditHistoryCount = m.EditHistory.Count
+        EditHistoryCount = m.EditHistory.Count,
+        SenderRole = ComputeSenderRole(m)
     };
+
+    /// <summary>
+    /// Détermine le rôle effectif de l'expéditeur d'un message pour le badge client (v3.8.3.0).
+    /// Priorités : <c>IsSentByAdmin</c> (admin) → permission stockée Role == "moderator" ou
+    /// (CanEditOthers && CanDeleteOthers) → "user" sinon.
+    /// </summary>
+    private string ComputeSenderRole(PopupMessage m)
+    {
+        if (m.IsSentByAdmin) return "admin";
+        if (string.IsNullOrEmpty(m.SentByUserId)) return "system";
+        try
+        {
+            var perm = _permService.GetOrDefault(m.SentByUserId);
+            if (perm.Role == "moderator") return "moderator";
+            if (perm.CanEditOthersMessages && perm.CanDeleteOthersMessages) return "moderator";
+        }
+        catch { /* ignoré — défaut : user */ }
+        return "user";
+    }
 
     /// <summary>
     /// Variante contextuelle de <see cref="ToDetail"/> qui populate les champs
@@ -867,12 +929,13 @@ public class InfoPopupController : ControllerBase
         var perms = _permService.GetAll();
 
         var result = new List<UserPermissionDto>();
-        foreach (var (uid, userName) in EnumerateUsers())
+        foreach (var (uid, userName, isAdmin) in EnumerateUsers())
         {
             var perm = perms.FirstOrDefault(p => PermissionService.NormalizeUserId(p.UserId) == PermissionService.NormalizeUserId(uid))
                        ?? new UserPermission { UserId = uid };
             var dto = ToPermissionDto(perm);
             if (!string.IsNullOrEmpty(userName)) dto.UserName = userName;
+            dto.IsAdmin = isAdmin;
             result.Add(dto);
         }
 
@@ -886,9 +949,9 @@ public class InfoPopupController : ControllerBase
     /// ce qui provoquait un MissingMethodException avec un accès typé statiquement.
     /// Ne JAMAIS revenir à `_userManager.Users` en accès direct.
     /// </summary>
-    private List<(string Id, string Name)> EnumerateUsers()
+    private List<(string Id, string Name, bool IsAdmin)> EnumerateUsers()
     {
-        var list = new List<(string, string)>();
+        var list = new List<(string, string, bool)>();
         try
         {
             // 10.10 / début 10.11 : propriété IUserManager.Users.
@@ -913,7 +976,8 @@ public class InfoPopupController : ControllerBase
                 var id = type.GetProperty("Id")?.GetValue(user)?.ToString();
                 if (string.IsNullOrEmpty(id)) continue;
                 var name = type.GetProperty("Username")?.GetValue(user) as string;
-                list.Add((id, name ?? string.Empty));
+                bool isAdmin = ResolveIsAdmin(user, type);
+                list.Add((id, name ?? string.Empty, isAdmin));
             }
         }
         catch (Exception ex)

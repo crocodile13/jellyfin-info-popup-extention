@@ -113,6 +113,14 @@ public class MessageDetail
     public int EditHistoryCount { get; set; }
 
     /// <summary>
+    /// Rôle de l'expéditeur au moment de la consultation : "admin", "moderator", "user", "system".
+    /// Calculé serveur dans `ToDetail` à partir de `IsSentByAdmin` (admin) puis de la permission
+    /// stockée (`Role == "moderator"` OU `CanEditOthers && CanDeleteOthers` = moderator) sinon user.
+    /// Sert au rendu de badges colorés côté client (popup + onglet Mes messages, v3.8.3.0).
+    /// </summary>
+    public string SenderRole { get; set; } = "user";
+
+    /// <summary>
     /// Réponse de l'utilisateur courant à ce message, ou null s'il n'a pas (encore) répondu.
     /// Populé uniquement par les endpoints utilisateur (popup-data, GET /messages/{id})
     /// lorsque l'utilisateur n'est PAS l'expéditeur — c'est-à-dire que c'est sa propre réponse
@@ -310,6 +318,14 @@ public class UserPermissionDto
 
     /// <summary>Rôle explicite ("reader"/"contributor"/"moderator"/"custom"/""). Voir UserPermission.Role.</summary>
     public string Role { get; set; } = string.Empty;
+
+    /// <summary>
+    /// L'utilisateur est administrateur Jellyfin (résolu via réflexion sur User.Policy.IsAdministrator
+    /// ou User.HasPermission). Côté client (onglet Droits) : grise les contrôles d'un admin et
+    /// affiche un badge « ADMIN » — un admin a toujours tous les droits, son entrée stockée dans
+    /// `infopopup_permissions.json` est sans effet sur ses droits effectifs (v3.8.3.0).
+    /// </summary>
+    public bool IsAdmin { get; set; }
 }
 
 /// <summary>Requête de mise à jour des droits d'un utilisateur.</summary>

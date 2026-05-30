@@ -6,366 +6,359 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.3.0] — 2026-05-30
+
+### Added
+- **Sender role badges (admin / moderator / user / system) on every message** — small colored pills (gold for admin, purple for moderator, grey for user/system) next to the sender's name in the popup AND in the "My Messages" inbox. New `MessageDetail.SenderRole` field computed server-side (`IsSentByAdmin` → admin, stored `Role == "moderator"` or `CanEditOthers && CanDeleteOthers` → moderator, else user).
+- **Admin users greyed out in the Rights tab** — Jellyfin admin cards are visually dimmed (`opacity:.55` with gold accent), all controls disabled, "ADMIN" badge shown, automatically excluded from multi-select, "Apply to selection" and global "Save permissions". An admin always has full rights server-side; persisting any UI state for them would be ineffective and misleading. New `UserPermissionDto.IsAdmin` resolved via reflection on `User.Policy.IsAdministrator` (10.10/10.11) with fallback to `User.HasPermission(PermissionKind.IsAdministrator)` (10.11.9+).
+- **New i18n keys** (× 8 languages): `role_admin/moderator/user/system`, `perm_admin_badge`, `perm_admin_hint`.
+
+### Changed
+- **Reply notification simplified** — the corner toast now just says "Reply from X" (no message title, no body preview), auto-dismiss reduced from 6s to 4s. Users open "My Messages" for the detail.
+- **Real-time popup poll faster** — intervals reduced from 60s/60s to 30s for new popup messages and 45s for reply notifications. Still lightweight: zero cost when popup is active, tab hidden, or admin page open.
+
+---
+
 ## [3.8.2.0] — 2026-05-30
 
 ### Security
-- **Plafond sur les listes `List<string>` des DTOs** — `TargetUserIds` (Create/Update : max 2000), `Ids` (Delete/MarkSeen : max 1000), `UserIds` (BulkPermissions : max 2000). Sans ces plafonds, le body Kestrel par défaut (28 Mo) permettait ~700 K GUIDs en mémoire/disque — amplification potentielle.
-- **Quota journalier `MaxMessagesPerDay` enforced atomiquement dans `MessageStore.Create`** — auparavant le contrôleur faisait `GetUserMessageCountToday` puis `Create` séparément ; deux requêtes parallèles pouvaient toutes deux voir N < limit et créer N+1 messages. La vérification est maintenant DANS le write-lock.
-- **Comparaisons `isOwner` normalisées** via nouveau helper `IsOwner(sentByUserId, userId)` qui passe par `PermissionService.NormalizeUserId` — durcissement défensif contre les mismatches de format GUID ("D" vs "N"), même piège que celui corrigé en v3.7.4.0 côté droits. Appliqué à `UpdateMessage`, `SoftDeleteMessage`, `GetMessage` (bypass owner), `GetMessageReplies` et `ToDetailForUser`.
-- **En-têtes durcies sur l'endpoint JS** — `X-Content-Type-Options: nosniff` ajouté et `Content-Type: application/javascript; charset=utf-8` explicite sur `GET /InfoPopup/{module}.js`. Défense en profondeur contre MIME sniffing.
+- **Capacity limits on DTO `List<string>` fields** — `TargetUserIds` (Create/Update: max 2000), `Ids` (Delete/MarkSeen: max 1000), `UserIds` (BulkPermissions: max 2000). Without these limits, the default Kestrel body size (28 MB) allowed ~700 K GUIDs to be loaded into memory/disk — potential amplification.
+- **`MaxMessagesPerDay` quota enforced atomically inside `MessageStore.Create`** — previously the controller called `GetUserMessageCountToday` then `Create` separately; two parallel requests could both see N < limit and create N+1 messages. The check is now INSIDE the write-lock.
+- **`isOwner` comparisons normalized** via new `IsOwner(sentByUserId, userId)` helper that routes through `PermissionService.NormalizeUserId` — defensive hardening against GUID format mismatches ("D" vs "N"), same trap fixed in v3.7.4.0 for permissions. Applied to `UpdateMessage`, `SoftDeleteMessage`, `GetMessage` (owner bypass), `GetMessageReplies`, and `ToDetailForUser`.
+- **Hardened headers on the JS endpoint** — `X-Content-Type-Options: nosniff` added and explicit `Content-Type: application/javascript; charset=utf-8` on `GET /InfoPopup/{module}.js`. Defense in depth against MIME sniffing.
 
 ### Fixed
-- **Entrée « Mes messages » prend toute la hauteur de la sidebar** (régression 3.8.1.0) — `appendChild` direct sur `.mainDrawer` (flex column) faisait s'étirer le link. Scope restauré à `.mainDrawer-scrollContainer` (comportement 3.7.x) avec en plus `flex:0 0 auto; min-height:40px; max-height:48px; box-sizing:border-box` sur le link pour résister à n'importe quel parent flex.
+- **"My Messages" entry took full sidebar height** (3.8.1.0 regression) — `appendChild` directly on `.mainDrawer` (flex column) stretched the link. Scope restored to `.mainDrawer-scrollContainer` (3.7.x behavior) plus `flex:0 0 auto; min-height:40px; max-height:48px; box-sizing:border-box` on the link to resist any flex parent.
 
 ---
 
 ## [3.8.1.0] — 2026-05-30
 
 ### Fixed
-- **Entrée « Mes messages » absente côté user et placée dans le dashboard admin** (régression 3.8.0.0) — la recherche d'anchor élargie au document avec `closest('… [class*="navMenuOption"] …')` matchait aussi la sidebar du dashboard admin (qui utilise `a.navMenuOption`), plaçant l'entrée sous « Tableau de bord ». Et pour les users sans dashboard, l'absence d'anchor matchant faisait `return false` → plus d'entrée du tout. Restriction de la recherche au `.mainDrawer` uniquement (avec fallback `.mainDrawer-scrollContainer`), insertion APRÈS le dernier `.navMenuOption` du drawer si aucun anchor user identifié.
+- **"My Messages" entry missing for users and placed under "Dashboard" for admins** (3.8.0.0 regression) — the document-wide anchor search with `closest('… [class*="navMenuOption"] …')` also matched the admin dashboard sidebar (which uses `a.navMenuOption`), placing the entry under "Dashboard". For users without a dashboard, the absence of a matching anchor caused `return false` → no entry at all. Search restricted to `.mainDrawer` only (with `.mainDrawer-scrollContainer` fallback), insertion AFTER the last `.navMenuOption` of the drawer if no user anchor is identified.
 
 ---
 
 ## [3.8.0.0] — 2026-05-30
 
 ### Added
-- **Édition et suppression des messages depuis « Mes messages »** — chaque carte (Inbox côté admin, Sent pour son propre auteur) propose maintenant « Modifier » et « Supprimer » selon `CanEditOwnMessages` / `CanDeleteOwnMessages` (ou les variantes `Others` pour admin). PUT préserve l'ID et `infopopup_seen.json`. Soft-delete via l'endpoint existant `POST /messages/{id}/soft-delete`.
-- **Réponses visibles dans « Mes messages »** — l'Inbox affiche la propre réponse de l'utilisateur sous le message si elle existe ; l'onglet Sent liste les réponses reçues sous chacun de ses messages. Données incluses inline dans `popup-data` (champ `MyReply`) et `/messages/sent` (champ `Replies`) — zéro round-trip supplémentaire.
-- **Popup en temps réel (poll léger)** — vérification des messages non lus toutes les 60s + au retour de visibilité de l'onglet. Plus besoin de rafraîchir la page pour voir un nouveau popup. Sauté quand la popup est déjà active, sur la page admin, ou l'onglet caché.
-- **Notification toast pour les réponses reçues** — un petit toast discret en bas à droite (auto-dismiss 6s, clic pour fermer) apparaît quand un user répond à l'un de vos messages. Format : « X a répondu à "Y" » + aperçu. Nouvel endpoint `GET /InfoPopup/replies/received`. Set des IDs notifiés persisté en `localStorage`.
-- **Nouvelles clés i18n** (× 8 langues) : `user_msg_edit/delete/save/cancel/confirm_delete/your_reply/replies_count_s/p/no_replies/edit_err` + `toast_reply_received`.
+- **Edit and delete messages from "My Messages"** — each card (Inbox for admin, Sent for the owner) now offers "Edit" and "Delete" gated by `CanEditOwnMessages` / `CanDeleteOwnMessages` (or the `Others` variants for admin). PUT preserves the ID and `infopopup_seen.json`. Soft-delete via the existing `POST /messages/{id}/soft-delete` endpoint.
+- **Replies visible in "My Messages"** — the Inbox shows the user's own reply below each message when present; the Sent tab lists received replies under each of the user's messages. Data included inline in `popup-data` (`MyReply` field) and `/messages/sent` (`Replies` field) — zero extra round-trips.
+- **Real-time popup (lightweight poll)** — checks for unread messages every 60s + on tab visibility change. No more page refresh needed to see a new popup. Skipped when popup is active, on the admin page, or tab hidden.
+- **Toast notification for received replies** — a small discrete toast in the bottom-right corner (auto-dismiss 6s, click to dismiss) appears when a user replies to one of your messages. Format: "X replied to 'Y'" + preview. New `GET /InfoPopup/replies/received` endpoint. Notified IDs persisted in `localStorage`.
+- **New i18n keys** (× 8 languages): `user_msg_edit/delete/save/cancel/confirm_delete/your_reply/replies_count_s/p/no_replies/edit_err` + `toast_reply_received`.
 
 ### Fixed
-- **Bouton « Mes messages » mal rangé dans la sidebar (suite)** — l'injection cherchait l'anchor logout uniquement dans `.mainDrawer-scrollContainer`, qui sur les installations avec KefinTweaks/JellyfinEnhanced ne contient que les bibliothèques. La recherche est désormais étendue à tout le document avec vérification que l'anchor est bien dans un drawer/menu. Plus de fallback `appendChild` qui pouvait atterrir dans la section Média.
+- **"My Messages" button misplaced in the sidebar** — the injection looked for the logout anchor only inside `.mainDrawer-scrollContainer`, which on installations with KefinTweaks/JellyfinEnhanced only contains libraries. The search is now extended to the whole document with a verification that the anchor is inside a drawer/menu. No more `appendChild` fallback that could land in the Media section.
 
 ### Changed
-- **`EffectivePermissionsDto`** étendu avec `CanEditOthersMessages`, `CanDeleteOthersMessages`, `IsAdmin` — utilisé par l'UI pour activer les actions admin.
-- **`MessageDetail`** porte deux nouveaux champs : `MyReply` (réponse de l'utilisateur courant s'il a répondu) et `Replies` (liste si l'utilisateur est l'expéditeur). Populés contextuellement via `ToDetailForUser`.
-- **`PopupDataResponse.History`** passe de `List<MessageSummary>` à `List<MessageDetail>` pour porter `MyReply` ; le corps est désormais inclus dès le départ (un peu plus de bande passante, beaucoup moins de round-trips).
-- **`GET /messages/{id}/replies`** : autorisé pour l'expéditeur du message (pas seulement admin).
+- **`EffectivePermissionsDto`** extended with `CanEditOthersMessages`, `CanDeleteOthersMessages`, `IsAdmin` — used by the UI to enable admin actions.
+- **`MessageDetail`** carries two new fields: `MyReply` (current user's reply if they replied) and `Replies` (list when the user is the sender). Populated contextually via `ToDetailForUser`.
+- **`PopupDataResponse.History`** changes from `List<MessageSummary>` to `List<MessageDetail>` to carry `MyReply`; the body is now included from the start (slightly more bandwidth, far fewer round-trips).
+- **`GET /messages/{id}/replies`** — allowed for the message sender (not just admin).
 
 ---
 
 ## [3.7.11.0] — 2026-05-30
 
 ### Fixed
-- **Bouton retour de l'overlay « Messages » crashait au montage côté Jellyfin 10.11** — `document.createElement('button', { is: 'paper-icon-button-light' })` (API standard « customized built-in elements ») levait `TypeError: t.toLowerCase is not a function` dans le polyfill `webcomponents.js` de Jellyfin 10.11, qui attend l'ANCIENNE API où le 2e argument est une string. Conséquence (avec la pile de pièges accumulés v3.7.7→9) : aucun overlay ne s'ouvrait, jamais. Remplacé par un `<button>` plain qui porte les CLASSES `paper-icon-button-light` (suffisantes pour le rendu/ripple). Détecté précisément grâce aux logs de diagnostic ajoutés en 3.7.9.0 puis 3.7.10.0.
+- **"Messages" overlay back button crashed at mount on Jellyfin 10.11** — `document.createElement('button', { is: 'paper-icon-button-light' })` (standard "customized built-in elements" API) threw `TypeError: t.toLowerCase is not a function` in Jellyfin 10.11's `webcomponents.js` polyfill, which expects the OLD API where the 2nd argument is a string. Consequence (with the accumulated trap pile v3.7.7→9): no overlay ever opened. Replaced with a plain `<button>` carrying the `paper-icon-button-light` CSS classes (sufficient for visual rendering and ripple). Diagnosed precisely thanks to the diagnostic logs added in 3.7.9.0 and 3.7.10.0.
 
 ---
 
 ## [3.7.10.0] — 2026-05-30
 
 ### Fixed
-- **Clic sur « Messages » bloqué après une exception silencieuse dans `showUserPage`** — `showUserPage` positionnait `_overlayOpen = true` AVANT toute la construction de l'overlay ; si une exception était levée pendant cette construction (cas révélé par les logs de diagnostic : `showUserPage failed:` avec err vide côté admin), le flag restait à `true` et **TOUS les clics suivants étaient consommés par le garde `if (_overlayOpen) return;`**. Le corps de l'overlay est désormais isolé dans `_showUserPageInner` enveloppé d'un try/catch qui réinitialise `_overlayOpen = false` en cas d'échec, et logue l'erreur complète (name + message + stack).
+- **Click on "Messages" blocked after a silent exception in `showUserPage`** — `showUserPage` set `_overlayOpen = true` BEFORE building the overlay; if an exception was thrown during construction (case revealed by the diagnostic logs: `showUserPage failed:` with empty err on admin), the flag stayed `true` and **ALL subsequent clicks were consumed by the `if (_overlayOpen) return;` guard**. The overlay body is now isolated in `_showUserPageInner` wrapped in a try/catch that resets `_overlayOpen = false` on failure, and logs the full error (name + message + stack).
 
 ---
 
 ## [3.7.9.0] — 2026-05-30
 
-### Fixed
-- **Overlay « Messages » invisible côté admin** — le `.ip-user-overlay` était en `z-index:9998`, en dessous des dialogues `~10000+` de certaines pages d'administration Jellyfin → clic capté, `showUserPage()` exécuté, mais overlay masqué par la page admin. Aligné sur les autres overlays du plugin (`99998`).
-
 ### Added
-- **Logs de diagnostic clic / `showUserPage`** — ajoutés temporairement pour identifier la cause si le problème persiste sur d'autres configurations (à supprimer plus tard).
+- **Diagnostic logs for click / `showUserPage`** — temporarily added to identify the cause if the problem persists on other configurations (to be removed later).
+
+### Fixed
+- **"Messages" overlay invisible on admin side** — `.ip-user-overlay` was at `z-index:9998`, below the `~10000+` dialogs of some Jellyfin admin pages → click captured, `showUserPage()` executed, but overlay hidden by the admin page. Aligned with other plugin overlays at `99998`.
 
 ---
 
 ## [3.7.8.0] — 2026-05-30
 
 ### Fixed
-- **Clic sur « Messages » sans effet (3.7.7.0 incomplet)** — le `<a href="#">` déclenchait le routeur Jellyfin et un `hashchange` synchrone qui refermait l'overlay juste après son ouverture. Le `<a>` n'a plus de href (`role="button"` + `tabindex="0"`) ; l'enregistrement des listeners `hashchange`/`popstate` de l'overlay est différé d'un `setTimeout(0)` pour ignorer toute navigation synchrone provoquée par le clic. Délégation clic doublée sur `window` en plus de `document` pour résister aux routeurs Jellyfin qui captent au niveau document.
+- **Click on "Messages" had no effect (3.7.7.0 incomplete)** — the `<a href="#">` triggered the Jellyfin router and a synchronous `hashchange` that closed the overlay right after opening. The `<a>` no longer has an href (`role="button"` + `tabindex="0"`); registration of the overlay's `hashchange`/`popstate` listeners is deferred via `setTimeout(0)` to ignore any synchronous navigation caused by the click. Click delegation doubled on `window` in addition to `document` to resist Jellyfin routers that capture at the document level.
 
 ---
 
 ## [3.7.7.0] — 2026-05-29
 
 ### Fixed
-- **Inbox de la page Messages ne marquait jamais les non-lus** — les messages consultés via la sidebar restaient « non vus » côté serveur et le popup les ré-affichait à chaque connexion. Le chargement de l'inbox émet désormais un `POST /seen` avec tous les unseen ids.
-- **Bouton « Messages » mal placé / clic mort dans la sidebar 10.11 MUI** — l'injection prenait la première `ul` du drawer (qui est la liste Média/Bibliothèques) et un handler React MUI parent consommait le clic avant le nôtre. L'injection cible désormais la liste utilisateur (autour de logout/preferences) et le clic est doublé d'une délégation `document` en capture phase, robuste aux re-renders React.
+- **"Messages" inbox never marked as seen** — messages viewed via the sidebar stayed "unseen" server-side and the popup re-displayed them on every connection. The inbox now POSTs `/seen` with all unseen ids on load.
+- **"Messages" button misplaced / dead click in the 10.11 MUI sidebar** — the injection took the first `ul` of the drawer (which is the Media/Libraries list) and a React MUI parent handler consumed the click before ours. The injection now targets the user list (around logout/preferences) and the click is doubled with a `document` capture-phase delegation, robust against React re-renders.
 
 ---
 
 ## [3.7.6.0] — 2026-05-29
 
-### Fixed
-- **Messages envoyés sans contenu (page Messages utilisateur)** — l'endpoint `/messages/sent` renvoyait des summaries sans corps, et le fallback `/messages/{id}` rejetait l'auteur quand il n'était pas lui-même dans `TargetUserIds` (404). Désormais l'auteur peut toujours lire son propre message, et `/messages/sent` renvoie le corps directement.
-- **Rôle « Personnalisé » qui redevient un preset après enregistrement** — `detectRole` reclassait les bools en preset à chaque rechargement, perdant le choix explicite de l'admin. Le rôle est désormais persisté côté serveur (nouveau champ `Role` dans `UserPermission`) et honoré tel quel.
-- **Liste déroulante des cartes Droits coupée/superposée** — `.ip-perm-card{overflow:hidden}` clippait la liste ouverte ; remplacé par `overflow:visible` avec promotion `z-index` de la carte active.
-
 ### Added
-- **Émetteur affiché dans la popup** — ligne « De : ... » au-dessus du corps de chaque message (single ou multi), nouvelle clé i18n `popup_from` dans les 8 langues.
-- **Cache-bust des modules JS (`?v=X.Y.Z.W`)** — l'URL injectée et chaque module chargé par `client.js` portent désormais la version du plugin. Plus besoin de purger nginx/Cloudflare/service worker à chaque release : l'URL change → tous les caches refetchent automatiquement.
+- **Sender displayed in the popup** — "From: ..." line above the body of each message (single or multi), new `popup_from` i18n key in 8 languages.
+- **JS module cache-bust (`?v=X.Y.Z.W`)** — the injected URL and each module loaded by `client.js` now carry the plugin version. No need to purge nginx/Cloudflare/service worker on every release: URL changes → all caches automatically refetch.
+
+### Fixed
+- **Sent messages had no body (user Messages page)** — the `/messages/sent` endpoint returned summaries without body, and the `/messages/{id}` fallback rejected the author when not in `TargetUserIds` themselves (404). Now the author can always read their own message, and `/messages/sent` returns the body directly.
+- **"Custom" role reverting to a preset after save** — `detectRole` reclassified bools into a preset on every reload, losing the explicit admin choice. The role is now persisted server-side (new `Role` field in `UserPermission`) and honored as-is.
+- **Rights tab dropdown cut off / overlapping** — `.ip-perm-card{overflow:hidden}` clipped the open list; replaced with `overflow:visible` plus `z-index` promotion of the active card.
 
 ---
 
 ## [3.7.5.0] — 2026-05-29
 
-### Fixed
-- **Page « Messages » cassait la barre latérale** — l'ouverture de la page masquait le menu latéral (`hide`) sans jamais le restaurer à la fermeture. La barre latérale est désormais rétablie correctement.
-- **Rôle « Personnalisé » non enregistré** — même cause que les droits sans effet (format d'ID) ; désormais persisté correctement via l'enregistrement global.
+### Added
+- **Rights tab: global save** — a single "Save permissions" button replaces the individual per-user save buttons.
+- **Rights tab: multi-select** — per-user checkboxes + select all / deselect all / invert, with bulk application of a role and limits to the selection.
+- **Custom dropdown** — `<select>` elements on the configuration page use a fully themed list (open list too, unlike native `<option>`).
+- **"Messages" page back button** — reuses Jellyfin's native component (`paper-icon-button-light`) instead of a custom button.
 
-### Changed
-- **Onglet Droits : enregistrement global** — un seul bouton « Enregistrer les droits » remplace les boutons individuels par utilisateur.
-- **Onglet Droits : sélection multiple** — cases à cocher par utilisateur + tout sélectionner / désélectionner / inverser, et application groupée d'un rôle et des limites à la sélection.
-- **Liste déroulante personnalisée** — les `<select>` de la page de configuration utilisent une liste entièrement thémée (la liste ouverte aussi, contrairement aux `<option>` natifs).
-- **Bouton retour de la page Messages** — réutilise le composant natif Jellyfin (`paper-icon-button-light`) au lieu d'un bouton custom.
+### Fixed
+- **"Messages" page broke the sidebar** — opening the page hid the side menu (`hide`) without ever restoring it on close. The sidebar is now correctly restored.
+- **"Custom" role not saved** — same cause as the rights bug (ID format); now persisted correctly via the global save.
 
 ---
 
 ## [3.7.4.0] — 2026-05-29
 
-### Fixed
-- **Droits accordés sans effet** — les droits étaient enregistrés avec l'ID utilisateur au format « D » (avec tirets, via `User.Id.ToString()`) mais relus au format « N » (sans tirets, via le claim `Jellyfin-UserId`). L'utilisateur ne retrouvait jamais ses droits : ni envoi de message, ni réponse, malgré une attribution visible côté admin. Tous les ID utilisateurs sont désormais normalisés en GUID canonique avant stockage et comparaison.
-
 ### Changed
-- **Menus déroulants restylés** — tous les `<select>` de la page de configuration adoptent un style sombre cohérent (flèche personnalisée, survol, focus) au lieu du rendu natif du navigateur.
+- **Restyled dropdowns** — all `<select>` elements on the configuration page adopt a consistent dark style (custom arrow, hover, focus) instead of the browser's native rendering.
+
+### Fixed
+- **Granted rights had no effect** — rights were stored with the user ID in "D" format (with hyphens, via `User.Id.ToString()`) but read back in "N" format (without hyphens, via the `Jellyfin-UserId` claim). The user never found their rights: no message sending, no reply, despite a visible attribution on the admin side. All user IDs are now normalized to canonical GUID format before storage and comparison.
 
 ---
 
 ## [3.7.3.0] — 2026-05-29
 
 ### Fixed
-- **Onglet « Droits » vide (« Aucun utilisateur »)** — sur Jellyfin 10.11.9+, la propriété `IUserManager.Users` a été remplacée par la méthode `GetUsers()`. Le helper de réflexion ne testait que la propriété et renvoyait une liste vide (sans erreur). Il tente désormais aussi `GetUsers()`.
-- **« Paramètres invalides » à l'enregistrement** — la durée d'affichage avant fermeture automatique était plafonnée à 30 000 ms, ce qui rejetait des valeurs légitimes (ex. 60 000). Plafond relevé à 600 000 ms (10 min) côté client, serveur et formulaire.
+- **"Rights" tab empty ("No users")** — on Jellyfin 10.11.9+, the `IUserManager.Users` property was replaced by the `GetUsers()` method. The reflection helper only tested the property and returned an empty list (without error). It now also tries `GetUsers()`.
+- **"Invalid settings" on save** — the auto-close delay was capped at 30,000 ms, rejecting legitimate values (e.g., 60,000). Cap raised to 600,000 ms (10 min) on the client, server, and form.
 
 ---
 
 ## [3.7.2.0] — 2026-05-29
 
-### Fixed
-- **Plugin introuvable dans le catalogue Jellyfin (collision de GUID)** — le GUID par défaut du template (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) était partagé avec d'autres plugins publics (ex. « QualityGate »). Jellyfin fusionnant les plugins par GUID à travers tous les dépôts, Info Popup se retrouvait masqué sous l'autre plugin. Nouveau GUID unique : `ceeb3040-9fe5-451f-ac05-8587ea3c3718`.
-
 ### Changed
-- **GUID du plugin modifié** — conséquence : Info Popup est vu comme un nouveau plugin. Si une ancienne version est installée, la désinstaller puis réinstaller depuis le catalogue.
+- **Plugin GUID changed** — consequence: Info Popup is seen as a new plugin. If an older version is installed, uninstall it then reinstall from the catalog.
+
+### Fixed
+- **Plugin missing from the Jellyfin catalog (GUID collision)** — the default template GUID (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`) was shared with other public plugins (e.g., "QualityGate"). Because Jellyfin merges plugins by GUID across all repositories, Info Popup was hidden under the other plugin. New unique GUID: `ceeb3040-9fe5-451f-ac05-8587ea3c3718`.
 
 ---
 
 ## [3.7.1.0] — 2026-05-29
 
-### Fixed
-- **Onglet « Droits » en erreur (HTTP 500)** — `GET /InfoPopup/permissions` levait un `MissingMethodException` sur `IUserManager.Users`, dont la signature a changé pendant le cycle Jellyfin 10.11 (entité `User` déplacée dans `Jellyfin.Database.Implementations.Entities`). L'énumération des utilisateurs passe désormais par la réflexion, liée au runtime et robuste aux variations d'ABI entre versions 10.11.x.
-
 ### Changed
-- **Icône allégée** — `assets/icon.png` réduite de 1024×1024 (1,4 Mo) à 256×256 (~20 Ko), réduisant d'autant la taille du DLL et du ZIP de release.
+- **Lightened icon** — `assets/icon.png` reduced from 1024×1024 (1.4 MB) to 256×256 (~20 KB), reducing the DLL and release ZIP size accordingly.
+
+### Fixed
+- **"Rights" tab error (HTTP 500)** — `GET /InfoPopup/permissions` threw a `MissingMethodException` on `IUserManager.Users`, whose signature changed during the Jellyfin 10.11 cycle (the `User` entity was moved to `Jellyfin.Database.Implementations.Entities`). User enumeration now goes through reflection, runtime-bound and robust to ABI variations across 10.11.x versions.
 
 ---
 
 ## [3.7.0.0] — 2026-05-28
 
 ### Added
-- **Système de droits par rôles** — chaque utilisateur se configure via un menu déroulant (Lecteur, Contributeur, Modérateur, Personnalisé) au lieu de cocher six cases. Les cases détaillées restent accessibles via le bouton "Détails".
-- **Application groupée des droits** — barre "Appliquer à tous" pour assigner un rôle et des limites journalières à l'ensemble des utilisateurs en une seule action. Nouvel endpoint `POST /InfoPopup/permissions/bulk`.
-- **Page Messages en superposition** — la page utilisateur s'ouvre en overlay plein écran accessible à tous les utilisateurs, sans passer par la route admin `configurationpage`.
-- **i18n** — 9 nouvelles clés (rôles, application groupée, navigation overlay) dans les 8 langues.
+- **Role-based permission system** — each user is configured via a dropdown (Reader, Contributor, Moderator, Custom) instead of ticking six boxes. Detailed checkboxes remain accessible via the "Details" button.
+- **Bulk permission application** — "Apply to all" bar to assign a role and daily limits to all users in one action. New `POST /InfoPopup/permissions/bulk` endpoint.
+- **Messages page as overlay** — the user page opens as a fullscreen overlay accessible to all users, without going through the admin-only `configurationpage` route.
+- **i18n** — 9 new keys (roles, bulk apply, overlay navigation) in 8 languages.
 
 ### Changed
-- **Refonte de l'onglet Droits** — affichage en cartes par utilisateur (nom, rôle, limites journalières) remplaçant la grille de cases à cocher difficile à manipuler.
+- **Rights tab redesign** — display as per-user cards (name, role, daily limits) replacing the hard-to-manipulate checkbox grid.
 
 ### Fixed
-- **Page Messages inaccessible aux non-admins (issue #1)** — l'ancien lien pointait vers une route réservée aux admins (`configurationpage`), provoquant une redirection vers l'accueil. Remplacé par un overlay JS accessible à tous.
-- **Compatibilité disposition expérimentale 10.11 (MUI)** — injection de l'entrée sidebar dans les deux dispositions : classique (`.mainDrawer-scrollContainer`) et expérimentale React/MUI (`.MuiDrawer-paper`).
-- **Onglet Droits affichait "Erreur"** — le message d'erreur réel est désormais affiché (cause détaillée + log console) au lieu d'un libellé générique.
+- **Messages page inaccessible to non-admins (issue #1)** — the old link pointed to an admin-only route (`configurationpage`), causing redirection to the home page. Replaced with a JS overlay accessible to all.
+- **10.11 experimental layout (MUI) compatibility** — sidebar entry injection in both layouts: classic (`.mainDrawer-scrollContainer`) and experimental React/MUI (`.MuiDrawer-paper`).
+- **Rights tab showed "Error"** — the actual error message is now displayed (detailed cause + console log) instead of a generic label.
 
 ---
 
 ## [3.6.2.0] — 2026-04-12
 
 ### Added
-- **Sidebar Messages pour tous les utilisateurs** — injection JavaScript d'une entrée "Messages" dans la barre latérale Jellyfin, visible par tous les utilisateurs authentifiés (pas seulement les admins).
-- **Messages repliables dans la boîte de réception** — les messages reçus sont repliés par défaut (titre + auteur + date + aperçu). Clic pour déplier le corps complet. Chargement paresseux du corps pour les messages historiques.
-- **Nom de l'auteur dans les messages** — le backend résout et renvoie `SentByUserName` dans les DTOs `MessageSummary` et `MessageDetail`.
-- **Toolbar de formatage dans le formulaire utilisateur** — boutons gras, italique, souligné, barré et liste à puces dans l'onglet Envoyer.
-- **Sélecteur de destinataires dans le formulaire utilisateur** — permet de cibler des utilisateurs spécifiques (si l'API `/Users` est accessible).
+- **Messages sidebar for all users** — JavaScript injection of a "Messages" entry in the Jellyfin sidebar, visible to all authenticated users (not just admins).
+- **Collapsible messages in the inbox** — received messages are collapsed by default (title + author + date + preview). Click to expand the full body. Lazy loading of body for historical messages.
+- **Sender name in messages** — the backend resolves and returns `SentByUserName` in the `MessageSummary` and `MessageDetail` DTOs.
+- **Formatting toolbar in the user form** — bold, italic, underline, strikethrough, and bulleted list buttons in the Send tab.
+- **Recipient selector in the user form** — allows targeting specific users (if the `/Users` API is accessible).
 
 ### Fixed
-- **Page Messages invisible pour les non-admins** — `EnableInMainMenu = false` + injection sidebar via JS remplace le mécanisme `MenuSection` de Jellyfin (admin-only).
-- **Race condition `checkUserPage`** — guard `typeof ns.checkUserPage === 'function'` dans `ip-popup.js`.
+- **Messages page invisible to non-admins** — `EnableInMainMenu = false` + sidebar injection via JS replaces Jellyfin's `MenuSection` mechanism (admin-only).
+- **`checkUserPage` race condition** — `typeof ns.checkUserPage === 'function'` guard in `ip-popup.js`.
 
 ---
 
 ## [3.6.1.0] — 2026-04-11
 
 ### Fixed
-- **Raccourcis Jellyfin bloqués à la frappe** — les raccourcis globaux de Jellyfin-Web (ex : "q" → Quick Connect, "f" → plein écran) ne se déclenchent plus lors de la saisie dans les champs du plugin. `stopPropagation` appliqué sur `keydown` dans la page admin, la popup et la page utilisateur. Escape et Tab restent fonctionnels.
+- **Jellyfin shortcuts blocked while typing** — Jellyfin-Web's global shortcuts (e.g., "q" → Quick Connect, "f" → fullscreen) no longer fire while typing in plugin fields. `stopPropagation` applied on `keydown` in the admin page, popup, and user page. Escape and Tab remain functional.
 
 ---
 
 ## [3.6.0.0] — 2026-04-11
 
 ### Added
-- **Barre de progression countdown** — la durée d'affichage de la popup (ms) déclenche une barre de progression élégante qui se vide avant fermeture automatique. 0 = infini (fermeture manuelle uniquement).
-- **Icône plugin embarquée** — `GetThumbImage()` implémenté dans `Plugin.cs` : l'icône est intégrée dans le DLL et visible dans le tableau de bord Jellyfin sans dépendance réseau.
+- **Countdown progress bar** — the popup display duration (ms) triggers an elegant progress bar that depletes before auto-close. 0 = infinite (manual close only).
+- **Embedded plugin icon** — `GetThumbImage()` implemented in `Plugin.cs`: the icon is embedded in the DLL and visible in the Jellyfin dashboard without network dependency.
 
 ### Changed
-- **Sémantique de `PopupDelayMs`** — ce paramètre contrôle désormais la durée d'affichage avant fermeture auto (0 = infini). Le délai avant apparition reste 800 ms fixe. Valeur par défaut : 0 (infini).
-- **Label du paramètre** — renommé "Durée d'affichage avant fermeture automatique (ms, 0 = infini)" dans les 8 langues.
+- **Semantics of `PopupDelayMs`** — this setting now controls the display duration before auto-close (0 = infinite). The delay before appearance remains a fixed 800 ms. Default value: 0 (infinite).
+- **Setting label** — renamed "Display duration before auto-close (ms, 0 = infinite)" in 8 languages.
 
 ### Fixed
-- **Validation client systématique** — titre > 200 car., message > 10 000 car., réponse vide ou > 2 000 car. : erreurs claires avant tout envoi réseau. Paramètres settings : contrôle de plage avant POST.
-- **Validation serveur renforcée** — `IsValidId()` + `AreValidUserIds()` sur tous les endpoints avec paramètre de route ou liste d'IDs. `[Required][MaxLength]` sur `SubmitReplyRequest.Body`.
+- **Systematic client-side validation** — title > 200 chars, message > 10,000 chars, empty or > 2,000 chars reply: clear errors before any network call. Settings parameters: range check before POST.
+- **Hardened server-side validation** — `IsValidId()` + `AreValidUserIds()` on all endpoints with route parameter or ID list. `[Required][MaxLength]` on `SubmitReplyRequest.Body`.
 
 ---
 
 ## [3.5.0.0] — 2026-04-11
 
 ### Added
-
-- **Système de droits par utilisateur** — 4ème onglet admin "Droits" pour configurer par user : envoi, réponse, modification/suppression de ses messages ou ceux des autres, limites journalières.
-- **Page sidebar utilisateur** — entrée "Messages" dans la barre latérale pour tous les users : boîte de réception et onglet d'envoi (si droits accordés). Même design que la page admin.
-- **Soft-delete messages** — les suppressions via droits utilisateurs marquent le message comme supprimé (visible admin avec indicateur) sans le retirer définitivement.
-- **Historique d'éditions** — chaque modification d'un message enregistre l'ancienne version (auteur, date, contenu). Indicateur visible en admin.
-- **Une réponse par user par message** — le serveur retourne 409 si l'utilisateur a déjà répondu. La popup se ferme automatiquement après envoi.
-- **Rate limiting journalier** — limite configurable par user : max messages/jour et max réponses/jour (0 = illimité).
-- **Rétention des messages** — délai de conservation configurable séparément pour messages admin et messages utilisateurs (jours, 0 = infini).
-- **Réponses routées** — les réponses sont adressées à l'expéditeur du message. L'admin voit tout ; les users voient leurs réponses reçues via `/replies/mine`.
-- **i18n étendue** — 35 nouvelles clés dans les 8 langues.
+- **Per-user permission system** — 4th admin tab "Rights" to configure per user: sending, replying, edit/delete own or others' messages, daily limits.
+- **User sidebar page** — "Messages" entry in the sidebar for all users: inbox and send tab (if rights granted). Same design as the admin page.
+- **Message soft-delete** — deletions via user permissions mark the message as deleted (visible on admin side with indicator) without permanently removing it.
+- **Edit history** — each modification of a message records the old version (author, date, content). Indicator visible on admin side.
+- **One reply per user per message** — the server returns 409 if the user has already replied. The popup auto-closes after sending.
+- **Daily rate limiting** — configurable limit per user: max messages/day and max replies/day (0 = unlimited).
+- **Message retention** — configurable retention period separately for admin messages and user messages (days, 0 = infinite).
+- **Routed replies** — replies are addressed to the message sender. Admin sees everything; users see their received replies via `/replies/mine`.
+- **Extended i18n** — 35 new keys in 8 languages.
 
 ---
 
 ## [3.3.0.0] — 2026-04-11
 
 ### Added
-
-- **Entrée sidebar Jellyfin** — le plugin apparaît directement dans la barre de navigation latérale (section "server", icône `notifications`). `Plugin.cs` expose `EnableInMainMenu = true` via `IHasWebPages`.
-- **Onglet Paramètres** — nouvel onglet dans la page admin pour configurer : activation popup, délai d'affichage, max messages simultanés, historique, réponses utilisateurs, longueur max réponse, délai anti-spam.
-- **Système de réponses utilisateurs** — les utilisateurs peuvent répondre aux messages popup (activable dans Paramètres). Les réponses sont stockées dans `infopopup_replies.json` et consultables dans un onglet "Réponses" de la page admin.
-- **Paramètres dynamiques côté client** — `ip-popup.js` charge `GET /InfoPopup/client-settings` au démarrage pour appliquer `PopupDelayMs`, `MaxMessagesInPopup`, `HistoryEnabled`, `AllowReplies` en temps réel.
-- **Nouveaux endpoints REST** — `GET/POST /InfoPopup/settings`, `GET /InfoPopup/client-settings`, `POST /InfoPopup/messages/{id}/reply`, `GET /InfoPopup/replies`, `DELETE /InfoPopup/replies/{id}`, `POST /InfoPopup/messages/{id}/replies/delete`.
-- **i18n étendue** — 25 nouvelles clés dans les 8 langues (onglets, paramètres, réponses).
+- **Jellyfin sidebar entry** — the plugin appears directly in the side navigation bar ("server" section, `notifications` icon). `Plugin.cs` exposes `EnableInMainMenu = true` via `IHasWebPages`.
+- **Settings tab** — new tab in the admin page to configure: popup activation, display delay, max simultaneous messages, history, user replies, max reply length, anti-spam delay.
+- **User reply system** — users can reply to popup messages (toggleable in Settings). Replies are stored in `infopopup_replies.json` and consultable in a "Replies" tab on the admin page.
+- **Dynamic client-side settings** — `ip-popup.js` loads `GET /InfoPopup/client-settings` at startup to apply `PopupDelayMs`, `MaxMessagesInPopup`, `HistoryEnabled`, `AllowReplies` in real time.
+- **New REST endpoints** — `GET/POST /InfoPopup/settings`, `GET /InfoPopup/client-settings`, `POST /InfoPopup/messages/{id}/reply`, `GET /InfoPopup/replies`, `DELETE /InfoPopup/replies/{id}`, `POST /InfoPopup/messages/{id}/replies/delete`.
+- **Extended i18n** — 25 new keys in 8 languages (tabs, settings, replies).
 
 ---
 
 ## [3.2.2.0] — 2026-04-11
 
 ### Fixed
-
-- **Changelog illisible dans Jellyfin** — `update_manifest.sh` injectait du markdown brut (`###`, `**`, backticks, séquences `\n` littérales) dans manifest.json. Jellyfin affichant ce champ en texte brut, le résultat était illisible. Le script convertit désormais automatiquement le contenu en texte propre avant injection.
-- **Extraction multi-version dans manifest.json** — l'expression awk de `update_manifest.sh` utilisait un range pattern qui démarrait et s'arrêtait sur la même ligne de version (car `## [X.Y.Z.0]` matche aussi `^## `), ce qui désactivait immédiatement le filtre et imprimait tout le reste du fichier. Logique alignée sur `extract_changelog.sh`.
+- **Unreadable changelog in Jellyfin** — `update_manifest.sh` injected raw markdown (`###`, `**`, backticks, literal `\n` sequences) into manifest.json. Since Jellyfin displays this field as plain text, the result was unreadable. The script now automatically converts the content to clean text before injection.
+- **Multi-version extraction in manifest.json** — the awk expression in `update_manifest.sh` used a range pattern that started and stopped on the same version line (because `## [X.Y.Z.0]` also matches `^## `), which immediately disabled the filter and printed the rest of the file. Logic aligned with `extract_changelog.sh`.
 
 ---
 
 ## [3.2.1.0] — 2026-04-11
 
 ### Fixed
-
-- **Toolbar WYSIWYG : boutons B/I/U/S sans effet** — `execCommand` s'exécutait après que le clic ait retiré le focus du `contenteditable`, effaçant la sélection. Corrigé via `mousedown + preventDefault()` sur la toolbar pour maintenir la sélection intacte.
-- **Crash sur navigateurs sans lookbehind regex** — Android WebView < 8, Tizen TV, certains Fire TV ne supportent pas les lookbehinds ES2018 (`(?<!...)`). La regex d'italique levait une `SyntaxError` silencieuse cassant tout l'éditeur. Remplacée par une regex ES5 équivalente.
-- **`htmlToMarkdown` : `<span style="...">` Chrome ignorés** — `execCommand` génère parfois des `<span style="font-weight:bold">` au lieu de `<strong>`. Ces spans étaient traversés sans conversion. Ajout de la détection des styles inline `fontWeight`, `fontStyle`, `textDecoration`.
-- **Focus manquant en mode WYSIWYG** — basculer Raw → WYSIWYG ne focusait pas le div éditeur.
-- **i18n `toast_rate_limit` absente dans 6 langues** — ES, DE, PT, IT, JA, ZH manquants.
+- **WYSIWYG toolbar: B/I/U/S buttons had no effect** — `execCommand` ran after the click had removed focus from the `contenteditable`, clearing the selection. Fixed via `mousedown + preventDefault()` on the toolbar to keep the selection intact.
+- **Crash on browsers without lookbehind regex** — Android WebView < 8, Tizen TV, some Fire TV don't support ES2018 lookbehinds (`(?<!...)`). The italic regex threw a silent `SyntaxError` breaking the entire editor. Replaced with an equivalent ES5 regex.
+- **`htmlToMarkdown`: Chrome `<span style="...">` ignored** — `execCommand` sometimes generates `<span style="font-weight:bold">` instead of `<strong>`. These spans were traversed without conversion. Added detection of inline styles `fontWeight`, `fontStyle`, `textDecoration`.
+- **Missing focus in WYSIWYG mode** — switching Raw → WYSIWYG did not focus the editor div.
+- **i18n `toast_rate_limit` missing in 6 languages** — ES, DE, PT, IT, JA, ZH missing.
 
 ---
 
 ## [3.2.0.0] — 2026-04-10
 
 ### Added
-
-- **Éditeur WYSIWYG par défaut** — le texte s'affiche formaté directement (gras, italique, etc.) sans avoir à ouvrir un aperçu séparé.
-- **Raccourcis clavier** : `Ctrl+B` gras · `Ctrl+I` italique · `Ctrl+U` souligné · `Ctrl+Shift+S` barré.
-- **Compteur de caractères** avec indicateurs visuels (warning à 75 %, danger à 90 %).
-- **Rate limiting** — 2 secondes minimum entre deux publications (protection double-clic).
+- **WYSIWYG editor by default** — text displays formatted directly (bold, italic, etc.) without needing to open a separate preview.
+- **Keyboard shortcuts**: `Ctrl+B` bold · `Ctrl+I` italic · `Ctrl+U` underline · `Ctrl+Shift+S` strikethrough.
+- **Character counter** with visual indicators (warning at 75%, danger at 90%).
+- **Rate limiting** — 2 seconds minimum between two publications (double-click protection).
 
 ### Changed
-
-- **Toggle "Raw"** — coché = markdown brut, décoché = WYSIWYG (logique inversée par rapport à l'ancien toggle Aperçu).
-- **Synchronisation bidirectionnelle** — le contenu est converti en temps réel entre WYSIWYG et textarea Raw.
-- **Boutons toolbar** — reflètent l'état du formatage à la position du curseur en mode WYSIWYG.
+- **"Raw" toggle** — checked = raw markdown, unchecked = WYSIWYG (logic inverted compared to the old Preview toggle).
+- **Bidirectional synchronization** — content is converted in real time between WYSIWYG and Raw textarea.
+- **Toolbar buttons** — reflect the formatting state at the cursor position in WYSIWYG mode.
 
 ---
 
 ## [3.0.0.0] — 2026-04-10
 
 ### Changed
-
-- **Migration Jellyfin 10.11** — `targetAbi` mis à jour vers `10.11.0.0`.
-- **Migration .NET 9** — `<TargetFramework>net9.0</TargetFramework>`.
-- **Packages NuGet** — Jellyfin.Controller et Jellyfin.Model mis à jour vers 10.11.0.
-
----
-
-## [Unreleased] — 1.8.0.0
-
-### Added
-
-- **Internationalisation — 6 nouvelles langues** : espagnol (`es`), allemand (`de`), portugais (`pt`), italien (`it`), japonais (`ja`), chinois simplifié (`zh`). La langue est détectée automatiquement depuis `document.documentElement.lang` (attribut positionné par Jellyfin selon les préférences de l'utilisateur). Les 65 clés de traduction présentes en FR et EN sont couvertes dans chaque nouvelle langue : page admin (labels, placeholders, boutons, toasts, validation, dialogue de confirmation, toolbar, aperçu) et popup utilisateur.
-- **`normalizeLang()` étendue** : normalise désormais `es*`, `de*`, `pt*`, `it*`, `ja*`, `zh*` en plus de `fr*`. Tout code BCP-47 non reconnu retombe sur `en` (comportement inchangé).
+- **Jellyfin 10.11 migration** — `targetAbi` updated to `10.11.0.0`.
+- **.NET 9 migration** — `<TargetFramework>net9.0</TargetFramework>`.
+- **NuGet packages** — Jellyfin.Controller and Jellyfin.Model updated to 10.11.0.
 
 ---
 
-## [Unreleased] — 1.4.0.0
+## [1.8.0.0] — Unreleased
 
 ### Added
+- **Internationalization — 6 new languages**: Spanish (`es`), German (`de`), Portuguese (`pt`), Italian (`it`), Japanese (`ja`), Simplified Chinese (`zh`). Language is automatically detected from `document.documentElement.lang` (attribute set by Jellyfin based on user preferences). The 65 translation keys present in FR and EN are covered in each new language: admin page (labels, placeholders, buttons, toasts, validation, confirmation dialog, toolbar, preview) and user popup.
+- **`normalizeLang()` extended** — now normalizes `es*`, `de*`, `pt*`, `it*`, `ja*`, `zh*` in addition to `fr*`. Any unrecognized BCP-47 code falls back to `en` (unchanged behavior).
 
-- **Sélecteur de destinataires : aucun utilisateur pré-sélectionné par défaut** — avant cette version, décocher « Tous les utilisateurs » affichait la liste avec tous les utilisateurs cochés. Désormais, aucun utilisateur n'est coché quand la liste apparaît : l'administrateur compose sa sélection explicitement.
-- **Barre « Tout sélectionner / Tout désélectionner »** — quand la liste individuelle des utilisateurs est visible, une barre s'affiche juste au-dessus avec deux boutons : « Tout sélectionner » et « Tout désélectionner ». La barre se masque automatiquement quand « Tous les utilisateurs » est recoché.
-- **Nouvelles clés i18n** : `target_select_all` (FR : « Tout sélectionner », EN : « Select all ») et `target_deselect_all` (FR : « Tout désélectionner », EN : « Deselect all »).
+---
+
+## [1.4.0.0] — Unreleased
+
+### Added
+- **Recipient selector: no user pre-selected by default** — before this version, unchecking "All users" displayed the list with all users ticked. Now no user is ticked when the list appears: the administrator composes their selection explicitly.
+- **"Select all / Deselect all" bar** — when the individual user list is visible, a bar appears just above it with two buttons: "Select all" and "Deselect all". The bar automatically hides when "All users" is rechecked.
+- **New i18n keys**: `target_select_all` (FR: « Tout sélectionner », EN: "Select all") and `target_deselect_all` (FR: « Tout désélectionner », EN: "Deselect all").
+
+---
 
 ## [0.8.3.0] — 2026-02-23
 
 ### Fixed
+- **Editor UX regression (0.7.0)** — since v0.7.0, the editor behavior had been modified: the textarea was always shown and the preview had become an optional panel below. This version restores the v0.5 behavior:
+  - **Formatted preview shown by default** (textarea hidden) — the form starts in preview mode showing a placeholder text inviting to click.
+  - **Click on the preview** switches to raw mode (textarea visible) for typing.
+  - **Toolbar buttons (B/I/U/S/List)** automatically switch to raw mode before applying formatting.
+  - **After publishing** (POST) → return to preview (form reset).
+  - **Edit mode** (✎ Edit button) → switches to raw mode to allow direct editing.
+  - **Cancel edit** → return to preview.
+  - **Toggle renamed "Raw"** (was "Preview" since v0.7.0): checked = raw mode, unchecked = preview.
+  - **Placeholder text** updated: "Click here or on 'Raw' to start typing…" (EN) / « Cliquez ici ou sur « Brut » pour commencer à saisir… » (FR).
+  - **Styles**: `cursor:text` and `hover` (border) restored on `.ip-body-preview`.
 
-- **Régression UX éditeur (0.7.0)** — depuis la v0.7.0, le comportement de l'éditeur avait été modifié : le textarea était affiché en permanence et l'aperçu était devenu un panneau optionnel en dessous. Cette version restaure le comportement de v0.5 :
-  - **Aperçu formaté affiché par défaut** (textarea caché) — le formulaire démarre en mode aperçu qui affiche un texte d'invite invitant à cliquer.
-  - **Cliquer sur l'aperçu** bascule en mode brut (textarea visible) pour saisir.
-  - **Boutons de toolbar (B/I/U/S/Liste)** basculent automatiquement en mode brut avant d'appliquer le formatage.
-  - **Après publication** (POST) → retour en aperçu (formulaire réinitialisé).
-  - **Mode édition** (bouton ✎ Modifier) → bascule en mode brut pour permettre l'édition directe.
-  - **Annuler la modification** → retour en aperçu.
-  - **Toggle renommé "Raw"** (était "Aperçu" depuis v0.7.0) : coché = mode brut, décoché = aperçu.
-  - **Texte d'invite** mis à jour : « Cliquez ici ou sur « Brut » pour commencer à saisir… » (FR) / « Click here or on "Raw" to start typing… » (EN).
-  - **Styles** : `cursor:text` et `hover` (border) restaurés sur `.ip-body-preview`.
+---
 
 ## [0.7.1.0] — 2026-02-23
 
 ### Fixed
-
-- **Label "Message *" flottant par-dessus la toolbar** — la classe Jellyfin `inputLabelUnfocused` applique `position:absolute` pour simuler le comportement Material Design (label qui flotte vers le haut au focus). En v0.7.0.0, le textarea étant désormais toujours visible, Jellyfin le considérait comme focusable et repositionnait le label en position "unfocused", le faisant se superposer à la toolbar de formatage (boutons B / I / U / S / Liste). Corrigé en remplaçant `inputLabelUnfocused` par `position:static;display:block` sur `#ip-body-label` uniquement. Les labels Titre et Destinataires conservent leur comportement floating-label natif, car ils n'ont pas d'élément intercalé entre eux et leur champ de saisie.
-
-- **`document.addEventListener('selectionchange', …)` jamais retiré** — ce listener global était ajouté sur `document` à chaque initialisation de la page de configuration (`initConfigPage`). Dans une SPA, `initConfigPage` pouvant être rappelé à chaque navigation, les listeners s'accumulaient sur la durée de la session. `selectionchange` pouvant se déclencher des dizaines de fois par seconde, l'overhead progressif pouvait être perçu comme un ralentissement général. Supprimé : `keyup`, `mouseup` et `touchend` sur le textarea couvrent tous les scénarios utiles de mise à jour de l'état actif de la toolbar.
-
-- **Double déclaration `var targetIds` dans `publishMessage()`** — `var targetIds` était déclaré deux fois dans le même scope de fonction (une fois dans la branche `if`, une fois dans la branche `else`). Fonctionnel grâce au hoisting de `var`, mais signalé comme erreur par les linters et potentiellement source de confusion. La déclaration est remontée avant le `if/else`.
+- **"Message *" label floating over the toolbar** — the Jellyfin `inputLabelUnfocused` class applies `position:absolute` to simulate Material Design behavior (label floats up on focus). In v0.7.0.0, since the textarea was now always visible, Jellyfin considered it focusable and repositioned the label to "unfocused", causing it to overlap with the formatting toolbar (B / I / U / S / List buttons). Fixed by replacing `inputLabelUnfocused` with `position:static;display:block` on `#ip-body-label` only. Title and Recipients labels keep their native floating-label behavior, since they have no element between themselves and their input field.
+- **`document.addEventListener('selectionchange', …)` never removed** — this global listener was added on `document` on every config page init (`initConfigPage`). In an SPA, `initConfigPage` can be called again on every navigation, so listeners accumulated over the session. Since `selectionchange` can fire dozens of times per second, the progressive overhead could be perceived as a general slowdown. Removed: `keyup`, `mouseup`, and `touchend` on the textarea cover all useful scenarios for updating the toolbar active state.
+- **Double `var targetIds` declaration in `publishMessage()`** — `var targetIds` was declared twice in the same function scope (once in the `if` branch, once in the `else` branch). Functional thanks to `var` hoisting, but flagged as an error by linters and potentially a source of confusion. The declaration is hoisted before the `if/else`.
 
 ---
 
 ## [0.7.0.0] — 2026-02-23
 
 ### Changed
-
-- **Éditeur de message — textarea toujours visible** — le comportement précédent affichait un panneau d'aperçu formaté par défaut et demandait de cliquer dessus (ou sur un bouton de la toolbar) pour basculer en mode « brut » (textarea). Ce changement de mode automatique est supprimé. Le textarea est désormais affiché en permanence et directement accessible à la frappe sans aucune interaction préalable. L'aperçu formaté devient un **panneau optionnel** situé sous le textarea, activé et désactivé par le toggle « Aperçu ». Il se met à jour en temps réel à chaque frappe, uniquement lorsqu'il est visible.
-- **Toggle « Raw » renommé « Aperçu »** — la sémantique est inversée : toggle coché = panneau d'aperçu visible ; décoché = panneau caché (état par défaut). La chaîne est mise à jour dans les deux langues (`'Aperçu'` en FR, `'Preview'` en EN). Le tooltip passe de « Activer pour afficher le texte brut » à « Afficher l'aperçu formaté du message ».
-- **`PUT /InfoPopup/messages/{id}` accepte `TargetUserIds`** — le ciblage utilisateur peut désormais être modifié lors de l'édition d'un message existant. Avant cette version, seuls le titre et le corps pouvaient être changés ; les destinataires restaient figés à la valeur définie à la publication initiale. `UpdateMessageRequest` gagne le champ `List<string> TargetUserIds`. `MessageStore.Update()` accepte le nouveau paramètre `List<string>? targetUserIds` et l'applique dans le lock.
-- **Mode édition — restauration du ciblage** — le formulaire d'édition (bouton « Modifier » dans le tableau) initialise maintenant le sélecteur de destinataires avec le ciblage actuel du message. La nouvelle fonction `setTargetPickerIds(page, ids)` dans `ip-admin.js` gère ce cas : liste vide → « Tous les utilisateurs » coché ; liste partielle → case « Tous » décochée, utilisateurs ciblés individuellement cochés.
+- **Message editor — textarea always visible** — the previous behavior showed a formatted preview panel by default and required clicking on it (or on a toolbar button) to switch to "raw" mode (textarea). This automatic mode switching is removed. The textarea is now always shown and directly accessible for typing without any prior interaction. The formatted preview becomes an **optional panel** below the textarea, toggled by the "Preview" switch. It updates in real time on every keystroke, only when visible.
+- **"Raw" toggle renamed "Preview"** — semantics inverted: toggle checked = preview panel visible; unchecked = panel hidden (default state). The string is updated in both languages (`'Aperçu'` in FR, `'Preview'` in EN). The tooltip changes from "Enable to show raw text" to "Show formatted preview of the message".
+- **`PUT /InfoPopup/messages/{id}` accepts `TargetUserIds`** — user targeting can now be modified when editing an existing message. Before this version, only the title and body could be changed; recipients stayed frozen at the value defined at initial publication. `UpdateMessageRequest` gains the `List<string> TargetUserIds` field. `MessageStore.Update()` accepts the new `List<string>? targetUserIds` parameter and applies it inside the lock.
+- **Edit mode — targeting restoration** — the edit form (Edit button in the table) now initializes the recipient selector with the current targeting of the message. The new `setTargetPickerIds(page, ids)` function in `ip-admin.js` handles this case: empty list → "All users" checked; partial list → "All" unchecked, targeted users individually checked.
 
 ### Fixed
-
-- **Boutons de toolbar ne changent plus le mode d'affichage** — auparavant, cliquer sur B / I / U / S / Liste depuis le mode aperçu forçait la bascule vers le textarea (mode brut). Ce comportement perturbant est supprimé. Les boutons appliquent le formatage directement sur le textarea, qui est désormais toujours visible.
+- **Toolbar buttons no longer change the display mode** — previously, clicking B / I / U / S / List from preview mode forced switching to the textarea (raw mode). This disruptive behavior is removed. The buttons apply formatting directly to the textarea, which is now always visible.
 
 ---
 
 ## [0.6.2.0] — 2026-02-23
 
 ### Added
-
 - **Multilanguage support (FR / EN)** — the plugin now detects the active Jellyfin language via `document.documentElement.lang` (set by Jellyfin Web according to user preferences) with a fallback to `navigator.language`. French and English are fully supported. All user-facing strings — admin page labels, toasts, validation errors, confirm dialog, toolbar tooltips, user popup, history accordion — are translated. Adding a new language requires only a new dictionary entry in `ip-i18n.js`.
 - **`ip-i18n.js` module** — language detection (`detectLang()`) + `window.__IP.t(key, ...args)` translation function with `{0}`, `{1}` placeholder substitution.
 
 ### Changed
-
-- **`client.js` split into 5 focused modules** — the 1 217-line monolith is replaced by a lightweight loader (`client.js`, ~50 lines) that injects modules sequentially via dynamic `<script>` tags:
-  - `ip-i18n.js` — language detection + FR/EN dictionaries
-  - `ip-utils.js` — shared utilities (`apiFetch`, `escHtml`, `renderBody`, `formatDate`)
-  - `ip-styles.js` — idempotent CSS injection (`injectStyles`)
-  - `ip-admin.js` — admin configuration page (form, table, toolbar, targeting, CRUD)
-  - `ip-popup.js` — user popup + MutationObserver (auto-starts)
+- **`client.js` split into 5 focused modules** — the 1,217-line monolith is replaced by a lightweight loader (`client.js`, ~50 lines) that injects modules sequentially via dynamic `<script>` tags: `ip-i18n.js` (language detection + FR/EN dictionaries), `ip-utils.js` (shared utilities `apiFetch`, `escHtml`, `renderBody`, `formatDate`), `ip-styles.js` (idempotent CSS injection `injectStyles`), `ip-admin.js` (admin configuration page: form, table, toolbar, targeting, CRUD), `ip-popup.js` (user popup + MutationObserver, auto-starts).
 - **`window.__IP` namespace** — all inter-module functions are exposed via `window.__IP` instead of closed-over variables. Each module is an IIFE that reads and extends `window.__IP`.
 - **Controller — generic JS module endpoint** — `GET /InfoPopup/client.js` is replaced by `GET /InfoPopup/{module}.js` with a whitelist (`client.js`, `ip-*.js`). The old dedicated action is removed; a single action now serves all modules.
-- **`configurationpage.html`** — static text remains in French as default (overridden by `applyStaticTranslations()` at runtime). Added `id` attributes to all translatable elements (`#ip-subtitle`, `#ip-title-label`, `#ip-body-label`, `#ip-recipients-label`, `#ip-history-title`, `#ip-select-all-label`, `#ip-delete-btn-label`). The `<span>` inside `#ip-delete-btn` is now a separate element to allow text-only translation without touching the icon.
+- **`configurationpage.html`** — static text remains in French as default (overridden by `applyStaticTranslations()` at runtime). Added `id` attributes to all translatable elements (`#ip-subtitle`, `#ip-title-label`, `#ip-body-label`, `#ip-recipients-label`, `#ip-history-title`, `#ip-select-all-label`, `#ip-delete-btn-label`).
 - **`Jellyfin.Plugin.InfoPopup.csproj`** — `ip-i18n.js`, `ip-utils.js`, `ip-styles.js`, `ip-admin.js`, `ip-popup.js` added as `<EmbeddedResource>`.
-- **`CLAUDE.md`** — architecture, naming, pitfalls and REST API reference updated for v0.6.
 
 ### Fixed
-
-- **Singular/plural in selection counter and deletion toasts** — previously hardcoded French pluralisation rules (`'s'` suffix). Now uses dedicated i18n keys (`sel_count_singular`, `sel_count_plural`, `toast_deleted_s`, `toast_deleted_p`, `confirm_delete_s`, `confirm_delete_p`) per language.
+- **Singular/plural in selection counter and deletion toasts** — previously hardcoded French pluralization rules (`'s'` suffix). Now uses dedicated i18n keys (`sel_count_singular`, `sel_count_plural`, `toast_deleted_s`, `toast_deleted_p`, `confirm_delete_s`, `confirm_delete_p`) per language.
 - **`(sans nom)` hardcoded in `fetchUsers()`** — replaced by `t('target_unknown')`.
 
 ---
@@ -373,20 +366,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [0.5.1.0] — 2026-02-23
 
 ### Added
-
 - **Real-time formatted preview in the input area** — the "Message" field now displays formatted rendering by default (`**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, lists). A `Raw` toggle switch in the formatting toolbar allows switching to raw markup input. Clicking the preview directly switches to raw mode. Formatting buttons (B, I, U, S, List) automatically switch to raw mode before applying formatting. After publishing or cancelling, the form returns to preview mode.
 - **Context detection in the toolbar** — B/I/U/S buttons are now "pressed" (visual active state) when the cursor is inside a pair of markers, whether there is a selection or not. Compatible with Jellyfin 10.10–10.11.
-- **Smart format removal** — clicking an active button removes the markers surrounding the cursor, even without a prior selection. The old behaviour used to add duplicate markers.
-
-### Fixed
-
-- **TOCTOU in `UpdateMessage`** — after `_store.Update()`, the controller was calling `_store.GetById(id)!` (null-forgiveness operator) to retrieve the updated message. Between the two calls, a concurrent deletion could have produced a `NullReferenceException`. `MessageStore.Update()` now returns a `PopupMessage?` snapshot captured inside the lock, eliminating the race condition. The return type changes from `bool` to `PopupMessage?`.
-- **`usersCache` never invalidated** — the user list was loaded once and kept indefinitely. Users created in Jellyfin during the session were not visible in the targeting selector. A 5-minute TTL is now applied (`usersCacheAt`).
-- **Admin styles lost on SPA navigation** — the table, badges, toast, recipient selector and formatting toolbar styles were defined in the `<style>` block of `configurationpage.html`. This block disappears during SPA transitions (HTML is reloaded via `innerHTML`). All these styles are now in `injectStyles()` and persist in `<head>` for the entire session.
-- **`emby-checkbox` on the "Select all" checkbox** — replaced by a native `<input type="checkbox">` with inline `accent-color`, consistent with the other checkboxes in the admin table.
+- **Smart format removal** — clicking an active button removes the markers surrounding the cursor, even without a prior selection. The old behavior used to add duplicate markers.
 
 ### Changed
-
 - `MessageStore.Update()` — returns `PopupMessage?` (snapshot captured in the lock) instead of `bool`.
 - `InfoPopupController.UpdateMessage()` — uses the snapshot returned by `Update()`, removes the second `GetById()` call.
 - `applyFormat()` — refactored via `getFormatBoundsAroundCursor()`: clean removal of markers around the cursor, end of `****` accumulation.
@@ -394,77 +378,68 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - `client.js` — added `updatePreview(page)` and `setPreviewMode(page, on)`; `enterEditMode` switches to raw, `exitEditMode` returns to preview, `publishMessage` (POST) returns to preview after success. `input` dispatch after each formatting action to immediately sync the preview.
 - `configurationpage.html` — removed the `<style>` block (migrated to `injectStyles()`), added toggle switch and preview div, "Select all" checkbox as native checkbox.
 
+### Fixed
+- **TOCTOU in `UpdateMessage`** — after `_store.Update()`, the controller was calling `_store.GetById(id)!` (null-forgiveness operator) to retrieve the updated message. Between the two calls, a concurrent deletion could have produced a `NullReferenceException`. `MessageStore.Update()` now returns a `PopupMessage?` snapshot captured inside the lock, eliminating the race condition. The return type changes from `bool` to `PopupMessage?`.
+- **`usersCache` never invalidated** — the user list was loaded once and kept indefinitely. Users created in Jellyfin during the session were not visible in the targeting selector. A 5-minute TTL is now applied (`usersCacheAt`).
+- **Admin styles lost on SPA navigation** — the table, badges, toast, recipient selector and formatting toolbar styles were defined in the `<style>` block of `configurationpage.html`. This block disappears during SPA transitions (HTML is reloaded via `innerHTML`). All these styles are now in `injectStyles()` and persist in `<head>` for the entire session.
+- **`emby-checkbox` on the "Select all" checkbox** — replaced by a native `<input type="checkbox">` with inline `accent-color`, consistent with the other checkboxes in the admin table.
+
 ---
 
 ## [0.5.0.0] — 2026-02-23
 
-### Security
-
-- **Access control on `GET /messages` and `GET /messages/{id}`** — these endpoints were accessible to any authenticated user, exposing the full list of messages including their `TargetUserIds` and bodies, regardless of targeting. Now: admins see everything; users only see messages intended for them. `GET /messages/{id}` returns `404` (not `403`) if the user is not targeted, to avoid revealing the existence of a non-intended message.
-- **Empty UserId → explicit 401** — when the `Jellyfin-UserId` claim was absent from the token, the code was silently returning an empty ID that created a ghost record in `infopopup_seen.json`. All user endpoints now explicitly return `401 Unauthorized` if the ID is absent.
-
 ### Added
-
 - **`GET /InfoPopup/popup-data` endpoint** — returns in a single call everything the popup needs: unread messages with full body + history as summaries. Replaces the old N+1 pattern that generated up to `2 + N + M` HTTP requests to display a popup.
 - **`POST /InfoPopup/messages/delete` endpoint** (admin) — replaces `DELETE /messages` with body. Some proxies and firewalls silently reject `DELETE` requests with a body. The old `DELETE` endpoint is removed.
 - **`DTOs/` folder** — `MessageDtos.cs` groups all DTOs (`CreateMessageRequest`, `DeleteMessagesRequest`, `UpdateMessageRequest`, `MarkSeenRequest`, `MessageSummary`, `MessageDetail`, `PopupDataResponse`). They were previously defined at the top of the controller file.
 
-### Fixed
+### Changed
+- `checkForUnseenMessages` now uses `GET /InfoPopup/popup-data` (1 request).
+- `deleteSelected` in `client.js` calls `POST /InfoPopup/messages/delete` instead of `DELETE`.
+- `markAllSeen` returns a `Promise` to allow `.finally()` in `close()`.
+- Global JS state variables grouped at the top of the IIFE.
 
+### Security
+- **Access control on `GET /messages` and `GET /messages/{id}`** — these endpoints were accessible to any authenticated user, exposing the full list of messages including their `TargetUserIds` and bodies, regardless of targeting. Now: admins see everything; users only see messages intended for them. `GET /messages/{id}` returns `404` (not `403`) if the user is not targeted, to avoid revealing the existence of a non-intended message.
+- **Empty UserId → explicit 401** — when the `Jellyfin-UserId` claim was absent from the token, the code was silently returning an empty ID that created a ghost record in `infopopup_seen.json`. All user endpoints now explicitly return `401 Unauthorized` if the ID is absent.
+
+### Fixed
 - **Popup/marking race condition** — `popupActive` was reset to `false` immediately on popup close, before the `POST /seen` had been confirmed by the server. `popupActive` now stays `true` until the `.finally()` of `markAllSeen()`.
 - **`popupActive` guard in `schedulePopupCheck`** — without this guard, fast navigation after closing could re-trigger a network check while the marking was still in transit.
 - **Config reference captured in the lock** (`MessageStore`) — `Plugin.Instance?.Configuration` was accessed via a property without local assignment inside the locked block. The reference is now captured with `var cfg = GetConfig()` inside each block.
 - **Memory cache in `SeenTrackerService`** — `ReadStore()` was reading the JSON file from disk on every call, including under `ReadLock`. A `_cache` is now maintained in memory and invalidated only on write.
 - **Admin toast accessibility** — `aria-live="polite"` and `role="status"` added to the toast during config page init and on each display.
 
-### Changed
-
-- `checkForUnseenMessages` now uses `GET /InfoPopup/popup-data` (1 request).
-- `deleteSelected` in `client.js` calls `POST /InfoPopup/messages/delete` instead of `DELETE`.
-- `markAllSeen` returns a `Promise` to allow the `.finally()` in `close()`.
-- Global JS state variables grouped at the top of the IIFE.
-
 ---
 
 ## [0.4.0.0] — 2026-02-23
 
 ### Added
-
-- **Message body formatting** — lightweight syntax rendered client-side as secure HTML (escHtml() always applied before any replacement, XSS impossible):
-  - `**text**` → bold
-  - `_text_` → italic
-  - `__text__` → underline
-  - `~~text~~` → strikethrough
-  - Lines prefixed with `- ` → bulleted list with indentation (`<ul><li>`)
-  - Rendering active in the user popup, in the history and in the admin table expand rows.
+- **Message body formatting** — lightweight syntax rendered client-side as secure HTML (escHtml() always applied before any replacement, XSS impossible): `**text**` → bold, `_text_` → italic, `__text__` → underline, `~~text~~` → strikethrough, lines prefixed with `- ` → bulleted list with indentation (`<ul><li>`). Rendering active in the user popup, in the history, and in the admin table expand rows.
 - **Formatting toolbar** above the admin textarea — five buttons (B, I, U, S, • List) that wrap the current selection. Each button is a toggle: pressing it a second time removes the formatting.
 - **Edit existing messages** — "✎ Edit" button on each row of the admin table. Loads the message into the form, switches to edit mode (section title + button label change, "Cancel" button appears). Uses `PUT /InfoPopup/messages/{id}`: the ID is preserved, view tracking is not affected.
 - **`PUT /InfoPopup/messages/{id}` endpoint** (admin only) — updates title and body without touching the ID or `infopopup_seen.json`.
 
-### Fixed
-
-- **Empty body in popup history** — already-seen messages passed to `buildHistoryBlock` were `MessageSummary` objects without a `body`. `checkForUnseenMessages` now pre-loads the full detail of each seen message before opening the popup.
-- **Broken admin table formatting** — CSS for `.ip-row-expand`, `.ip-row-chev`, `.ip-edit-btn` was absent when navigating directly to the config page. `initConfigPage()` now calls `injectStyles()` first.
-
 ### Changed
-
 - `MessageStore` — new `Update(id, title, body)` method.
 - `renderMessages` — Actions column + expand rows colSpan increased from 4 to 5.
 - `publishMessage` — branches to PUT or POST based on `editState.id`.
 - `buildHistoryBlock` — immediate display if body is pre-loaded, lazy load as fallback.
+
+### Fixed
+- **Empty body in popup history** — already-seen messages passed to `buildHistoryBlock` were `MessageSummary` objects without a `body`. `checkForUnseenMessages` now pre-loads the full detail of each seen message before opening the popup.
+- **Broken admin table formatting** — CSS for `.ip-row-expand`, `.ip-row-chev`, `.ip-edit-btn` was absent when navigating directly to the config page. `initConfigPage()` now calls `injectStyles()` first.
 
 ---
 
 ## [0.3.0.0] — 2026-02-23
 
 ### Added
-
 - **All unread messages in the main area** — each unread message appears in its own card (title + body). The history now only contains already-seen messages.
 - **Message title in popup header** — single message: its title in the header. Multiple: "N new messages".
 - **Inline row expand in admin table** — click on the Title column → expansion row with body on lazy load, animated chevron.
 
 ### Changed
-
 - `checkForUnseenMessages` — bodies of all unread messages fetched in parallel (`Promise.all`).
 - `showPopup` — two arguments (`unseenMessages`, `seenMessages`), adaptive rendering.
 - `renderMessages` — generates a `<tr class="ip-row-expand">` for each row.
@@ -474,13 +449,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [0.2.1.0] — 2026-02-20
 
 ### Added
-
-- Login popup via MutationObserver (SPA-compatible, Jellyfin 10.10–10.11)
-- Show once per user — server-side tracking, no localStorage
-- Collapsible history of past messages
-- Admin page: publishing, multiple selection, confirmed deletion
-- Full deletion: disappears immediately for all users
-- Automatic injection of `client.js` via `ScriptInjectionMiddleware`
-- Targeting by specific users or broadcast to everyone
-- XSS security: `textContent` exclusively, never `innerHTML`
-- Jellyfin theme integration
+- Login popup via MutationObserver (SPA-compatible, Jellyfin 10.10–10.11).
+- Show once per user — server-side tracking, no localStorage.
+- Collapsible history of past messages.
+- Admin page: publishing, multiple selection, confirmed deletion.
+- Full deletion: disappears immediately for all users.
+- Automatic injection of `client.js` via `ScriptInjectionMiddleware`.
+- Targeting by specific users or broadcast to everyone.
+- XSS security: `textContent` exclusively, never `innerHTML`.
+- Jellyfin theme integration.

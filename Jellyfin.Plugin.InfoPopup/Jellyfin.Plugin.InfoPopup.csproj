@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
-    <Version>3.8.2.0</Version>
+    <Version>3.8.3.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

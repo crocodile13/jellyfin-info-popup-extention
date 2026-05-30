@@ -656,8 +656,20 @@
         // Ligne métadonnées : auteur + date
         var metaRow = document.createElement('div');
         metaRow.className = 'ip-user-msg-meta';
+        // v3.8.3.0 : badge de r\u00F4le (admin/moderator/user/system) \u00E0 c\u00F4t\u00E9 du nom.
         var authorLabel = authorName || t('user_msg_system');
-        metaRow.textContent = authorLabel + '  \u00B7  ' + formatDate(date);
+        var senderRole  = msg.senderRole || msg.SenderRole || (authorName ? 'user' : 'system');
+        var roleKey = (senderRole === 'admin' || senderRole === 'moderator' || senderRole === 'system') ? senderRole : 'user';
+        var metaSpan = document.createElement('span');
+        metaSpan.textContent = authorLabel;
+        metaRow.appendChild(metaSpan);
+        var roleBadge = document.createElement('span');
+        roleBadge.className = 'ip-role-badge ip-role-badge-' + roleKey;
+        roleBadge.textContent = t('role_' + roleKey);
+        metaRow.appendChild(roleBadge);
+        var dateSpan = document.createElement('span');
+        dateSpan.textContent = '  \u00B7  ' + formatDate(date);
+        metaRow.appendChild(dateSpan);
         header.appendChild(metaRow);
 
         // Aperçu du corps (premiers N caractères)
