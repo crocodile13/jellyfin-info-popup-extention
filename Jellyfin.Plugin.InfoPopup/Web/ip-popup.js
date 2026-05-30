@@ -497,12 +497,26 @@
     function initObserver() {
         // Charger les settings en premier (silencieux si échec → valeurs par défaut).
         loadClientSettings().then(function () {
-            new MutationObserver(function () {
-                schedulePopupCheck();
-                ns.checkConfigPage();
-                if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
-                if (typeof ns.injectSidebarEntry === 'function') ns.injectSidebarEntry();
-            }).observe(document.body, { childList: true, subtree: true });
+            // Throttle rAF v3.8.5.0 — le MutationObserver écoute `childList+subtree` sur
+            // <body>, ce qui fire DES DIZAINES de fois par seconde sur la page d'accueil
+            // Jellyfin (carrousels, lazy-loading d'images, mises à jour de progress bars).
+            // Sans throttle, on enchaîne 4 querySelector + 1 setTimeout par mutation → CPU
+            // gaspillé alors que les vérifs sont idempotentes. requestAnimationFrame coalesce
+            // toutes les mutations d'un même frame (≤ 16 ms) en UN seul appel. Aucune perte
+            // de réactivité visible (l'œil ne distingue pas < 60 fps).
+            var mutationPending = false;
+            var onMutation = function () {
+                if (mutationPending) return;
+                mutationPending = true;
+                requestAnimationFrame(function () {
+                    mutationPending = false;
+                    schedulePopupCheck();
+                    ns.checkConfigPage();
+                    if (typeof ns.checkUserPage === 'function') ns.checkUserPage();
+                    if (typeof ns.injectSidebarEntry === 'function') ns.injectSidebarEntry();
+                });
+            };
+            new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
 
             window.addEventListener('hashchange', schedulePopupCheck);
             window.addEventListener('popstate',   schedulePopupCheck);

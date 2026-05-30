@@ -90,6 +90,8 @@ public class SeenTrackerService
     /// <summary>
     /// Retourne les IDs de messages non encore vus par l'utilisateur,
     /// parmi les messages existants uniquement (les supprimés sont exclus).
+    /// Optim v3.8.5.0 : conversion de `SeenMessageIds` (List) en HashSet avant la boucle
+    /// (O(M+N) au lieu de O(M·N) sur le `Contains` répété).
     /// </summary>
     public List<string> GetUnseenIds(string userId, IEnumerable<string> allExistingIds)
     {
@@ -98,15 +100,19 @@ public class SeenTrackerService
         try
         {
             var store = ReadStore();
-            var seen = store.Records.FirstOrDefault(r => r.UserId == userId)?.SeenMessageIds
-                       ?? new List<string>();
-            return existingSet.Where(id => !seen.Contains(id)).ToList();
+            var seenList = store.Records.FirstOrDefault(r => r.UserId == userId)?.SeenMessageIds;
+            if (seenList is null || seenList.Count == 0)
+                return existingSet.ToList();
+            var seenSet = new HashSet<string>(seenList);
+            return existingSet.Where(id => !seenSet.Contains(id)).ToList();
         }
         finally { _lock.ExitReadLock(); }
     }
 
     /// <summary>
     /// Marque des messages comme vus. Nettoie les orphelins (messages supprimés) de façon paresseuse.
+    /// Optim v3.8.5.0 : conversion du `SeenMessageIds` existant en HashSet pour rendre l'union
+    /// et le test d'unicité O(1) au lieu d'un `Contains` linéaire par ID ajouté.
     /// </summary>
     public void MarkAsSeen(string userId, IEnumerable<string> messageIds, IEnumerable<string> allExistingIds)
     {
@@ -124,14 +130,21 @@ public class SeenTrackerService
                 store.Records.Add(record);
             }
 
+            var currentSet = new HashSet<string>(record.SeenMessageIds);
+            var changed = false;
             foreach (var id in newSeen)
-                if (!record.SeenMessageIds.Contains(id))
+            {
+                if (currentSet.Add(id))
+                {
                     record.SeenMessageIds.Add(id);
+                    changed = true;
+                }
+            }
 
             // Nettoyage paresseux : retirer les orphelins (messages supprimés)
-            record.SeenMessageIds.RemoveAll(id => !existingSet.Contains(id));
-
-            WriteStore(store);
+            var removed = record.SeenMessageIds.RemoveAll(id => !existingSet.Contains(id));
+            if (changed || removed > 0)
+                WriteStore(store);
         }
         finally { _lock.ExitWriteLock(); }
     }

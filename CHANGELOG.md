@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.5.0] — 2026-05-30
+
+### Changed
+- **More background work optimizations, no behavioral change.**
+
+### Added
+- **`MessageStore.GetAllIds()`** — lightweight ID-only enumeration (no sort, no PopupMessage copies). Used by `POST /seen` cleanup path instead of `GetAll().Select(m => m.Id)`.
+- **HashSet-backed unseen/seen lookups in `SeenTrackerService`** — `GetUnseenIds` and `MarkAsSeen` now convert the persisted `SeenMessageIds` list to a HashSet before the union/diff loop, dropping from O(M·N) to O(M+N) on the `Contains` checks. Becomes visible once a user accumulates a few hundred read messages.
+- **No-op write skip in `SeenTrackerService.MarkAsSeen`** — when the call adds no new seen IDs and removes no orphans, the JSON file is no longer rewritten. Previously a re-poll on an already-seen popup wrote the file every time for nothing.
+- **rAF-throttled central MutationObserver** — the `<body>` observer in `ip-popup.js` fires dozens of times per second on the Jellyfin homepage (carousels, image lazy-loading). The 4 downstream checks (`schedulePopupCheck`, `checkConfigPage`, `checkUserPage`, `injectSidebarEntry`) are now coalesced into one `requestAnimationFrame` callback per frame. No reactivity loss (≤ 16 ms), large CPU savings on dense pages.
+
+---
+
 ## [3.8.4.0] — 2026-05-30
 
 ### Changed

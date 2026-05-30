@@ -676,7 +676,9 @@ public class InfoPopupController : ControllerBase
             return BadRequest(new { error = "Liste d'IDs vide ou invalide." });
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
-        _seen.MarkAsSeen(userId, request.Ids, _store.GetAll().Select(m => m.Id));
+        // Optim v3.8.5.0 : GetAllIds évite l'allocation d'une List<PopupMessage> triée
+        // dont seuls les IDs sont consommés ici.
+        _seen.MarkAsSeen(userId, request.Ids, _store.GetAllIds());
         return NoContent();
     }
 

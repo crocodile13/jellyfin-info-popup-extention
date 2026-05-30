@@ -45,6 +45,26 @@ public class MessageStore
         finally { _lock.ExitReadLock(); }
     }
 
+    /// <summary>
+    /// Retourne uniquement les IDs de tous les messages (sans tri, sans copie complète).
+    /// Plus léger que <see cref="GetAll"/> quand seule la liste des IDs est nécessaire
+    /// (ex. nettoyage des orphelins dans <c>SeenTrackerService.MarkAsSeen</c>).
+    /// Optim v3.8.5.0.
+    /// </summary>
+    public List<string> GetAllIds()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            var cfg = GetConfig();
+            var result = new List<string>(cfg.Messages.Count);
+            for (int i = 0; i < cfg.Messages.Count; i++)
+                result.Add(cfg.Messages[i].Id);
+            return result;
+        }
+        finally { _lock.ExitReadLock(); }
+    }
+
     /// <summary>Retourne un message par son ID, ou null.</summary>
     public PopupMessage? GetById(string id)
     {
