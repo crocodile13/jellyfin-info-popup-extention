@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.11.0",
+        "changelog": "Fixed\n- Bouton retour de l'overlay « Messages » crashait au montage côté Jellyfin 10.11 — document.createElement('button', { is: 'paper-icon-button-light' }) (API standard « customized built-in elements ») levait TypeError: t.toLowerCase is not a function dans le polyfill webcomponents.js de Jellyfin 10.11, qui attend l'ANCIENNE API où le 2e argument est une string. Conséquence (avec la pile de pièges accumulés v3.7.7→9) : aucun overlay ne s'ouvrait, jamais. Remplacé par un <button> plain qui porte les CLASSES paper-icon-button-light (suffisantes pour le rendu/ripple). Détecté précisément grâce aux logs de diagnostic ajoutés en 3.7.9.0 puis 3.7.10.0.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.11.0/infopopup_3.7.11.0.zip",
+        "checksum": "91365c20cf6d2a0a9c1c1f8bbbfd89b8",
+        "timestamp": "2026-05-30T11:30:18Z"
+      },
+      {
         "version": "3.7.10.0",
         "changelog": "Fixed\n- Clic sur « Messages » bloqué après une exception silencieuse dans showUserPage — showUserPage positionnait _overlayOpen = true AVANT toute la construction de l'overlay ; si une exception était levée pendant cette construction (cas révélé par les logs de diagnostic : showUserPage failed: avec err vide côté admin), le flag restait à true et TOUS les clics suivants étaient consommés par le garde if (_overlayOpen) return;. Le corps de l'overlay est désormais isolé dans _showUserPageInner enveloppé d'un try/catch qui réinitialise _overlayOpen = false en cas d'échec, et logue l'erreur complète (name + message + stack).",
         "targetAbi": "10.11.0.0",
