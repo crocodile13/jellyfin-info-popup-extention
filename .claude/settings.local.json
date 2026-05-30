@@ -37,7 +37,9 @@
       "Bash(sed -n '127,170p' Jellyfin.Plugin.InfoPopup/Services/ReplyStoreService.cs)",
       "Bash(sed -n '805,830p' Jellyfin.Plugin.InfoPopup/Controllers/InfoPopupController.cs)",
       "Bash(git --no-pager log --oneline -3)",
-      "Bash(awk '/^## \\\\[/{v=$0; A=F=C=S=0; next} /^### Added/{A=1} /^### Fixed/{F=1} /^### Changed/{C=1} /^### Security/{S=1} /^---/{if\\(v\\){printf \"%-32s A:%d F:%d C:%d S:%d\\\\n\", v, A, F, C, S}; v=\"\"}' CHANGELOG.md)"
+      "Bash(awk '/^## \\\\[/{v=$0; A=F=C=S=0; next} /^### Added/{A=1} /^### Fixed/{F=1} /^### Changed/{C=1} /^### Security/{S=1} /^---/{if\\(v\\){printf \"%-32s A:%d F:%d C:%d S:%d\\\\n\", v, A, F, C, S}; v=\"\"}' CHANGELOG.md)",
+      "Bash(git --no-pager diff version.json)",
+      "Bash(awk '/^## \\\\[3\\\\.8\\\\.[23]\\\\.0\\\\]/,/^## \\\\[3\\\\.8\\\\.1\\\\.0\\\\]/' CHANGELOG.md)"
     ]
   }
 }

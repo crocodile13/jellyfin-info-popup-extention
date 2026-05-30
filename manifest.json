@@ -13,8 +13,8 @@
         "changelog": "Added\n- Sender role badges (admin / moderator / user / system) on every message — small colored pills (gold for admin, purple for moderator, grey for user/system) next to the sender's name in the popup AND in the \"My Messages\" inbox. New MessageDetail.SenderRole field computed server-side (IsSentByAdmin → admin, stored Role == \"moderator\" or CanEditOthers && CanDeleteOthers → moderator, else user).\n- Admin users greyed out in the Rights tab — Jellyfin admin cards are visually dimmed (opacity:.55 with gold accent), all controls disabled, \"ADMIN\" badge shown, automatically excluded from multi-select, \"Apply to selection\" and global \"Save permissions\". An admin always has full rights server-side; persisting any UI state for them would be ineffective and misleading. New UserPermissionDto.IsAdmin resolved via reflection on User.Policy.IsAdministrator (10.10/10.11) with fallback to User.HasPermission(PermissionKind.IsAdministrator) (10.11.9+).\n- New i18n keys (× 8 languages): role_admin/moderator/user/system, perm_admin_badge, perm_admin_hint.\nChanged\n- Reply notification simplified — the corner toast now just says \"Reply from X\" (no message title, no body preview), auto-dismiss reduced from 6s to 4s. Users open \"My Messages\" for the detail.\n- Real-time popup poll faster — intervals reduced from 60s/60s to 30s for new popup messages and 45s for reply notifications. Still lightweight: zero cost when popup is active, tab hidden, or admin page open.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.8.3.0/infopopup_3.8.3.0.zip",
-        "checksum": "bae236f03e0a8a954044281e8f56e748",
-        "timestamp": "2026-05-30T16:38:55Z"
+        "checksum": "e1bcfa22a6d99bf4d39080422bb8a5c9",
+        "timestamp": "2026-05-30T16:47:03Z"
       },
       {
         "version": "3.8.2.0",
