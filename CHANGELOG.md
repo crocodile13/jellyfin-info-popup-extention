@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.7.11.0] — 2026-05-30
+
+### Fixed
+- **Bouton retour de l'overlay « Messages » crashait au montage côté Jellyfin 10.11** — `document.createElement('button', { is: 'paper-icon-button-light' })` (API standard « customized built-in elements ») levait `TypeError: t.toLowerCase is not a function` dans le polyfill `webcomponents.js` de Jellyfin 10.11, qui attend l'ANCIENNE API où le 2e argument est une string. Conséquence (avec la pile de pièges accumulés v3.7.7→9) : aucun overlay ne s'ouvrait, jamais. Remplacé par un `<button>` plain qui porte les CLASSES `paper-icon-button-light` (suffisantes pour le rendu/ripple). Détecté précisément grâce aux logs de diagnostic ajoutés en 3.7.9.0 puis 3.7.10.0.
+
+---
+
 ## [3.7.10.0] — 2026-05-30
 
 ### Fixed

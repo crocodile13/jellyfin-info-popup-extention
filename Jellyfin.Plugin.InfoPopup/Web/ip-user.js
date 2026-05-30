@@ -105,9 +105,13 @@
         var header = document.createElement('div');
         header.className = 'ip-user-overlay-header';
 
-        // Bouton retour : on réutilise le composant natif Jellyfin `paper-icon-button-light`
-        // (même rendu/ripple que le bouton retour de l'en-tête) au lieu d'un bouton custom.
-        var backBtn = document.createElement('button', { is: 'paper-icon-button-light' });
+        // Bouton retour : on réutilise les CLASSES Jellyfin natives (`paper-icon-button-light`
+        // pour le ripple et le style circulaire) MAIS sans passer par le mécanisme « customized
+        // built-in element » : `createElement('button', { is: '…' })` plante côté Jellyfin 10.11
+        // parce que son polyfill `webcomponents.js` attend l'ancienne API string et appelle
+        // `.toLowerCase()` sur le 2e argument → `TypeError: t.toLowerCase is not a function`
+        // (corrigé en v3.7.11.0). Un `<button>` plain avec la classe suffit pour le rendu.
+        var backBtn = document.createElement('button');
         backBtn.classList.add('paper-icon-button-light', 'ip-user-overlay-back');
         backBtn.type = 'button';
         backBtn.title = t('user_page_back');
