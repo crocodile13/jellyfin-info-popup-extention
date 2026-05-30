@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "3.7.9.0",
+        "changelog": "Fixed\n- Overlay « Messages » invisible côté admin — le .ip-user-overlay était en z-index:9998, en dessous des dialogues ~10000+ de certaines pages d'administration Jellyfin → clic capté, showUserPage() exécuté, mais overlay masqué par la page admin. Aligné sur les autres overlays du plugin (99998).\nAdded\n- Logs de diagnostic clic / showUserPage — ajoutés temporairement pour identifier la cause si le problème persiste sur d'autres configurations (à supprimer plus tard).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v3.7.9.0/infopopup_3.7.9.0.zip",
+        "checksum": "43e2af139c2df7a4282bd882ca528b29",
+        "timestamp": "2026-05-30T00:22:52Z"
+      },
+      {
         "version": "3.7.8.0",
         "changelog": "Fixed\n- Clic sur « Messages » sans effet (3.7.7.0 incomplet) — le <a href=\"#\"> déclenchait le routeur Jellyfin et un hashchange synchrone qui refermait l'overlay juste après son ouverture. Le <a> n'a plus de href (role=\"button\" + tabindex=\"0\") ; l'enregistrement des listeners hashchange/popstate de l'overlay est différé d'un setTimeout(0) pour ignorer toute navigation synchrone provoquée par le clic. Délégation clic doublée sur window en plus de document pour résister aux routeurs Jellyfin qui captent au niveau document.",
         "targetAbi": "10.11.0.0",
