@@ -34,6 +34,14 @@ This extension was almost entirely vibe-coded by Claude. That's intentional: I s
 
 ---
 
+# ⚠️ Warning
+
+This extension is not very stable yet.
+
+It works for broadcasting popups, but the more advanced features related to responses and granular permission management are not stable yet and may not work as expected.
+
+---
+
 ## Preview
 
 ![Preview 1](images/image1.png)
