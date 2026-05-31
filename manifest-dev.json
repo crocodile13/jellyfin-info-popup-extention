@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "4.0.2.0",
+        "changelog": "Fixed\n- Auto-recovery from cached pre-install index.html (third and final fix for the long-running first-load UI bug). v3.8.9.0 (Cache-Control: no-cache) and v4.0.1.0 (inline retry loader for client.js) both addressed real bug paths but couldn't fully solve the underlying issue: when the browser already has a cached index.html from BEFORE the plugin install, the cached HTML simply has no <script> tag to inject. No server-side change can rewrite a cached response that already exists in the user's browser. Confirmed against multiple Jellyfin plugin discussions (issue jellyfin/jellyfin-web#5494, #4549) — this is a known cross-plugin platform issue, and every other JS-injection plugin tells users \"refresh after install\" in their README. New approach: configurationpage.html itself now embeds a tiny inline bootstrap that checks for window.__IP after 2 s and, if missing, force-reloads the page once via window.location.reload() (guarded by sessionStorage.ipBootstrapReloadAttempted to prevent loops). The reload revalidates against the server (helped by the v3.8.9.0 Cache-Control headers), which serves the latest HTML with the v4.0.1.0 retry loader. User sees a brief page refresh on the config page instead of a permanently broken UI. The hard refresh is no longer required for any normal install/update path.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v4.0.2.0-dev/infopopup_4.0.2.0-dev.zip",
+        "checksum": "be976ca0404eaea7841f0f03f715fce7",
+        "timestamp": "2026-05-31T12:36:37Z"
+      },
+      {
         "version": "4.0.1.0",
         "changelog": "Fixed\n- Plugin UI broken after first install until hard refresh (real root cause, follow-up to v4.0.0.0's partial Cache-Control fix) — when the plugin is installed Jellyfin restarts to load the DLL, returning 503 on every request for ~5–30 s. If the browser tries to fetch /InfoPopup/client.js during that window, it gets a 503 and the <script> tag is marked as failed: browsers do NOT retry script loads on transient errors. Result: no plugin JS runs → no CSS injected → toolbar buttons stay white until Ctrl+Shift+R. The previous Cache-Control: no-cache fix helped HTML revalidation but didn't address the actual race. ScriptInjectionMiddleware now injects a tiny inline loader instead of a plain <script src> — it retries the client.js fetch up to 5 total attempts (initial + 4 retries) with backoff (500 ms, 1 s, 1.5 s, 2 s, ~5 s total) on network/5xx errors. Covers normal post-install boot times. Fresh installs now land on a working UI immediately, no hard refresh required.",
         "targetAbi": "10.11.0.0",
