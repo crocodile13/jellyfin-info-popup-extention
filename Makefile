@@ -43,7 +43,6 @@
 
 GITHUB_USER   ?= VOTRE_COMPTE_GITHUB
 GITHUB_REPO   ?= jellyfin-info-popup-extention
-BRANCH        ?= main
 
 PLUGIN_NAME   := Jellyfin.Plugin.InfoPopup
 PROJECT_DIR   := $(PLUGIN_NAME)
@@ -52,6 +51,37 @@ SLN_FILE      := $(PLUGIN_NAME).sln
 DIST_DIR      := dist
 SCRIPTS_DIR   := scripts
 
+# ---------------------------------------------------------------------------
+# CHANNEL — sélection dev vs stable (v3.8.9.0)
+# ---------------------------------------------------------------------------
+# Par défaut TOUT cible la branche `dev` et `manifest-dev.json` (channel dev).
+# Pour cibler le channel stable : passer `STABLE=1` en argument :
+#
+#     make release-patch              # → release dev (par défaut)
+#     make release-patch STABLE=1     # → release stable (rare, normalement via promote)
+#     make promote VERSION=3.8.10.0   # → promeut une dev en stable proprement
+#
+# Le default-dev protège contre les release accidentelles en stable :
+# pour shipper en stable il faut un acte intentionnel (STABLE=1 ou promote).
+# ---------------------------------------------------------------------------
+CHANNEL := $(if $(filter 1,$(STABLE)),stable,dev)
+
+ifeq ($(CHANNEL),stable)
+    BRANCH              := main
+    MANIFEST_FILE       := manifest.json
+    TAG_SUFFIX          :=
+    ZIP_SUFFIX          :=
+    GH_PRERELEASE_FLAG  :=
+    CHANNEL_LABEL       := stable
+else
+    BRANCH              := dev
+    MANIFEST_FILE       := manifest-dev.json
+    TAG_SUFFIX          := -dev
+    ZIP_SUFFIX          := -dev
+    GH_PRERELEASE_FLAG  := --prerelease
+    CHANNEL_LABEL       := DEV
+endif
+
 # Lecture de la version depuis version.json (requiert jq)
 VERSION_MAJOR := $(shell jq -r '.major' version.json)
 VERSION_MINOR := $(shell jq -r '.minor' version.json)
@@ -59,10 +89,11 @@ VERSION_PATCH := $(shell jq -r '.patch' version.json)
 TARGET_ABI    := $(shell jq -r '.targetAbi' version.json)
 
 VERSION       := $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).0
-ZIP_NAME      := infopopup_$(VERSION).zip
+GIT_TAG       := v$(VERSION)$(TAG_SUFFIX)
+ZIP_NAME      := infopopup_$(VERSION)$(ZIP_SUFFIX).zip
 ZIP_PATH      := $(DIST_DIR)/$(ZIP_NAME)
 
-RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/v$(VERSION)/$(ZIP_NAME)
+RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$(ZIP_NAME)
 TIMESTAMP     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Détection MD5 (Linux: md5sum, macOS: md5 -q)
@@ -86,13 +117,18 @@ RESET := \033[0m
 help: ## Affiche cette aide
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)jellyfin-info-popup-extention$(RESET) — Plugin Jellyfin"
-	@printf "%b\n" "Version courante : $(BOLD)$(CYAN)$(VERSION)$(RESET)  |  targetAbi : $(TARGET_ABI)"
+	@printf "%b\n" "Version courante : $(BOLD)$(CYAN)$(VERSION)$(RESET)  |  targetAbi : $(TARGET_ABI)  |  Channel : $(BOLD)$(CYAN)$(CHANNEL_LABEL)$(RESET) ($(BRANCH))"
+	@printf "%b\n" ""
+	@printf "%b\n" "$(BOLD)── Channel ────────────────────────────────────────────────$(RESET)"
+	@printf "%b\n" "  Par défaut $(YELL)tout cible le channel DEV$(RESET) (branche dev, manifest-dev.json,"
+	@printf "%b\n" "  pre-release GitHub). Pour shipper en stable : utilisez $(BOLD)make promote$(RESET)."
+	@printf "%b\n" "  Override explicite : $(BOLD)STABLE=1$(RESET) (rare en dehors de promote)."
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)── Développement ───────────────────────────────────────────$(RESET)"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "help"          "Affiche cette aide"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "check"         "Vérifie que tous les outils requis sont installés"
-	@printf "  $(CYAN)%-22s$(RESET) %s\n" "version"       "Affiche la version courante et les URLs associées"
-	@printf "  $(CYAN)%-22s$(RESET) %s\n" "verify"        "Vérifie que le ZIP GitHub == checksum manifest"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "version"       "Affiche la version courante, channel, URLs"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "verify"        "Vérifie que le ZIP GitHub == checksum $(MANIFEST_FILE)"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "restore"       "Restaure les packages NuGet"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "build"         "Compile en mode Debug"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "build-release" "Compile en mode Release (sans ZIP)"
@@ -104,22 +140,21 @@ help: ## Affiche cette aide
 	@printf "  $(YELL)%-22s$(RESET) %s\n" "bump-minor"    "Incrémente le mineur : 1.0.0 → 1.1.0  (remet patch à 0)"
 	@printf "  $(YELL)%-22s$(RESET) %s\n" "bump-major"    "Incrémente le majeur : 1.0.0 → 2.0.0  (remet minor+patch à 0)"
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)── Git & GitHub (low-level) ────────────────────────────────$(RESET)"
-	@printf "  $(YELL)%-22s$(RESET) %s\n" "push"               "Commit tout + push sur origin/$(BRANCH)"
-	@printf "  $(YELL)%-22s$(RESET) %s\n" "tag"                "Crée et push le tag git v\$$(VERSION)"
-	@printf "  $(YELL)%-22s$(RESET) %s\n" "gh-release"         "Crée la GitHub Release + upload le ZIP"
-	@printf "  $(YELL)%-22s$(RESET) %s\n" "gh-release-upload"  "Re-upload le ZIP sur une release existante"
-	@printf "  $(YELL)%-22s$(RESET) %s\n" "manifest-update"    "Télécharge le ZIP GitHub, calcule MD5, met à jour manifest.json"
+	@printf "%b\n" "$(BOLD)── Workflows complets (channel-aware) ─────────────────────$(RESET)"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-patch"  "🚀 bump patch  → pack → push → tag → GH release → manifest"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-minor"  "🚀 bump minor  → idem"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-major"  "🚀 bump major  → idem"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-hotfix" "🔧 recompile   → re-upload ZIP → manifest  (même version, current channel)"
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)── Workflows complets ──────────────────────────────────────$(RESET)"
-	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-patch"  "🚀 bump patch  → pack → push → tag → upload ZIP → manifest → push"
-	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-minor"  "🚀 bump minor  → pack → push → tag → upload ZIP → manifest → push"
-	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-major"  "🚀 bump major  → pack → push → tag → upload ZIP → manifest → push"
-	@printf "  $(GREEN)%-22s$(RESET) %s\n" "release-hotfix" "🔧 recompile   → re-upload ZIP → manifest → push  (même version)"
+	@printf "%b\n" "$(BOLD)── Dev / Stable workflow ──────────────────────────────────$(RESET)"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "init-dev"   "🌱 Crée la branche dev (une seule fois, depuis main)"
+	@printf "  $(GREEN)%-22s$(RESET) %s\n" "promote"    "🎯 Promeut une dev en stable : VERSION_ARG=X.Y.Z.W requis"
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)── Dépôt Jellyfin ──────────────────────────────────────────$(RESET)"
-	@printf "%b\n" "  Ajouter cette URL dans Jellyfin → Extensions → Catalogues :"
-	@printf "%b\n" "  $(BOLD)$(CYAN)https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/$(BRANCH)/manifest.json$(RESET)"
+	@printf "%b\n" "$(BOLD)── Dépôts Jellyfin ────────────────────────────────────────$(RESET)"
+	@printf "%b\n" "  $(BOLD)Stable$(RESET) (production) :"
+	@printf "%b\n" "    $(CYAN)https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/main/manifest.json$(RESET)"
+	@printf "%b\n" "  $(BOLD)Dev$(RESET) (testeurs) :"
+	@printf "%b\n" "    $(CYAN)https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/dev/manifest-dev.json$(RESET)"
 	@printf "%b\n" ""
 
 # =============================================================================
@@ -146,17 +181,20 @@ check: ## Vérifie que tous les outils requis sont installés
 
 .PHONY: version
 version: ## Affiche la version courante
+	@printf "%b\n" "$(BOLD)Channel :$(RESET) $(CYAN)$(CHANNEL_LABEL)$(RESET)  $(BOLD)Branche :$(RESET) $(BRANCH)"
 	@printf "%b\n" "$(BOLD)Version :$(RESET) $(CYAN)$(VERSION)$(RESET)"
+	@printf "%b\n" "$(BOLD)Git tag :$(RESET) $(GIT_TAG)"
 	@printf "%b\n" "$(BOLD)targetAbi :$(RESET) $(TARGET_ABI)"
+	@printf "%b\n" "$(BOLD)Manifest :$(RESET) $(MANIFEST_FILE)"
 	@printf "%b\n" "$(BOLD)ZIP :$(RESET) $(ZIP_NAME)"
 	@printf "%b\n" "$(BOLD)Release URL :$(RESET) $(RELEASE_URL)"
 
 .PHONY: verify
-verify: ## Vérifie que le ZIP sur GitHub correspond au checksum dans manifest.json
-	@printf "%b\n" "$(BOLD)Vérification de cohérence release ↔ manifest...$(RESET)"
-	@MANIFEST_MD5=$$(jq -r '.[] | .versions[] | select(.version == "$(VERSION)") | .checksum' manifest.json); \
+verify: ## Vérifie que le ZIP sur GitHub correspond au checksum dans $(MANIFEST_FILE)
+	@printf "%b\n" "$(BOLD)Vérification de cohérence release ↔ $(MANIFEST_FILE)...$(RESET)"
+	@MANIFEST_MD5=$$(jq -r '.[] | .versions[] | select(.version == "$(VERSION)") | .checksum' $(MANIFEST_FILE)); \
 	if [ -z "$$MANIFEST_MD5" ]; then \
-		printf "%b\n" "$(RED)✗ Version $(VERSION) introuvable dans manifest.json$(RESET)"; exit 1; \
+		printf "%b\n" "$(RED)✗ Version $(VERSION) introuvable dans $(MANIFEST_FILE)$(RESET)"; exit 1; \
 	fi; \
 	printf "%b\n" "  Checksum manifest : $$MANIFEST_MD5"; \
 	printf "%b\n" "  Téléchargement de $(RELEASE_URL) ..."; \
@@ -249,18 +287,20 @@ bump-major: ## Incrémente le majeur (1.0.0 → 2.0.0) — remet minor et patch 
 # =============================================================================
 
 .PHONY: manifest-update
-manifest-update: ## Télécharge le ZIP GitHub, calcule son MD5 réel, met à jour manifest.json
+manifest-update: ## Télécharge le ZIP GitHub, calcule son MD5 réel, met à jour $(MANIFEST_FILE)
 	@[ -f "$(ZIP_PATH)" ] || \
 		{ printf "%b\n" "$(RED)✗ ZIP local introuvable : $(ZIP_PATH) — lancez 'make pack' d'abord$(RESET)"; exit 1; }
-	@printf "%b\n" "$(BOLD)Mise à jour du manifest Jellyfin...$(RESET)"
+	@printf "%b\n" "$(BOLD)Mise à jour du manifest Jellyfin ($(MANIFEST_FILE))...$(RESET)"
 	@bash $(SCRIPTS_DIR)/update_manifest.sh \
 		"$(VERSION)" \
 		"$(TARGET_ABI)" \
 		"$(RELEASE_URL)" \
 		"$(TIMESTAMP)" \
 		"$(GITHUB_USER)" \
-		"$(GITHUB_REPO)"
-	@printf "%b\n" "$(GREEN)✓ manifest.json mis à jour$(RESET)"
+		"$(GITHUB_REPO)" \
+		"$(MANIFEST_FILE)" \
+		"$(CHANNEL)"
+	@printf "%b\n" "$(GREEN)✓ $(MANIFEST_FILE) mis à jour$(RESET)"
 
 # =============================================================================
 # GIT & GITHUB
@@ -270,53 +310,54 @@ manifest-update: ## Télécharge le ZIP GitHub, calcule son MD5 réel, met à jo
 COMMIT_MSG ?= chore: version $(VERSION)
 
 .PHONY: push
-push: ## Commit les changements locaux et push sur origin/main  [MSG="..." pour message custom]
-	@printf "%b\n" "$(BOLD)Push vers origin/$(BRANCH)...$(RESET)"
+push: ## Commit les changements locaux et push sur origin/$(BRANCH)  [MSG="..." pour message custom]
+	@printf "%b\n" "$(BOLD)Push vers origin/$(BRANCH) ($(CHANNEL_LABEL))...$(RESET)"
 	git add -A
 	git diff --cached --quiet && \
 		printf "%b\n" "$(YELL)Rien à committer$(RESET)" || \
 		git commit -m "$(if $(MSG),$(MSG),$(COMMIT_MSG))"
 	git push origin $(BRANCH)
-	@printf "%b\n" "$(GREEN)✓ Push effectué$(RESET)"
+	@printf "%b\n" "$(GREEN)✓ Push effectué sur origin/$(BRANCH)$(RESET)"
 
 .PHONY: tag
-tag: ## Crée et push le tag git v$(VERSION) (échoue si le tag existe déjà)
-	@if git ls-remote --tags origin | grep -q "refs/tags/v$(VERSION)$$"; then \
-		printf "%b\n" "$(RED)✗ Le tag v$(VERSION) existe déjà sur origin$(RESET)"; \
+tag: ## Crée et push le tag git $(GIT_TAG) (échoue si le tag existe déjà)
+	@if git ls-remote --tags origin | grep -q "refs/tags/$(GIT_TAG)$$"; then \
+		printf "%b\n" "$(RED)✗ Le tag $(GIT_TAG) existe déjà sur origin$(RESET)"; \
 		printf "%b\n" "  → Pour corriger une release existante : make release-hotfix"; exit 1; \
 	fi
-	@printf "%b\n" "$(BOLD)Création du tag v$(VERSION)...$(RESET)"
-	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
-	git push origin "v$(VERSION)"
-	@printf "%b\n" "$(GREEN)✓ Tag v$(VERSION) créé et poussé$(RESET)"
+	@printf "%b\n" "$(BOLD)Création du tag $(GIT_TAG)...$(RESET)"
+	git tag -a "$(GIT_TAG)" -m "Release $(GIT_TAG) ($(CHANNEL_LABEL))"
+	git push origin "$(GIT_TAG)"
+	@printf "%b\n" "$(GREEN)✓ Tag $(GIT_TAG) créé et poussé$(RESET)"
 
 .PHONY: gh-release
 gh-release: ## Crée la GitHub Release et upload le ZIP (échoue si la release existe)
 	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH)$(RESET)"; exit 1; }
-	@printf "%b\n" "$(BOLD)Création de la GitHub Release v$(VERSION)...$(RESET)"
-	@NOTES=$$(bash $(SCRIPTS_DIR)/extract_changelog.sh "$(VERSION)" 2>/dev/null || echo "Release v$(VERSION)"); \
-	gh release create "v$(VERSION)" \
+	@printf "%b\n" "$(BOLD)Création de la GitHub Release $(GIT_TAG) ($(CHANNEL_LABEL))...$(RESET)"
+	@NOTES=$$(bash $(SCRIPTS_DIR)/extract_changelog.sh "$(VERSION)" 2>/dev/null || echo "Release $(GIT_TAG)"); \
+	gh release create "$(GIT_TAG)" \
 		"$(ZIP_PATH)#$(ZIP_NAME)" \
 		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
-		--title "v$(VERSION)" \
-		--notes "$$NOTES"
-	@printf "%b\n" "$(GREEN)✓ GitHub Release v$(VERSION) créée avec le ZIP$(RESET)"
+		--title "$(GIT_TAG)" \
+		--notes "$$NOTES" \
+		$(GH_PRERELEASE_FLAG)
+	@printf "%b\n" "$(GREEN)✓ GitHub Release $(GIT_TAG) créée avec le ZIP$(RESET)"
 
 .PHONY: gh-release-upload
 gh-release-upload: ## Re-upload le ZIP sur une GitHub Release existante (supprime l'asset pour invalider le cache CDN)
 	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH)$(RESET)"; exit 1; }
-	@printf "%b\n" "$(BOLD)Re-upload du ZIP sur la release v$(VERSION)...$(RESET)"
+	@printf "%b\n" "$(BOLD)Re-upload du ZIP sur la release $(GIT_TAG)...$(RESET)"
 	@printf "%b\n" "  Suppression de l'ancien asset (invalide le cache CDN GitHub)..."
-	@gh release delete-asset "v$(VERSION)" "$(ZIP_NAME)" \
+	@gh release delete-asset "$(GIT_TAG)" "$(ZIP_NAME)" \
 		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
 		--yes 2>/dev/null && \
 		printf "%b\n" "  $(GREEN)✓ Ancien asset supprimé$(RESET)" || \
 		printf "%b\n" "  $(YELL)⚠ Aucun asset existant à supprimer$(RESET)"
 	@printf "%b\n" "  Upload du nouveau ZIP..."
-	gh release upload "v$(VERSION)" \
+	gh release upload "$(GIT_TAG)" \
 		"$(ZIP_PATH)#$(ZIP_NAME)" \
 		--repo "$(GITHUB_USER)/$(GITHUB_REPO)"
-	@printf "%b\n" "$(GREEN)✓ ZIP re-uploadé sur la release v$(VERSION)$(RESET)"
+	@printf "%b\n" "$(GREEN)✓ ZIP re-uploadé sur la release $(GIT_TAG)$(RESET)"
 
 # =============================================================================
 # WORKFLOWS COMPLETS DE RELEASE
@@ -358,27 +399,79 @@ release-major: check ## 🚀 Release majeure complète (bump + pack + upload + m
 
 .PHONY: release-current
 release-current: check ## 🚀 Release la version courante SANS bump (version.json tel quel)
-	@printf "%b\n" "$(BOLD)$(GREEN)═══ RELEASE v$(VERSION) (sans bump) ═══$(RESET)"
+	@printf "%b\n" "$(BOLD)$(GREEN)═══ RELEASE $(GIT_TAG) ($(CHANNEL_LABEL)) sans bump ═══$(RESET)"
 	@printf "%b\n" "  Utilise la version courante de version.json sans l'incrémenter."
 	$(MAKE) _do-release
 
+# =============================================================================
+# WORKFLOW DEV/STABLE — v3.8.9.0
+# =============================================================================
+
+.PHONY: init-dev
+init-dev: ## 🌱 Crée la branche dev locale + remote (à lancer une seule fois)
+	@printf "%b\n" "$(BOLD)Initialisation de la branche dev...$(RESET)"
+	@if git show-ref --verify --quiet refs/heads/dev; then \
+		printf "%b\n" "$(YELL)⚠ La branche dev existe déjà localement$(RESET)"; \
+	else \
+		git checkout -b dev; \
+		printf "%b\n" "$(GREEN)✓ Branche dev créée localement$(RESET)"; \
+	fi
+	@if git ls-remote --heads origin dev | grep -q dev; then \
+		printf "%b\n" "$(YELL)⚠ La branche dev existe déjà sur origin$(RESET)"; \
+	else \
+		git push -u origin dev; \
+		printf "%b\n" "$(GREEN)✓ Branche dev poussée sur origin$(RESET)"; \
+	fi
+	@printf "%b\n" ""
+	@printf "%b\n" "$(BOLD)Désormais :$(RESET)"
+	@printf "%b\n" "  • Toutes les release par défaut visent dev (make release-patch)"
+	@printf "%b\n" "  • Pour promouvoir : make promote VERSION=X.Y.Z.W"
+
+.PHONY: promote
+promote: check ## 🎯 Promeut une dev en stable [VERSION=X.Y.Z.W requis]
+	@[ -n "$(VERSION_ARG)" ] || \
+		{ printf "%b\n" "$(RED)✗ Usage : make promote VERSION_ARG=X.Y.Z.W (ex: VERSION_ARG=4.0.0.0)$(RESET)"; exit 1; }
+	@printf "%b\n" "$(BOLD)$(GREEN)═══ PROMOTE v$(VERSION_ARG)-dev → v$(VERSION_ARG) (stable) ═══$(RESET)"
+	@printf "%b\n" "  Étape 1/4 : vérifier que la dev release existe..."
+	@gh release view "v$(VERSION_ARG)-dev" --repo "$(GITHUB_USER)/$(GITHUB_REPO)" >/dev/null 2>&1 || \
+		{ printf "%b\n" "$(RED)✗ La release v$(VERSION_ARG)-dev n'existe pas sur GitHub$(RESET)"; exit 1; }
+	@printf "%b\n" "  $(GREEN)✓ v$(VERSION_ARG)-dev trouvée$(RESET)"
+	@printf "%b\n" "  Étape 2/4 : switch sur main + fast-forward depuis le tag dev..."
+	git fetch origin
+	git checkout main
+	git merge --ff-only "v$(VERSION_ARG)-dev" || \
+		{ printf "%b\n" "$(RED)✗ main a divergé — résolvez manuellement (rebase/merge), puis re-promotez$(RESET)"; exit 1; }
+	@printf "%b\n" "  $(GREEN)✓ main mis à jour$(RESET)"
+	@printf "%b\n" "  Étape 3/4 : forcer version.json à $(VERSION_ARG)..."
+	@printf '{\n  "major": %s,\n  "minor": %s,\n  "patch": %s,\n  "targetAbi": "%s"\n}\n' \
+		$$(echo "$(VERSION_ARG)" | cut -d. -f1) \
+		$$(echo "$(VERSION_ARG)" | cut -d. -f2) \
+		$$(echo "$(VERSION_ARG)" | cut -d. -f3) \
+		"$(TARGET_ABI)" > version.json
+	@printf "%b\n" "  Étape 4/4 : rebuild propre + release stable..."
+	$(MAKE) release-current STABLE=1
+	@printf "%b\n" ""
+	@printf "%b\n" "$(BOLD)$(GREEN)✓ v$(VERSION_ARG) promue en stable !$(RESET)"
+	@printf "%b\n" "  N'oubliez pas de revenir sur dev : git checkout dev"
+
 .PHONY: release-hotfix
-release-hotfix: check ## 🔧 Recompile + re-upload le ZIP sans changer de version
-	@printf "%b\n" "$(BOLD)$(YELL)═══ RELEASE HOTFIX v$(VERSION) ═══$(RESET)"
+release-hotfix: check _check-branch ## 🔧 Recompile + re-upload le ZIP sans changer de version (current channel)
+	@printf "%b\n" "$(BOLD)$(YELL)═══ RELEASE HOTFIX $(GIT_TAG) ($(CHANNEL_LABEL)) ═══$(RESET)"
 	@printf "%b\n" "  Recompile et remplace le ZIP sur la release existante."
 	$(MAKE) _reload-version
-	$(MAKE) pack \
+	$(MAKE) pack STABLE=$(STABLE) \
 		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
-	$(MAKE) gh-release-upload \
-		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
-	$(MAKE) manifest-update \
+	$(MAKE) gh-release-upload STABLE=$(STABLE) \
+		VERSION=$(VERSION) GIT_TAG=$(GIT_TAG) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
+	$(MAKE) manifest-update STABLE=$(STABLE) \
 		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
-		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP)
-	$(MAKE) verify
-	$(MAKE) push
+		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP) \
+		MANIFEST_FILE=$(MANIFEST_FILE)
+	$(MAKE) verify STABLE=$(STABLE)
+	$(MAKE) push STABLE=$(STABLE)
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)$(GREEN)✓ Hotfix v$(VERSION) appliqué$(RESET)"
-	@printf "%b\n" "  Manifest et ZIP GitHub sont maintenant synchronisés."
+	@printf "%b\n" "$(BOLD)$(GREEN)✓ Hotfix $(GIT_TAG) appliqué$(RESET)"
+	@printf "%b\n" "  $(MANIFEST_FILE) et ZIP GitHub sont maintenant synchronisés."
 	@printf "%b\n" "  Rafraîchissez le dépôt dans Jellyfin puis réinstallez."
 
 # Cible interne — recharge les variables depuis version.json après un bump
@@ -389,28 +482,41 @@ _reload-version:
 	$(eval VERSION_MINOR := $(shell jq -r '.minor' version.json))
 	$(eval VERSION_PATCH := $(shell jq -r '.patch' version.json))
 	$(eval TARGET_ABI    := $(shell jq -r '.targetAbi' version.json))
-	$(eval ZIP_NAME      := infopopup_$(VERSION).zip)
+	$(eval GIT_TAG       := v$(VERSION)$(TAG_SUFFIX))
+	$(eval ZIP_NAME      := infopopup_$(VERSION)$(ZIP_SUFFIX).zip)
 	$(eval ZIP_PATH      := $(DIST_DIR)/$(ZIP_NAME))
-	$(eval RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/v$(VERSION)/$(ZIP_NAME))
+	$(eval RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$(ZIP_NAME))
 	$(eval TIMESTAMP     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ"))
+
+# Garde-fou : refuse de release dans le mauvais channel/branche.
+# Ex : `make release-patch` (dev par défaut) lancé depuis main → erreur explicite.
+.PHONY: _check-branch
+_check-branch:
+	@CURRENT=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$CURRENT" != "$(BRANCH)" ]; then \
+		printf "%b\n" "$(RED)✗ Branche actuelle ($$CURRENT) ≠ branche cible du channel $(CHANNEL_LABEL) ($(BRANCH))$(RESET)"; \
+		printf "%b\n" "  → Soit checkout $(BRANCH) avant, soit utilisez $(if $(filter dev,$(CHANNEL)),'make release-patch STABLE=1','make release-patch' sans STABLE)"; \
+		exit 1; \
+	fi
 
 # Cible interne — ne pas appeler directement
 .PHONY: _do-release
-_do-release: _reload-version
-	@printf "%b\n" "$(BOLD)Version cible : $(CYAN)$(VERSION)$(RESET)"
+_do-release: _check-branch _reload-version
+	@printf "%b\n" "$(BOLD)Channel : $(CYAN)$(CHANNEL_LABEL)$(RESET)  Branche : $(BRANCH)  Version cible : $(CYAN)$(VERSION)$(RESET)"
 	$(MAKE) pack \
 		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
-	$(MAKE) push
-	$(MAKE) tag \
-		VERSION=$(VERSION)
-	$(MAKE) gh-release \
-		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
-	$(MAKE) manifest-update \
+	$(MAKE) push STABLE=$(STABLE)
+	$(MAKE) tag STABLE=$(STABLE) \
+		VERSION=$(VERSION) GIT_TAG=$(GIT_TAG)
+	$(MAKE) gh-release STABLE=$(STABLE) \
+		VERSION=$(VERSION) GIT_TAG=$(GIT_TAG) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
+	$(MAKE) manifest-update STABLE=$(STABLE) \
 		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
-		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP)
-	$(MAKE) verify
-	$(MAKE) push
+		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP) \
+		MANIFEST_FILE=$(MANIFEST_FILE)
+	$(MAKE) verify STABLE=$(STABLE)
+	$(MAKE) push STABLE=$(STABLE)
 	@printf "%b\n" ""
-	@printf "%b\n" "$(BOLD)$(GREEN)✓ Release v$(VERSION) publiée avec succès !$(RESET)"
-	@printf "%b\n" "  GitHub  : https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/tag/v$(VERSION)"
-	@printf "%b\n" "  Jellyfin: https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/$(BRANCH)/manifest.json"
+	@printf "%b\n" "$(BOLD)$(GREEN)✓ Release $(GIT_TAG) ($(CHANNEL_LABEL)) publiée avec succès !$(RESET)"
+	@printf "%b\n" "  GitHub  : https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/tag/$(GIT_TAG)"
+	@printf "%b\n" "  Jellyfin: https://raw.githubusercontent.com/$(GITHUB_USER)/$(GITHUB_REPO)/$(BRANCH)/$(MANIFEST_FILE)"

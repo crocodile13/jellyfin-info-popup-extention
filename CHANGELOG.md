@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [3.8.9.0] — 2026-05-31
 
+### Changed
+- **Two-channel release workflow (dev / stable)** — `make` targets are now channel-aware. By default every `release-*` operates on the `dev` branch, tags with `-dev` suffix, ZIPs as `infopopup_X.Y.Z.W-dev.zip`, creates GitHub pre-releases, updates `manifest-dev.json`. To ship stable: `make promote VERSION_ARG=X.Y.Z.W` (fast-forwards `main` to the dev tag's commit, rebuilds clean, tags `vX.Y.Z.W`, updates `manifest.json`). New targets: `init-dev` (one-shot setup), `promote`. Override flag: `STABLE=1` on any release target.
+
 ### Fixed
 - **First-load styling glitch after a fresh install** — when the plugin was installed while a browser tab on Jellyfin was already open (very common scenario: admin installs the plugin from the dashboard and switches back to the regular UI), the browser kept serving its cached `index.html` from **before** the plugin's `<script src="/InfoPopup/client.js">` was added by `ScriptInjectionMiddleware`. Result: no plugin script loaded → no styles injected → toolbar buttons rendered with default browser white background. Required a hard refresh (`Ctrl+Shift+R`) to recover. The middleware now sets `Cache-Control: no-cache, must-revalidate` + `Pragma: no-cache` on its modified responses, so a normal browser reload (`F5`) is enough; the hard refresh is no longer needed (issue #2).
 

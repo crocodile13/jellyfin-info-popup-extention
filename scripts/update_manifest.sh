@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
-# update_manifest.sh — Ajoute une nouvelle entrée dans manifest.json
+# update_manifest.sh — Ajoute une nouvelle entrée dans un manifest Jellyfin
 #
 # Usage :
-#   bash update_manifest.sh VERSION TARGET_ABI RELEASE_URL TIMESTAMP GITHUB_USER GITHUB_REPO
+#   bash update_manifest.sh VERSION TARGET_ABI RELEASE_URL TIMESTAMP \
+#                          GITHUB_USER GITHUB_REPO [MANIFEST_FILE] [CHANNEL]
+#
+#   MANIFEST_FILE : par défaut "manifest.json" (canal stable). Passer
+#                   "manifest-dev.json" pour le canal dev (v3.8.9.0).
+#   CHANNEL       : "stable" (défaut) ou "dev". En "dev", le nom du plugin
+#                   est suffixé " (Dev)" pour le distinguer dans le catalogue
+#                   Jellyfin si un user a ajouté les deux dépôts.
 #
 # Le checksum MD5 est calculé depuis le ZIP téléchargé sur GitHub Releases
 # via gh_checksum.sh — c'est ce que Jellyfin téléchargera et vérifiera.
@@ -21,10 +28,19 @@ RELEASE_URL="$3"
 TIMESTAMP="$4"
 GITHUB_USER="$5"
 GITHUB_REPO="$6"
+MANIFEST_FILE="${7:-manifest.json}"
+CHANNEL="${8:-stable}"
 
-MANIFEST_FILE="manifest.json"
 CHANGELOG_FILE="CHANGELOG.md"
 SCRIPTS_DIR="$(dirname "$0")"
+
+# Suffixe le nom dans le manifest dev pour éviter la confusion dans le
+# catalogue Jellyfin si un user a ajouté les deux dépôts simultanément.
+if [ "$CHANNEL" = "dev" ]; then
+    PLUGIN_NAME_DISPLAY="Info Popup (Dev)"
+else
+    PLUGIN_NAME_DISPLAY="Info Popup"
+fi
 
 # ---------------------------------------------------------------------------
 # Calcul du checksum depuis GitHub (source de vérité pour Jellyfin)
@@ -111,7 +127,7 @@ if [ -z "$PLUGIN_GUID" ]; then
     # Premier build : créer la structure complète
     jq -n \
         --arg guid        "ceeb3040-9fe5-451f-ac05-8587ea3c3718" \
-        --arg name        "Info Popup" \
+        --arg name        "$PLUGIN_NAME_DISPLAY" \
         --arg description "Permet aux administrateurs de diffuser des messages popup aux utilisateurs lors de leur connexion." \
         --arg overview    "Messages popup pour les utilisateurs Jellyfin" \
         --arg owner       "$GITHUB_USER" \
