@@ -110,6 +110,66 @@ public class SeenTrackerService
     }
 
     /// <summary>
+    /// Efface tous les accusés de lecture (v3.8.7.0). Utilisé par l'action admin
+    /// « Vider les accusés de lecture ». Le fichier est remis à zéro mais conservé.
+    /// </summary>
+    /// <returns>Nombre d'enregistrements (utilisateurs) supprimés.</returns>
+    public int ClearAll()
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var store = ReadStore();
+            var count = store.Records.Count;
+            if (count == 0) return 0;
+            var fresh = new SeenStore();
+            WriteStore(fresh);
+            _logger.LogInformation("InfoPopup: {Count} accusé(s) de lecture effacé(s)", count);
+            return count;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    /// <summary>
+    /// Retourne, pour les messageIds donnés, le Set des UserIds (claim brut, non normalisé)
+    /// ayant vu chaque message. Lookup en O(N_records · M_seenPerRecord) au lieu de
+    /// N_messages requêtes séparées. Utilisé par la vue admin « accusés de lecture »
+    /// (v3.8.6.0).
+    /// </summary>
+    /// <returns>
+    /// Dictionnaire MessageId → HashSet&lt;UserId&gt;. Les messages sans aucun lecteur ne sont
+    /// PAS dans le résultat (le caller doit traiter l'absence comme « 0 lecture »).
+    /// </returns>
+    public Dictionary<string, HashSet<string>> GetSeenUsersByMessage(IEnumerable<string> messageIds)
+    {
+        var msgIdSet = new HashSet<string>(messageIds);
+        var result = new Dictionary<string, HashSet<string>>();
+        if (msgIdSet.Count == 0) return result;
+
+        _lock.EnterReadLock();
+        try
+        {
+            var store = ReadStore();
+            foreach (var record in store.Records)
+            {
+                if (string.IsNullOrEmpty(record.UserId)) continue;
+                foreach (var seenId in record.SeenMessageIds)
+                {
+                    if (!msgIdSet.Contains(seenId)) continue;
+                    if (!result.TryGetValue(seenId, out var users))
+                    {
+                        users = new HashSet<string>();
+                        result[seenId] = users;
+                    }
+                    users.Add(record.UserId);
+                }
+            }
+        }
+        finally { _lock.ExitReadLock(); }
+        return result;
+    }
+
+    /// <summary>
     /// Marque des messages comme vus. Nettoie les orphelins (messages supprimés) de façon paresseuse.
     /// Optim v3.8.5.0 : conversion du `SeenMessageIds` existant en HashSet pour rendre l'union
     /// et le test d'unicité O(1) au lieu d'un `Contains` linéaire par ID ajouté.

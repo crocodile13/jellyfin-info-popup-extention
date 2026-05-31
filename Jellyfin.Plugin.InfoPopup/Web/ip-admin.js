@@ -60,6 +60,105 @@
         toastTimer = setTimeout(function () { el.style.display = 'none'; }, 4000);
     }
 
+    /**
+     * Affiche la modal « Lectures — {titre} » : deux listes (vu / pas vu) servies par
+     * GET /InfoPopup/messages/{id}/views (admin uniquement). v3.8.6.0.
+     */
+    function openViewsModal(messageId, messageTitle) {
+        ns.injectStyles();
+        var backdrop = document.createElement('div');
+        backdrop.className = 'ip-views-backdrop';
+        var box = document.createElement('div');
+        box.className = 'ip-views-box';
+
+        var close = function () { backdrop.remove(); document.removeEventListener('keydown', onKey); };
+        var onKey = function (e) { if (e.key === 'Escape') close(); };
+        document.addEventListener('keydown', onKey);
+
+        box.innerHTML =
+            '<div class="ip-views-header">' +
+                '<h4 class="ip-views-title">' + escHtml(t('views_modal_title', messageTitle)) + '</h4>' +
+                '<button type="button" class="ip-views-close" aria-label="' + escHtml(t('views_close')) + '">×</button>' +
+            '</div>' +
+            '<div class="ip-views-body"><p style="opacity:.55">' + escHtml(t('views_loading')) + '</p></div>';
+        backdrop.appendChild(box);
+        document.body.appendChild(backdrop);
+
+        box.querySelector('.ip-views-close').addEventListener('click', close);
+        backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
+
+        var bodyEl = box.querySelector('.ip-views-body');
+        apiFetch('/InfoPopup/messages/' + encodeURIComponent(messageId) + '/views')
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                var seenUsers   = data.seenUsers   || data.SeenUsers   || [];
+                var unseenUsers = data.unseenUsers || data.UnseenUsers || [];
+                var targetsAll  = data.targetsAllUsers !== undefined ? data.targetsAllUsers
+                                : (data.TargetsAllUsers !== undefined ? data.TargetsAllUsers : false);
+                var total = seenUsers.length + unseenUsers.length;
+
+                bodyEl.innerHTML = '';
+
+                if (targetsAll) {
+                    var allLbl = document.createElement('div');
+                    allLbl.className = 'ip-views-targets-all';
+                    allLbl.textContent = t('views_targets_all');
+                    bodyEl.appendChild(allLbl);
+                }
+
+                // Section « Vu »
+                var seenH = document.createElement('h5');
+                seenH.className = 'ip-views-section-h ip-views-section-seen';
+                seenH.textContent = t('views_seen_label', seenUsers.length, total);
+                bodyEl.appendChild(seenH);
+                if (!seenUsers.length) {
+                    var emptyS = document.createElement('p');
+                    emptyS.className = 'ip-views-empty';
+                    emptyS.textContent = t('views_empty_seen');
+                    bodyEl.appendChild(emptyS);
+                } else {
+                    bodyEl.appendChild(renderUserList(seenUsers));
+                }
+
+                // Section « Pas vu »
+                var unseenH = document.createElement('h5');
+                unseenH.className = 'ip-views-section-h ip-views-section-unseen';
+                unseenH.textContent = t('views_unseen_label', unseenUsers.length);
+                bodyEl.appendChild(unseenH);
+                if (!unseenUsers.length) {
+                    var emptyU = document.createElement('p');
+                    emptyU.className = 'ip-views-empty';
+                    emptyU.textContent = t('views_empty_unseen');
+                    bodyEl.appendChild(emptyU);
+                } else {
+                    bodyEl.appendChild(renderUserList(unseenUsers));
+                }
+            })
+            .catch(function () {
+                bodyEl.innerHTML = '<p style="color:#cf6679">' + escHtml(t('views_err')) + '</p>';
+            });
+    }
+
+    function renderUserList(users) {
+        var ul = document.createElement('ul');
+        ul.className = 'ip-views-user-list';
+        users.forEach(function (u) {
+            var name    = u.userName || u.UserName || u.userId || u.UserId || '';
+            var isAdmin = u.isAdmin !== undefined ? u.isAdmin : (u.IsAdmin || false);
+            var li = document.createElement('li');
+            li.className = 'ip-views-user';
+            li.textContent = name;
+            if (isAdmin) {
+                var badge = document.createElement('span');
+                badge.className = 'ip-role-badge ip-role-badge-admin';
+                badge.textContent = t('role_admin');
+                li.appendChild(badge);
+            }
+            ul.appendChild(li);
+        });
+        return ul;
+    }
+
     function showConfirm(msg) {
         ns.injectStyles();
         return new Promise(function (resolve) {
@@ -348,6 +447,7 @@
             ' <span style="opacity:.45;font-size:.8rem;font-weight:400">' + escHtml(t('tbl_col_title_hint')) + '</span></th>' +
             '<th class="ip-col-target">' + escHtml(t('tbl_col_recipients')) + '</th>' +
             '<th class="ip-col-date">' + escHtml(t('tbl_col_date')) + '</th>' +
+            '<th class="ip-col-views">' + escHtml(t('tbl_col_views')) + '</th>' +
             '<th class="ip-col-actions"></th>' +
             '</tr></thead>' +
             '<tbody id="ip-tbody"></tbody>';
@@ -361,9 +461,19 @@
             var targetUserIds = msg.targetUserIds || msg.TargetUserIds || [];
             var isDeleted     = msg.isDeleted     || msg.IsDeleted     || false;
             var editCount     = msg.editHistoryCount || msg.EditHistoryCount || 0;
+            // v3.8.6.0 : compteurs « accusés de lecture » servis par le backend pour l'admin.
+            // Peuvent être undefined si l'endpoint n'a pas encore été redéployé (compat).
+            var seenCount     = msg.seenCount      !== undefined ? msg.seenCount
+                              : (msg.SeenCount     !== undefined ? msg.SeenCount : null);
+            var targetedCount = msg.targetedCount  !== undefined ? msg.targetedCount
+                              : (msg.TargetedCount !== undefined ? msg.TargetedCount : null);
 
             var tr = document.createElement('tr');
             tr.dataset.id = id;
+            // Index de recherche : titre + nom expéditeur + IDs cibles. Mis à jour à chaque
+            // render (puis consommé par le filtre client-side dans initSearchFilter). v3.8.6.0.
+            var sender = msg.sentByUserName || msg.SentByUserName || '';
+            tr.dataset.search = ((title + ' ' + sender) || '').toLowerCase();
             if (isDeleted) tr.classList.add('ip-msg-deleted');
 
             var targetBadge = targetUserIds.length === 0
@@ -381,6 +491,23 @@
                 titleBadges += '<span class="ip-msg-edited-badge">' + escHtml(t('msg_edited_label', editCount)) + '</span>';
             }
 
+            // Badge \u00ab vues \u00bb : \u00ab X/Y \u00bb cliquable. Cach\u00e9 si compteurs absents (compat backend).
+            var viewsCell = '';
+            if (seenCount !== null && targetedCount !== null) {
+                var pct = targetedCount > 0 ? Math.round((seenCount / targetedCount) * 100) : 0;
+                var viewsTitle = t('views_badge_tip', seenCount, targetedCount);
+                var viewsCls = pct >= 100 ? 'ip-views-badge ip-views-badge-full'
+                             : pct >= 50  ? 'ip-views-badge ip-views-badge-mid'
+                             : 'ip-views-badge';
+                viewsCell =
+                    '<button type="button" class="' + viewsCls + '" data-views-id="' + escHtml(id) +
+                    '" title="' + escHtml(viewsTitle) + '">' +
+                    escHtml(seenCount + '/' + targetedCount) +
+                    '</button>';
+            } else {
+                viewsCell = '<span style="opacity:.4">\u2014</span>';
+            }
+
             tr.innerHTML =
                 '<td class="ip-col-check">' +
                 '<input type="checkbox" class="ip-row-check" data-id="' + escHtml(id) +
@@ -393,6 +520,7 @@
                 '</td>' +
                 '<td class="ip-col-target">' + targetBadge + '</td>' +
                 '<td class="ip-col-date">' + escHtml(formatDate(publishedAt)) + '</td>' +
+                '<td class="ip-col-views">' + viewsCell + '</td>' +
                 '<td class="ip-col-actions">' +
                 '<button class="ip-edit-btn" title="' + escHtml(t('tbl_edit_title')) + '">' +
                 escHtml(t('tbl_edit_btn')) + '</button>' +
@@ -401,7 +529,7 @@
             var expandTr = document.createElement('tr');
             expandTr.className = 'ip-row-expand';
             var expandTd = document.createElement('td');
-            expandTd.colSpan = 5;
+            expandTd.colSpan = 6;
             expandTd.className = 'ip-row-expand-td';
             expandTd.textContent = t('tbl_loading');
             expandTr.appendChild(expandTd);
@@ -447,6 +575,15 @@
                 else selectedIds.delete(id);
                 updateSelectionUI(page, selectedIds);
             });
+
+            // Badge « vues » → ouvre la modal détaillée (v3.8.6.0)
+            var viewsBtn = tr.querySelector('[data-views-id]');
+            if (viewsBtn) {
+                viewsBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    openViewsModal(id, title);
+                });
+            }
 
             tbody.appendChild(tr);
             tbody.appendChild(expandTr);
@@ -1112,6 +1249,8 @@
         var card = document.createElement('div');
         card.className = 'ip-perm-card' + (isAdmin ? ' ip-perm-card-admin' : '');
         card.dataset.userId = userId;
+        // Index recherche pour le filtre client de l'onglet Droits (v3.8.6.0).
+        card.dataset.search = (userName || '').toLowerCase();
         if (isAdmin) card.title = t('perm_admin_hint');
 
         // ── Header row ──────────────────────────────────────────────────
@@ -1309,6 +1448,14 @@
                 selRow.appendChild(btnSelNone);
                 selRow.appendChild(btnSelInvert);
                 selRow.appendChild(selCount);
+
+                // Barre de recherche utilisateur (v3.8.6.0) — filtre client-side.
+                var searchInput = document.createElement('input');
+                searchInput.type = 'search';
+                searchInput.autocomplete = 'off';
+                searchInput.placeholder = t('search_user_placeholder');
+                searchInput.style.cssText = 'margin-left:auto;min-width:160px;max-width:240px;padding:6px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:inherit;font-size:.88rem;';
+                selRow.appendChild(searchInput);
                 toolbar.appendChild(selRow);
 
                 // Ligne 2 : application groupée à la sélection
@@ -1364,17 +1511,49 @@
 
                 // Les admins sont exclus de la sélection (leurs droits sont intégraux par défaut,
                 // les modifier serait sans effet et trompeur — v3.8.3.0).
+                // v3.8.6.0 : « visible » = filtre actif + non-masqué. Les actions de sélection
+                // de groupe ne doivent agir que sur les cartes affichées (filtre client-side).
+                var isCardVisible = function (c) {
+                    return c.card.style.display !== 'none';
+                };
+
                 btnSelAll.addEventListener('click', function () {
-                    allCards.forEach(function (c) { if (!c.isAdmin) c.selChk.checked = true; });
+                    allCards.forEach(function (c) {
+                        if (!c.isAdmin && isCardVisible(c)) c.selChk.checked = true;
+                    });
                     updateSelCount();
                 });
                 btnSelNone.addEventListener('click', function () {
-                    allCards.forEach(function (c) { c.selChk.checked = false; });
+                    allCards.forEach(function (c) { if (isCardVisible(c)) c.selChk.checked = false; });
                     updateSelCount();
                 });
                 btnSelInvert.addEventListener('click', function () {
-                    allCards.forEach(function (c) { if (!c.isAdmin) c.selChk.checked = !c.selChk.checked; });
+                    allCards.forEach(function (c) {
+                        if (!c.isAdmin && isCardVisible(c)) c.selChk.checked = !c.selChk.checked;
+                    });
                     updateSelCount();
+                });
+
+                // ── Filtre recherche (v3.8.6.0) ──────────────────────────────
+                var applyFilter = function () {
+                    var q = (searchInput.value || '').trim().toLowerCase();
+                    allCards.forEach(function (c) {
+                        var key = c.card.dataset.search || '';
+                        var match = !q || key.indexOf(q) !== -1;
+                        c.card.style.display = match ? '' : 'none';
+                        // Désélectionner une carte cachée pour éviter qu'un « Appliquer à la
+                        // sélection » ne mute un user invisible.
+                        if (!match && c.selChk.checked) c.selChk.checked = false;
+                    });
+                    updateSelCount();
+                };
+                searchInput.addEventListener('input', applyFilter);
+                searchInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape' && searchInput.value) {
+                        searchInput.value = '';
+                        applyFilter();
+                        e.stopPropagation();
+                    }
                 });
 
                 // Applique le rôle + limites choisis aux cartes SÉLECTIONNÉES (en mémoire,
@@ -1502,8 +1681,13 @@
     // Onglet Paramètres
     // ════════════════════════════════════════════════════════════════════════
 
-    function initSettingsTab(page) {
-        apiFetch('/InfoPopup/settings')
+    /**
+     * Récupère et applique les valeurs de paramètres dans les champs du formulaire.
+     * Pure data refresh (pas de binding d'événement) — appelable plusieurs fois
+     * sans accumulation de listeners (v3.8.7.0, pour le bouton Reset).
+     */
+    function reloadSettingsValues(page) {
+        return apiFetch('/InfoPopup/settings')
             .then(function(res) { return res.json(); })
             .then(function(data) {
             var cfg = data || {};
@@ -1518,7 +1702,6 @@
             var inpRetUser  = page.querySelector('#ip-set-ret-user');
             var replyWrap   = page.querySelector('#ip-set-reply-len-wrap');
 
-            // Compatibilité camelCase / PascalCase
             var popupEnabled    = cfg.popupEnabled         !== undefined ? cfg.popupEnabled         : (cfg.PopupEnabled         !== undefined ? cfg.PopupEnabled         : true);
             var popupDelay      = cfg.popupDelayMs         !== undefined ? cfg.popupDelayMs         : (cfg.PopupDelayMs         !== undefined ? cfg.PopupDelayMs         : 800);
             var maxMsgs         = cfg.maxMessagesInPopup   !== undefined ? cfg.maxMessagesInPopup   : (cfg.MaxMessagesInPopup   !== undefined ? cfg.MaxMessagesInPopup   : 5);
@@ -1539,17 +1722,29 @@
             if (inpRetAdmin) inpRetAdmin.value     = retAdminDays;
             if (inpRetUser)  inpRetUser.value      = retUserDays;
             if (replyWrap)   replyWrap.style.display = allowReplies ? '' : 'none';
-
-            // Sync _rateLimitMs pour canPublish()
             _rateLimitMs = rateLimit;
+        }).catch(function() {});
+    }
 
-            // Toggle visibilité longueur réponse
-            if (chkReplies) {
+    function initSettingsTab(page) {
+        // Guard idempotence : initSettingsTab ne doit binder ses handlers qu'une fois.
+        // Recharger les VALEURS se fait via reloadSettingsValues, qui est ré-appelable.
+        if (page._ipSettingsInitDone) {
+            reloadSettingsValues(page);
+            return;
+        }
+        page._ipSettingsInitDone = true;
+
+        reloadSettingsValues(page).then(function () {
+            // Toggle visibilité longueur réponse — bound une seule fois.
+            var chkReplies = page.querySelector('#ip-set-replies');
+            var replyWrap  = page.querySelector('#ip-set-reply-len-wrap');
+            if (chkReplies && replyWrap) {
                 chkReplies.addEventListener('change', function() {
-                    if (replyWrap) replyWrap.style.display = chkReplies.checked ? '' : 'none';
+                    replyWrap.style.display = chkReplies.checked ? '' : 'none';
                 });
             }
-        }).catch(function() {});
+        });
 
         var saveBtn = page.querySelector('#ip-save-settings-btn');
         if (!saveBtn) return;
@@ -1624,6 +1819,101 @@
                     }
                 })
                 .finally(function() { saveBtn.disabled = false; });
+        });
+
+        // ── Maintenance / Reset (v3.8.7.0) ─────────────────────────────────
+        initMaintenanceSection(page);
+    }
+
+    /**
+     * Section « Maintenance » du panneau Paramètres (v3.8.7.0).
+     * Rend 4 boutons d'action — chacun affiche une confirmation native avant exécution :
+     *   1) Vider les accusés de lecture   → POST /admin/clear-seen
+     *   2) Vider toutes les réponses      → POST /admin/clear-replies
+     *   3) Purger les messages supprimés  → POST /admin/purge-deleted
+     *   4) Réinitialiser les paramètres   → POST /admin/reset-settings (recharge la section)
+     */
+    function initMaintenanceSection(page) {
+        var container = page.querySelector('#ip-maint-actions');
+        var hint      = page.querySelector('#ip-maint-hint');
+        var title     = page.querySelector('#ip-maint-title');
+        var toastEl   = page.querySelector('#ip-maint-toast');
+        if (!container) return;
+        if (title) title.textContent = t('maint_title');
+        if (hint)  hint.textContent  = t('maint_hint');
+
+        var actions = [
+            { key: 'clear_seen',     endpoint: '/InfoPopup/admin/clear-seen',     danger: false,
+              resultKey: 'cleared',  okKey: 'maint_clear_seen_ok' },
+            { key: 'clear_replies',  endpoint: '/InfoPopup/admin/clear-replies',  danger: false,
+              resultKey: 'cleared',  okKey: 'maint_clear_replies_ok' },
+            { key: 'purge_deleted',  endpoint: '/InfoPopup/admin/purge-deleted',  danger: true,
+              resultKey: 'messagesDeleted', okKey: 'maint_purge_deleted_ok' },
+            { key: 'reset_settings', endpoint: '/InfoPopup/admin/reset-settings', danger: true,
+              isReset: true, okKey: 'maint_reset_settings_ok' }
+        ];
+
+        function showToast(msg, isErr) {
+            if (!toastEl) return;
+            toastEl.textContent = msg;
+            toastEl.className = isErr ? 'ip-toast-err' : 'ip-toast-ok';
+            toastEl.style.display = 'block';
+            setTimeout(function () { toastEl.style.display = 'none'; }, 4000);
+        }
+
+        container.innerHTML = '';
+        actions.forEach(function (act) {
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:flex-start;gap:12px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;';
+
+            var info = document.createElement('div');
+            info.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:4px;';
+            var lblTitle = document.createElement('div');
+            lblTitle.style.fontWeight = '500';
+            lblTitle.textContent = t('maint_' + act.key + '_label');
+            var lblDesc = document.createElement('div');
+            lblDesc.style.cssText = 'opacity:.6;font-size:.82rem;';
+            lblDesc.textContent = t('maint_' + act.key + '_desc');
+            info.appendChild(lblTitle);
+            info.appendChild(lblDesc);
+
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = act.danger
+                ? 'raised emby-button button-delete'
+                : 'raised emby-button';
+            btn.style.cssText = 'flex-shrink:0;align-self:center;';
+            btn.textContent = t('maint_' + act.key + '_btn');
+
+            btn.addEventListener('click', function () {
+                showConfirm(t('maint_' + act.key + '_confirm')).then(function (ok) {
+                    if (!ok) return;
+                    btn.disabled = true;
+                    apiFetch(act.endpoint, { method: 'POST' })
+                        .then(function (res) {
+                            if (!res.ok) throw new Error('HTTP ' + res.status);
+                            return res.json();
+                        })
+                        .then(function (data) {
+                            if (act.isReset) {
+                                showToast(t(act.okKey), false);
+                                // Recharger les champs uniquement (pas re-bind handlers).
+                                reloadSettingsValues(page);
+                            } else {
+                                var n = data[act.resultKey] || 0;
+                                showToast(t(act.okKey, n), false);
+                            }
+                        })
+                        .catch(function (err) {
+                            showToast(t('maint_err', err.message || err), true);
+                        })
+                        .finally(function () { btn.disabled = false; });
+                });
+            });
+
+            row.appendChild(info);
+            row.appendChild(btn);
+            container.appendChild(row);
         });
     }
 
@@ -1836,6 +2126,68 @@
      * Initialise la page de configuration admin.
      * Idempotent grâce au flag page._ipInitDone.
      */
+    /**
+     * Filtre client-side de la table « Historique des messages » (v3.8.6.0).
+     * Recherche dans `tr.dataset.search` (= titre + expéditeur, lowercased au render).
+     * Tous les éléments (tr + expandTr) hors-match reçoivent `display:none`. Le compteur
+     * « X / Y messages » à droite de l'input est mis à jour. select-all et delete-bulk
+     * sont scopés aux rows visibles pour éviter d'agir sur des messages cachés.
+     */
+    function initSearchFilter(page, selectedIds) {
+        var input = page.querySelector('#ip-search');
+        var counter = page.querySelector('#ip-search-count');
+        if (!input) return;
+        input.placeholder = t('search_placeholder');
+
+        var apply = function () {
+            var q = (input.value || '').trim().toLowerCase();
+            var container = page.querySelector('#ip-msg-container');
+            if (!container) return;
+            var rows = container.querySelectorAll('tr[data-id]');
+            var visible = 0;
+            rows.forEach(function (tr) {
+                var key = tr.dataset.search || '';
+                // expandTr (corps déroulé) est le frère immédiat ; on le masque/affiche avec son tr.
+                var expandTr = tr.nextElementSibling;
+                var match = !q || key.indexOf(q) !== -1;
+                if (match) {
+                    tr.style.display = '';
+                    if (expandTr && expandTr.classList.contains('ip-row-expand')) {
+                        // Laisser CSS gérer .visible vs collapse — on retire juste display:none
+                        expandTr.style.display = '';
+                    }
+                    visible++;
+                } else {
+                    tr.style.display = 'none';
+                    if (expandTr && expandTr.classList.contains('ip-row-expand')) {
+                        expandTr.style.display = 'none';
+                    }
+                    // Désélectionner les messages cachés pour éviter qu'un delete-bulk les emporte.
+                    var cb = tr.querySelector('.ip-row-check');
+                    if (cb && cb.checked) {
+                        cb.checked = false;
+                        if (selectedIds) selectedIds.delete(tr.dataset.id);
+                    }
+                }
+            });
+            if (counter) {
+                counter.textContent = q
+                    ? t('search_count', visible, rows.length)
+                    : '';
+            }
+            updateSelectionUI(page, selectedIds || new Set());
+        };
+        input.addEventListener('input', apply);
+        // Effacer avec Escape
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && input.value) {
+                input.value = '';
+                apply();
+                e.stopPropagation();
+            }
+        });
+    }
+
     function initConfigPage(page) {
         if (page._ipInitDone) return;
         page._ipInitDone = true;
@@ -1975,7 +2327,12 @@
         }
         if (selectAll) {
             selectAll.addEventListener('change', function (e) {
+                // v3.8.6.0 : scoper aux rows VISIBLES (filtre de recherche actif).
+                // Une row dont la <tr> est en display:none n'a pas vocation à être
+                // sélectionnée d'un clic « tout cocher ».
                 page.querySelectorAll('.ip-row-check').forEach(function (cb) {
+                    var tr = cb.closest('tr');
+                    if (tr && tr.style.display === 'none') return;
                     cb.checked = e.target.checked;
                     if (e.target.checked) selectedIds.add(cb.dataset.id);
                     else selectedIds.delete(cb.dataset.id);
@@ -2045,6 +2402,9 @@
         // Gain : 1 RTT au lieu de 2 séquentiels sur l'ouverture du dashboard.
         fetchUsers().then(function (users) { renderTargetPicker(page, users); });
         loadMessages(page, selectedIds, onEdit);
+
+        // v3.8.6.0 : filtre client-side de la table messages.
+        initSearchFilter(page, selectedIds);
     }
 
     // ── Détection et initialisation depuis l'observer ────────────────────────

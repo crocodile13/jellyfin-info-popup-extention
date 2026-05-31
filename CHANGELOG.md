@@ -6,6 +6,33 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.7.0] — 2026-05-30
+
+### Added
+- **New "Maintenance" section in the admin Settings tab** — 4 action buttons, each gated by a confirmation dialog:
+  - **Clear read receipts** (`POST /admin/clear-seen`): wipes `infopopup_seen.json`. Users see every existing message again on next sign-in.
+  - **Clear all replies** (`POST /admin/clear-replies`): wipes `infopopup_replies.json`. Messages themselves are preserved.
+  - **Purge soft-deleted messages** (`POST /admin/purge-deleted`): hard-delete + cascade reply removal for messages already soft-deleted.
+  - **Reset settings to defaults** (`POST /admin/reset-settings`): restores `PluginConfiguration` to its field-initializer defaults. Messages, permissions, and user data are untouched.
+- **Service-level Clear/Purge methods** — `SeenTrackerService.ClearAll()`, `ReplyStoreService.ClearAll()`, `MessageStore.PurgeSoftDeleted()`. Each takes the relevant write-lock once, replaces the in-memory store with a fresh instance, persists.
+- **23 new i18n keys × 8 languages** for the maintenance section (titles, descriptions, button labels, confirmation prompts, OK/error messages).
+
+### Changed
+- **`initSettingsTab` is idempotent** — split into `reloadSettingsValues` (pure data refresh) + `initSettingsTab` (one-time handler binding). The reset action calls only `reloadSettingsValues` so re-binding the save button or change listeners is impossible.
+
+---
+
+## [3.8.6.0] — 2026-05-30
+
+### Added
+- **Client-side search filter in admin Messages and Rights tabs** — a search field above each list filters in real time. Messages: matches against title + sender name. Rights: matches against username. `Escape` clears the filter, `select all` / bulk apply respect filter scope (hidden rows are never selected). Pure client-side, zero new server calls.
+- **Read receipts in the admin Messages tab** — a new "Views" column shows a `seen/targeted` badge per message (color-coded: grey < 50%, blue ≥ 50%, green = 100%). Click the badge to open a modal listing exactly **who has seen** and **who hasn't seen** the message. For "all users" targeted messages the audience is every Jellyfin user; for explicitly targeted messages, only the listed users.
+- **New endpoint `GET /InfoPopup/messages/{id}/views`** — admin-only (`RequiresElevation`), returns `MessageViewsDto` with separate `SeenUsers` and `UnseenUsers` arrays plus a `TargetsAllUsers` flag.
+- **`MessageSummary.TargetedCount` / `SeenCount`** — nullable fields, populated only on the admin path of `GET /messages`. Computed in batch via the new `SeenTrackerService.GetSeenUsersByMessage(...)` bulk lookup (one read-lock + one pass over all records, instead of one per message).
+- **13 new i18n keys × 8 languages** for the views feature (column header, modal title, seen/unseen counts, all-targets badge, empty/loading/error states, close button).
+
+---
+
 ## [3.8.5.0] — 2026-05-30
 
 ### Changed

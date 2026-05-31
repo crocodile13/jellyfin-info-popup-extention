@@ -246,6 +246,27 @@ public class ReplyStoreService
     }
 
     /// <summary>
+    /// Efface TOUTES les réponses (v3.8.7.0). Utilisé par l'action admin « Vider les
+    /// réponses ». Le fichier est remis à zéro mais conservé.
+    /// </summary>
+    /// <returns>Nombre de réponses supprimées.</returns>
+    public int ClearAll()
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var store = ReadStore();
+            var count = store.Replies.Count;
+            if (count == 0) return 0;
+            var fresh = new RepliesRoot();
+            WriteStore(fresh);
+            _logger.LogInformation("InfoPopup: {Count} réponse(s) effacée(s)", count);
+            return count;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    /// <summary>
     /// Supprime en cascade toutes les réponses associées aux messages donnés.
     /// </summary>
     /// <returns>Nombre de réponses supprimées.</returns>

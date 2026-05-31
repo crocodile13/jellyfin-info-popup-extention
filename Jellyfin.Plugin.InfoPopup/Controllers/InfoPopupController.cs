@@ -320,7 +320,46 @@ public class InfoPopupController : ControllerBase
         var all = _store.GetAll();
 
         if (await IsAdminAsync())
-            return Ok(all.Select(ToSummary));
+        {
+            // v3.8.6.0 : populer les stats « accusés de lecture » sur la vue admin en
+            // un seul passage. Pour les messages à « Tous les utilisateurs », le total
+            // des cibles = nombre total d'utilisateurs Jellyfin (résolu une seule fois
+            // via EnumerateUsers). Le bulk lookup SeenTrackerService est aussi groupé.
+            var seenByMsg = _seen.GetSeenUsersByMessage(all.Select(m => m.Id));
+            var allUsers = EnumerateUsers();
+            var totalUserCount = allUsers.Count;
+            var allUserIdsNorm = new HashSet<string>(
+                allUsers.Select(u => PermissionService.NormalizeUserId(u.Id)));
+            return Ok(all.Select(m =>
+            {
+                var s = ToSummary(m);
+                s.TargetedCount = m.TargetUserIds.Count == 0
+                    ? totalUserCount
+                    : m.TargetUserIds.Count;
+                if (!seenByMsg.TryGetValue(m.Id, out var seenSet))
+                {
+                    s.SeenCount = 0;
+                }
+                else if (m.TargetUserIds.Count == 0)
+                {
+                    // Tous-users : tous les lecteurs comptent (admin inclus).
+                    s.SeenCount = seenSet.Count;
+                }
+                else
+                {
+                    // Ciblage explicite : n'intersecter qu'avec la liste de cible
+                    // — un utilisateur hors-cible peut s'être marqué « seen » via
+                    // un MarkSeen accidentel passé, on ne le compte pas.
+                    var targetNorm = new HashSet<string>(
+                        m.TargetUserIds.Select(PermissionService.NormalizeUserId));
+                    var c = 0;
+                    foreach (var uid in seenSet)
+                        if (targetNorm.Contains(PermissionService.NormalizeUserId(uid))) c++;
+                    s.SeenCount = c;
+                }
+                return s;
+            }));
+        }
 
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -329,6 +368,72 @@ public class InfoPopupController : ControllerBase
             .Where(m => !m.IsDeleted)
             .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
             .Select(ToSummary));
+    }
+
+    // GET /InfoPopup/messages/{id}/views ── ADMIN ONLY ───────────────────────────────
+
+    /// <summary>
+    /// Retourne la liste détaillée des utilisateurs ayant / n'ayant pas vu un message,
+    /// pour la vue admin des accusés de lecture (v3.8.6.0).
+    /// Réservé aux administrateurs : ne pas exposer côté user qui d'autre a lu (privacy).
+    /// </summary>
+    [HttpGet("messages/{id}/views")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult<MessageViewsDto> GetMessageViews([FromRoute] string id)
+    {
+        if (!IsValidId(id)) return BadRequest(new { error = "Format d'identifiant invalide." });
+        var msg = _store.GetById(id);
+        if (msg is null) return NotFound();
+
+        // Bulk lookup d'un seul message — partagé avec la vue liste pour la cohérence.
+        var seenMap = _seen.GetSeenUsersByMessage(new[] { id });
+        var seenSet = seenMap.TryGetValue(id, out var s)
+            ? new HashSet<string>(s.Select(PermissionService.NormalizeUserId))
+            : new HashSet<string>();
+
+        var allUsers = EnumerateUsers();
+        // Détermine la liste cible (selon « Tous » vs ciblage explicite).
+        IEnumerable<(string Id, string Name, bool IsAdmin)> targets;
+        bool targetsAll = msg.TargetUserIds.Count == 0;
+        if (targetsAll)
+        {
+            targets = allUsers;
+        }
+        else
+        {
+            var targetNorm = new HashSet<string>(
+                msg.TargetUserIds.Select(PermissionService.NormalizeUserId));
+            targets = allUsers.Where(u =>
+                targetNorm.Contains(PermissionService.NormalizeUserId(u.Id)));
+        }
+
+        var seen = new List<MessageViewUserDto>();
+        var unseen = new List<MessageViewUserDto>();
+        foreach (var (uid, uname, isAdmin) in targets)
+        {
+            var dto = new MessageViewUserDto
+            {
+                UserId = uid,
+                UserName = string.IsNullOrEmpty(uname) ? uid[..Math.Min(8, uid.Length)] + "…" : uname,
+                IsAdmin = isAdmin
+            };
+            if (seenSet.Contains(PermissionService.NormalizeUserId(uid)))
+                seen.Add(dto);
+            else
+                unseen.Add(dto);
+        }
+
+        return Ok(new MessageViewsDto
+        {
+            MessageId = msg.Id,
+            MessageTitle = msg.Title,
+            TargetsAllUsers = targetsAll,
+            SeenUsers = seen.OrderBy(u => u.UserName).ToList(),
+            UnseenUsers = unseen.OrderBy(u => u.UserName).ToList()
+        });
     }
 
     // GET /InfoPopup/messages/{id} ───────────────────────────────────────────────────
@@ -706,6 +811,96 @@ public class InfoPopupController : ControllerBase
             Body      = r.Body,
             RepliedAt = r.RepliedAt
         };
+    }
+
+    // ── Maintenance / Reset (admin only, v3.8.7.0) ───────────────────────────────────
+
+    /// <summary>
+    /// Efface tous les accusés de lecture (<c>infopopup_seen.json</c>). Tous les utilisateurs
+    /// reverront tous les messages déjà publiés à leur prochaine connexion.
+    /// </summary>
+    [HttpPost("admin/clear-seen")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult ClearAllSeen()
+    {
+        var n = _seen.ClearAll();
+        _logger.LogInformation("InfoPopup: admin cleared all seen records ({Count})", n);
+        return Ok(new { cleared = n });
+    }
+
+    /// <summary>
+    /// Efface toutes les réponses (<c>infopopup_replies.json</c>). Les messages sont conservés
+    /// mais leurs threads de réponses sont vidés.
+    /// </summary>
+    [HttpPost("admin/clear-replies")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult ClearAllReplies()
+    {
+        var n = _replyStore.ClearAll();
+        _logger.LogInformation("InfoPopup: admin cleared all replies ({Count})", n);
+        return Ok(new { cleared = n });
+    }
+
+    /// <summary>
+    /// Hard-delete tous les messages soft-deletés. Ne touche pas aux messages actifs.
+    /// Les réponses orphelines sont supprimées en cascade.
+    /// </summary>
+    [HttpPost("admin/purge-deleted")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult PurgeSoftDeleted()
+    {
+        // Capture les IDs des soft-deletés AVANT purge pour la cascade.
+        var deletedIds = _store.GetAll().Where(m => m.IsDeleted).Select(m => m.Id).ToList();
+        var n = _store.PurgeSoftDeleted();
+        var rn = deletedIds.Count > 0 ? _replyStore.DeleteByMessageIds(deletedIds) : 0;
+        _logger.LogInformation(
+            "InfoPopup: admin purged {Count} soft-deleted message(s), cascade-deleted {ReplyCount} replies",
+            n, rn);
+        return Ok(new { messagesDeleted = n, repliesDeleted = rn });
+    }
+
+    /// <summary>
+    /// Réinitialise <see cref="Configuration.PluginConfiguration"/> à ses valeurs par défaut
+    /// (cf. initialiseurs de champs du modèle). N'affecte ni les messages, ni les accusés de
+    /// lecture, ni les réponses, ni les droits utilisateurs — uniquement les réglages globaux.
+    /// </summary>
+    [HttpPost("admin/reset-settings")]
+    [Authorize(Policy = "RequiresElevation")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public ActionResult<PluginSettingsDto> ResetSettings()
+    {
+        var instance = Plugin.Instance;
+        if (instance is null) return StatusCode(500);
+        var cfg = instance.Configuration;
+        var defaults = new Configuration.PluginConfiguration();
+        // On copie champ par champ pour préserver Messages (séparés des réglages réinitialisables).
+        cfg.PopupEnabled              = defaults.PopupEnabled;
+        cfg.PopupDelayMs              = defaults.PopupDelayMs;
+        cfg.MaxMessagesInPopup        = defaults.MaxMessagesInPopup;
+        cfg.AllowReplies              = defaults.AllowReplies;
+        cfg.ReplyMaxLength            = defaults.ReplyMaxLength;
+        cfg.HistoryEnabled            = defaults.HistoryEnabled;
+        cfg.RateLimitMs               = defaults.RateLimitMs;
+        cfg.AdminMessageRetentionDays = defaults.AdminMessageRetentionDays;
+        cfg.UserMessageRetentionDays  = defaults.UserMessageRetentionDays;
+        instance.SaveConfiguration();
+        _logger.LogInformation("InfoPopup: admin reset plugin settings to defaults");
+        return Ok(new PluginSettingsDto
+        {
+            PopupEnabled              = cfg.PopupEnabled,
+            PopupDelayMs              = cfg.PopupDelayMs,
+            MaxMessagesInPopup        = cfg.MaxMessagesInPopup,
+            AllowReplies              = cfg.AllowReplies,
+            ReplyMaxLength            = cfg.ReplyMaxLength,
+            HistoryEnabled            = cfg.HistoryEnabled,
+            RateLimitMs               = cfg.RateLimitMs,
+            AdminMessageRetentionDays = cfg.AdminMessageRetentionDays,
+            UserMessageRetentionDays  = cfg.UserMessageRetentionDays
+        });
     }
 
     // ── Settings ─────────────────────────────────────────────────────────────────────

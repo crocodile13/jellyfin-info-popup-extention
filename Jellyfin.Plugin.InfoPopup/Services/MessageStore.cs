@@ -310,6 +310,29 @@ public class MessageStore
     }
 
     /// <summary>
+    /// Hard-delete tous les messages soft-deletés (v3.8.7.0). Action admin
+    /// « Purger les messages supprimés ». Retourne le nombre de messages effacés.
+    /// </summary>
+    public int PurgeSoftDeleted()
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var cfg = GetConfig();
+            var before = cfg.Messages.Count;
+            cfg.Messages.RemoveAll(m => m.IsDeleted);
+            var deleted = before - cfg.Messages.Count;
+            if (deleted > 0)
+            {
+                SaveConfig();
+                _logger.LogInformation("InfoPopup: {Count} message(s) soft-deleté(s) purgé(s)", deleted);
+            }
+            return deleted;
+        }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    /// <summary>
     /// Nettoie les messages expirés selon les règles de rétention configurées.
     /// Hard-delete (suppression définitive) des messages dont la date de publication
     /// est antérieure à la durée de rétention configurée.

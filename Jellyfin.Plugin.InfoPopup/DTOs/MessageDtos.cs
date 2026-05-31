@@ -83,6 +83,61 @@ public class MessageSummary
 
     /// <summary>Date et heure UTC du soft-delete, ou null si non supprimé.</summary>
     public DateTime? DeletedAt { get; set; }
+
+    /// <summary>
+    /// Nombre d'utilisateurs ciblés par ce message (v3.8.6.0).
+    /// - Message à « Tous les utilisateurs » (TargetUserIds vide) : total des utilisateurs Jellyfin (admins inclus).
+    /// - Message ciblé : <c>TargetUserIds.Count</c>.
+    /// Populé uniquement pour les endpoints admin (<c>GET /messages</c> en élévation).
+    /// <c>null</c> pour les vues utilisateurs : pas de fuite d'info sur la portée d'un message.
+    /// </summary>
+    public int? TargetedCount { get; set; }
+
+    /// <summary>
+    /// Nombre d'utilisateurs ayant vu ce message (v3.8.6.0). Comptabilisé via
+    /// <c>SeenTrackerService</c> ∩ <c>TargetedCount</c> (jamais > TargetedCount). Idem que
+    /// <see cref="TargetedCount"/> : populé uniquement côté admin, <c>null</c> sinon.
+    /// </summary>
+    public int? SeenCount { get; set; }
+}
+
+/// <summary>
+/// Entrée individuelle « qui a vu / pas vu » pour la vue admin des accusés de lecture
+/// (v3.8.6.0). N'inclut PAS d'horodatage de lecture : <c>SeenTrackerService</c> ne stocke
+/// que la liste des IDs de messages vus par utilisateur, sans timestamp par message.
+/// </summary>
+public class MessageViewUserDto
+{
+    /// <summary>ID Jellyfin de l'utilisateur.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Nom d'affichage Jellyfin.</summary>
+    public string UserName { get; set; } = string.Empty;
+
+    /// <summary>True si l'utilisateur est admin Jellyfin.</summary>
+    public bool IsAdmin { get; set; }
+}
+
+/// <summary>
+/// Réponse de <c>GET /InfoPopup/messages/{id}/views</c> — vue admin de qui a vu/pas vu
+/// un message donné. Réservée aux administrateurs (<c>RequiresElevation</c>).
+/// </summary>
+public class MessageViewsDto
+{
+    /// <summary>ID du message.</summary>
+    public string MessageId { get; set; } = string.Empty;
+
+    /// <summary>Titre du message (commodité d'affichage côté UI).</summary>
+    public string MessageTitle { get; set; } = string.Empty;
+
+    /// <summary>True si le message ciblait « Tous les utilisateurs ».</summary>
+    public bool TargetsAllUsers { get; set; }
+
+    /// <summary>Utilisateurs ciblés ayant vu le message, triés par nom.</summary>
+    public List<MessageViewUserDto> SeenUsers { get; set; } = new();
+
+    /// <summary>Utilisateurs ciblés N'ayant PAS encore vu le message, triés par nom.</summary>
+    public List<MessageViewUserDto> UnseenUsers { get; set; } = new();
 }
 
 /// <summary>Vue complète d'un message (avec body).</summary>

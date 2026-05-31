@@ -135,6 +135,9 @@
                 <span id="ip-delete-btn-label">Supprimer la selection</span>
             </button>
             <span id="ip-sel-count" style="opacity:.6;font-size:.88rem;"></span>
+            <input id="ip-search" type="search" autocomplete="off"
+                   style="margin-left:auto;min-width:180px;max-width:280px;flex:1;padding:6px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:inherit;font-size:.88rem;"/>
+            <span id="ip-search-count" style="opacity:.6;font-size:.82rem;"></span>
         </div>
 
         <div id="ip-msg-container">
@@ -206,6 +209,14 @@
                 </button>
                 <div id="ip-settings-toast" style="display:none;padding:6px 12px;border-radius:4px;font-size:.88rem;"></div>
             </div>
+        </div>
+
+        <!-- Maintenance : nettoyage de donnees + reset (v3.8.7.0) -->
+        <div class="detailSection ip-settings-section" style="margin-top:24px;">
+            <h3 id="ip-maint-title" class="sectionTitle">Maintenance</h3>
+            <p id="ip-maint-hint" style="opacity:.6;font-size:.85rem;margin-bottom:16px;"></p>
+            <div id="ip-maint-actions" style="display:flex;flex-direction:column;gap:10px;max-width:560px;"></div>
+            <div id="ip-maint-toast" style="display:none;margin-top:14px;padding:6px 12px;border-radius:4px;font-size:.88rem;"></div>
         </div>
     </div>
 

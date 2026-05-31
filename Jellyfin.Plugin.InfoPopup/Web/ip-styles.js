@@ -308,7 +308,31 @@
             '.ip-perm-card-admin .ip-perm-toggle-details{cursor:not-allowed}',
             '.ip-perm-card-admin input:disabled,.ip-perm-card-admin select:disabled,.ip-perm-card-admin button:disabled{cursor:not-allowed;opacity:.6}',
             // ── Reply already-sent state ──────────────────────────────────────
-            '.ip-reply-done{font-size:.82rem;opacity:.6;font-style:italic;padding:6px 0}'
+            '.ip-reply-done{font-size:.82rem;opacity:.6;font-style:italic;padding:6px 0}',
+            // ── Accusés de lecture (v3.8.6.0) ──────────────────────────────────
+            '.ip-col-views{width:1%;white-space:nowrap;text-align:center}',
+            '.ip-views-badge{background:rgba(255,255,255,.06);color:#bdbdbd;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:3px 10px;font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.3;transition:background .15s,border-color .15s}',
+            '.ip-views-badge:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3)}',
+            '.ip-views-badge-mid{background:rgba(0,164,220,.12);color:#7ecbed;border-color:rgba(0,164,220,.4)}',
+            '.ip-views-badge-mid:hover{background:rgba(0,164,220,.22)}',
+            '.ip-views-badge-full{background:rgba(76,175,80,.14);color:#a5d6a7;border-color:rgba(76,175,80,.4)}',
+            '.ip-views-badge-full:hover{background:rgba(76,175,80,.24)}',
+            '.ip-views-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99997;display:flex;align-items:center;justify-content:center;animation:ip-fade .15s ease}',
+            '.ip-views-box{background:var(--theme-body-background-color,#202020);color:var(--theme-text-color,#e5e5e5);border:1px solid rgba(255,255,255,.12);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.6);max-width:540px;width:calc(100% - 32px);max-height:75vh;display:flex;flex-direction:column;overflow:hidden}',
+            '.ip-views-header{display:flex;align-items:center;gap:10px;padding:14px 18px 12px;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}',
+            '.ip-views-title{flex:1;margin:0;font-size:1rem;font-weight:600;overflow-wrap:break-word;word-break:break-word}',
+            '.ip-views-close{background:none;border:none;cursor:pointer;color:var(--theme-text-color,#e5e5e5);font-size:1.4rem;opacity:.7;padding:0 6px;border-radius:4px;line-height:1}',
+            '.ip-views-close:hover{opacity:1}',
+            '.ip-views-body{padding:14px 18px 16px;overflow-y:auto;flex:1}',
+            '.ip-views-targets-all{font-size:.85rem;opacity:.7;font-style:italic;margin-bottom:12px;padding-bottom:8px;border-bottom:1px dashed rgba(255,255,255,.1)}',
+            '.ip-views-section-h{margin:14px 0 8px;font-size:.82rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;opacity:.85}',
+            '.ip-views-section-h:first-of-type{margin-top:0}',
+            '.ip-views-section-seen{color:#a5d6a7}',
+            '.ip-views-section-unseen{color:#ef9a9a}',
+            '.ip-views-empty{font-size:.85rem;opacity:.55;font-style:italic;margin:0 0 6px}',
+            '.ip-views-user-list{list-style:none;padding:0;margin:0 0 8px}',
+            '.ip-views-user{padding:5px 8px;font-size:.88rem;display:flex;align-items:center;gap:6px;border-radius:4px}',
+            '.ip-views-user:nth-child(odd){background:rgba(255,255,255,.03)}'
         ].join('\n');
         document.head.appendChild(s);
     }
