@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.0.2.0] — 2026-05-31
+
+### Fixed
+- **Auto-recovery from cached pre-install `index.html`** (third and final fix for the long-running first-load UI bug). v3.8.9.0 (`Cache-Control: no-cache`) and v4.0.1.0 (inline retry loader for `client.js`) both addressed real bug paths but couldn't fully solve the underlying issue: when the browser already has a cached `index.html` from BEFORE the plugin install, the cached HTML simply has no `<script>` tag to inject. No server-side change can rewrite a cached response that already exists in the user's browser. Confirmed against multiple Jellyfin plugin discussions (issue jellyfin/jellyfin-web#5494, #4549) — this is a known cross-plugin platform issue, and every other JS-injection plugin tells users "refresh after install" in their README. New approach: `configurationpage.html` itself now embeds a tiny inline bootstrap that checks for `window.__IP` after 2 s and, if missing, force-reloads the page once via `window.location.reload()` (guarded by `sessionStorage.ipBootstrapReloadAttempted` to prevent loops). The reload revalidates against the server (helped by the v3.8.9.0 `Cache-Control` headers), which serves the latest HTML with the v4.0.1.0 retry loader. User sees a brief page refresh on the config page instead of a permanently broken UI. The hard refresh is no longer required for any normal install/update path.
+
+---
+
 ## [4.0.1.0] — 2026-05-31
 
 ### Fixed

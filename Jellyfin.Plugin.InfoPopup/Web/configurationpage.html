@@ -1,4 +1,35 @@
 <div id="infoPopupConfigPage" data-role="page" class="page libraryPage">
+
+<!-- Auto-recovery v4.0.1.0 : si l'utilisateur arrive sur cette page de config alors que
+     le browser a un index.html caché AVANT l'installation/update du plugin (donc sans
+     l'injection middleware de /InfoPopup/client.js), aucun script plugin ne tourne
+     → boutons sans CSS, UI cassée jusqu'au Ctrl+Shift+R.
+
+     Cette détection (sans dépendance sur le JS plugin lui-même) attend 2 s, vérifie si
+     window.__IP a été peuplé. Si non → force un location.reload() UNE seule fois (garde
+     sessionStorage anti-boucle). Combiné au Cache-Control: no-cache sur le HTML injecté,
+     ce reload récupère un index.html frais avec l'injection en place → plugin charge
+     normalement. L'utilisateur voit juste un reload de page au lieu d'une UI cassée. -->
+<script>
+(function () {
+    setTimeout(function () {
+        if (window.__IP && window.__IP.initConfigPage) {
+            try { sessionStorage.removeItem('ipBootstrapReloadAttempted'); } catch (e) {}
+            return;
+        }
+        var alreadyTried = false;
+        try { alreadyTried = sessionStorage.getItem('ipBootstrapReloadAttempted') === '1'; } catch (e) {}
+        if (alreadyTried) {
+            console.error('[InfoPopup] Plugin script still not loaded after one reload. Restart Jellyfin or use Ctrl+Shift+R.');
+            return;
+        }
+        try { sessionStorage.setItem('ipBootstrapReloadAttempted', '1'); } catch (e) {}
+        console.warn('[InfoPopup] Plugin script missing — forcing reload to recover from cached HTML.');
+        window.location.reload();
+    }, 2000);
+})();
+</script>
+
 <div class="padded-left padded-right padded-bottom-page">
 
     <!-- En-tête -->
