@@ -359,6 +359,10 @@ Use native `<input type="checkbox">` with inline `accent-color`. Never use `emby
 - **Never** manually edit `manifest.json` → use `make manifest-update` (or a full `make release-*`)
 - **Never** manually edit `dist/infopopup_*.zip` or compute/paste an MD5 checksum → the Makefile downloads the ZIP from GitHub and computes the real checksum
 
+### Commits
+- **NEVER add `Co-Authored-By: Claude …` (or any Claude/Anthropic attribution) trailer to commit messages.** The user noticed that GitHub picked up Claude as a 2nd Contributor on the public repo because of those trailers and explicitly asked to stop. Commit attribution must remain his own GitHub identity only. The README's "vibe-coded by Claude" line is sufficient public acknowledgment.
+- When suggesting `git commit` HEREDOC bodies, write the message without the trailer. Just subject + optional body. No `Co-Authored-By` lines at all.
+
 ### After
 - Verify rules R1–R10
 - **Write the `CHANGELOG.md` entry for the new version before any release** — see section 10 for the mandatory format. The entry must exist in `CHANGELOG.md` *before* the human runs `make release-*`, because `make gh-release` and `make manifest-update` extract it at release time. A missing or malformed entry means GitHub Release notes and the Jellyfin plugin description will be empty or wrong.
