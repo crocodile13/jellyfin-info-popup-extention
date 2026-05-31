@@ -549,6 +549,14 @@
                 checkReceivedReplies();
             }
 
+            // v3.8.8.0 : premier poll immédiat sur ouverture, sans attendre le tick 10s.
+            // Sinon un utilisateur qui ouvre Jellyfin juste après qu'on lui ait répondu
+            // attendait jusqu'à 10s pour voir le toast (et jusqu'à 45s ensuite).
+            // On marque les deux dernières dates pour que les ticks suivants respectent
+            // les intervalles standards.
+            lastRepliesPoll = Date.now();
+            pollRepliesReceived();
+
             setInterval(function () {
                 var now = Date.now();
                 if (now - lastPopupPoll >= POLL_INTERVAL_MS) { lastPopupPoll = now; pollPopup(); }
@@ -587,20 +595,29 @@
         } catch (e) { /* quota plein ou storage désactivé : silencieux */ }
     }
 
+    // Seuil de bootstrap : si le seen Set est vide ET qu'il y a plus que ce nombre de
+    // réponses, on silence tout en bloc (cas typique : admin qui installe le plugin sur
+    // un instance avec un historique). Sous le seuil, on notifie quand même — sinon un
+    // utilisateur « frais » (jamais reçu de notif) qui reçoit sa première réponse ne
+    // verrait JAMAIS de toast. Pour qu'un test 1 réponse aboutisse, faut autoriser la
+    // notif au premier coup. v3.8.8.0.
+    var REPLIES_BOOTSTRAP_THRESHOLD = 3;
+
     function checkReceivedReplies() {
         apiFetch('/InfoPopup/replies/received')
             .then(function (res) { return res.ok ? res.json() : []; })
             .then(function (replies) {
                 if (!Array.isArray(replies) || !replies.length) return;
                 var seen = loadSeenReplies();
-                // Initial bootstrap : si seen est vide, on marque tout comme déjà-vu sans
-                // notifier (sinon l'utilisateur reçoit en bloc toutes les anciennes réponses
-                // à sa première connexion sur 3.8.0.0).
-                if (seen.size === 0) {
+
+                // Bootstrap silencieux uniquement si grosse pile inattendue (upgrade)
+                // — petit volume = on notifie normalement (cas test ou usage initial).
+                if (seen.size === 0 && replies.length > REPLIES_BOOTSTRAP_THRESHOLD) {
                     replies.forEach(function (r) { seen.add(r.replyId || r.ReplyId); });
                     persistSeenReplies(seen);
                     return;
                 }
+
                 var newOnes = replies.filter(function (r) {
                     var id = r.replyId || r.ReplyId;
                     return id && !seen.has(id);

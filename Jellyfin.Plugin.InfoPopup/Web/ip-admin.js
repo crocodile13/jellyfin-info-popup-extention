@@ -1281,7 +1281,17 @@
         var roleWrap = document.createElement('span');
         roleWrap.className = 'ip-perm-card-role';
         var roleSel = document.createElement('select');
-        buildRoleOptions().forEach(function (o) {
+        // v3.8.8.0 : pour les admins Jellyfin, on ajoute une option « Administrateur »
+        // exclusive (pas dans buildRoleOptions, donc absente du bulk-apply et des
+        // utilisateurs non-admin) et on la force sélectionnée. Le select est de toute
+        // façon disabled plus bas, mais c'est plus clair visuellement que d'afficher
+        // « Lecteur » ou « Personnalisé » pour un user qui a en réalité tous les droits.
+        var cardRoles = buildRoleOptions();
+        if (isAdmin) {
+            cardRoles = [{ value: 'admin', label: t('perm_role_admin') }].concat(cardRoles);
+            role = 'admin';
+        }
+        cardRoles.forEach(function (o) {
             var opt = document.createElement('option');
             opt.value = o.value;
             opt.textContent = o.label;
@@ -2417,5 +2427,11 @@
     // ── Exposition ───────────────────────────────────────────────────────────
     ns.initConfigPage   = initConfigPage;
     ns.checkConfigPage  = checkConfigPage;
+
+    // v3.8.8.0 : exposer les helpers d'édition pour réutilisation côté ip-user.js
+    // (page « Mes messages » → onglet « Envoyer »). Mêmes algos que côté admin.
+    ns.markdownToHtml      = markdownToHtml;
+    ns.htmlToMarkdown      = htmlToMarkdown;
+    ns.applyWysiwygFormat  = applyWysiwygFormat;
 
 }(window.__IP = window.__IP || {}));

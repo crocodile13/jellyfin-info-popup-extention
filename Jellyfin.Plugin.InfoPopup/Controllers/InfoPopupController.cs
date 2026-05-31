@@ -364,8 +364,10 @@ public class InfoPopupController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
+        // v3.8.8.0 : même filtre self-sent que popup-data (cf. comment plus bas).
         return Ok(all
             .Where(m => !m.IsDeleted)
+            .Where(m => !IsOwner(m.SentByUserId, userId))
             .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
             .Select(ToSummary));
     }
@@ -683,8 +685,12 @@ public class InfoPopupController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var all = _store.GetAll();
+        // v3.8.8.0 : on exclut les messages que l'utilisateur s'est envoyés à lui-même
+        // (typiquement quand un admin cible « Tous les utilisateurs ») — ils n'ont rien
+        // à faire dans la vue « Reçus ». Comparaison via IsOwner (normalisation GUID).
         var targeted = all
             .Where(m => !m.IsDeleted)
+            .Where(m => !IsOwner(m.SentByUserId, userId))
             .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
             .ToList();
 
@@ -756,8 +762,12 @@ public class InfoPopupController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var all = _store.GetAll();
+        // v3.8.8.0 : on exclut les messages que l'utilisateur s'est envoyés à lui-même
+        // (typiquement quand un admin cible « Tous les utilisateurs ») — ils n'ont rien
+        // à faire dans la vue « Reçus ». Comparaison via IsOwner (normalisation GUID).
         var targeted = all
             .Where(m => !m.IsDeleted)
+            .Where(m => !IsOwner(m.SentByUserId, userId))
             .Where(m => m.TargetUserIds.Count == 0 || m.TargetUserIds.Contains(userId))
             .ToList();
 

@@ -185,13 +185,24 @@
                 '<div class="inputContainer" style="margin-top:16px;">' +
                     '<label id="ip-user-body-label" class="inputLabel" for="ip-user-body" style="display:block;margin-bottom:8px;">' + escHtml(t('cfg_body_label')) + '</label>' +
                     '<div id="ip-user-format-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">' +
-                        '<button type="button" class="ip-fmt-btn" data-action="bold"><strong>B</strong></button>' +
-                        '<button type="button" class="ip-fmt-btn" data-action="italic"><em>I</em></button>' +
-                        '<button type="button" class="ip-fmt-btn" data-action="underline"><u>U</u></button>' +
-                        '<button type="button" class="ip-fmt-btn" data-action="strike"><s>S</s></button>' +
-                        '<button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list">• Liste</button>' +
+                        '<button type="button" class="ip-fmt-btn" data-action="bold" title="' + escHtml(t('fmt_bold')) + ' (Ctrl+B)"><strong>B</strong></button>' +
+                        '<button type="button" class="ip-fmt-btn" data-action="italic" title="' + escHtml(t('fmt_italic')) + ' (Ctrl+I)"><em>I</em></button>' +
+                        '<button type="button" class="ip-fmt-btn" data-action="underline" title="' + escHtml(t('fmt_underline')) + ' (Ctrl+U)"><u>U</u></button>' +
+                        '<button type="button" class="ip-fmt-btn" data-action="strike" title="' + escHtml(t('fmt_strike')) + ' (Ctrl+Shift+S)"><s>S</s></button>' +
+                        '<button type="button" class="ip-fmt-btn ip-fmt-btn-sep" data-action="list" title="' + escHtml(t('fmt_list')) + '">• Liste</button>' +
+                        '<span class="ip-char-count" id="ip-user-char-count"></span>' +
+                        '<label class="ip-preview-toggle-wrap" for="ip-user-preview-toggle" title="' + escHtml(t('fmt_raw_tip')) + '">' +
+                            '<div class="ip-toggle-switch">' +
+                                '<input type="checkbox" id="ip-user-preview-toggle">' +
+                                '<span class="ip-toggle-slider"></span>' +
+                            '</div>' +
+                            '<span>Raw</span>' +
+                        '</label>' +
                     '</div>' +
-                    '<textarea id="ip-user-body" class="emby-textarea" maxlength="10000" rows="7" style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>' +
+                    '<div class="ip-editor-wrap">' +
+                        '<div id="ip-user-body-wysiwyg" class="ip-body-wysiwyg" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="' + escHtml(t('cfg_body_ph')) + '"></div>' +
+                        '<textarea id="ip-user-body" class="emby-textarea" maxlength="10000" rows="7" placeholder="' + escHtml(t('cfg_body_ph')) + '" style="width:100%;box-sizing:border-box;resize:vertical;display:none;"></textarea>' +
+                    '</div>' +
                     '<div id="ip-user-body-err" class="fieldDescription" style="color:#cf6679;display:none;"></div>' +
                 '</div>' +
                 '<div id="ip-user-target-section" class="inputContainer" style="margin-top:16px;display:none;">' +
@@ -895,30 +906,220 @@
     // Compose — toolbar de formatage
     // ══════════════════════════════════════════════════════════════════════════
 
-    function initFormatToolbar(page) {
-        var toolbar = page.querySelector('#ip-user-format-toolbar');
-        var bodyEl  = page.querySelector('#ip-user-body');
-        if (!toolbar || !bodyEl) return;
+    // ──────────────────────────────────────────────────────────────────────────
+    // Compose — toolbar de formatage avec WYSIWYG ↔ Raw (v3.8.8.0)
+    // Mirror de l'éditeur admin : double mode contenteditable / textarea, toggle,
+    // raccourcis clavier Ctrl+B/I/U/Shift+S, surlignage dynamique des boutons selon
+    // ce qui entoure le curseur. Les helpers sont mutualisés via ns.markdownToHtml /
+    // ns.htmlToMarkdown / ns.applyWysiwygFormat (exposés par ip-admin.js).
+    // ──────────────────────────────────────────────────────────────────────────
 
-        var fmtMap = {
-            bold:      ['**', '**'],
-            italic:    ['_',  '_' ],
-            strike:    ['~~', '~~'],
-            underline: ['__', '__']
-        };
+    function userSyncWysiwygToTextarea(page) {
+        var wysiwyg  = page.querySelector('#ip-user-body-wysiwyg');
+        var textarea = page.querySelector('#ip-user-body');
+        if (!wysiwyg || !textarea) return;
+        textarea.value = ns.htmlToMarkdown ? ns.htmlToMarkdown(wysiwyg.innerHTML) : wysiwyg.textContent;
+        userUpdateCharCount(page);
+    }
+
+    function userSyncTextareaToWysiwyg(page) {
+        var wysiwyg  = page.querySelector('#ip-user-body-wysiwyg');
+        var textarea = page.querySelector('#ip-user-body');
+        if (!wysiwyg || !textarea) return;
+        wysiwyg.innerHTML = ns.markdownToHtml ? ns.markdownToHtml(textarea.value) : escHtml(textarea.value);
+    }
+
+    function userUpdateCharCount(page) {
+        var textarea = page.querySelector('#ip-user-body');
+        var counter  = page.querySelector('#ip-user-char-count');
+        if (!textarea || !counter) return;
+        var len = textarea.value.length;
+        var max = parseInt(textarea.maxLength, 10) || 10000;
+        counter.textContent = len + '/' + max;
+        counter.classList.remove('warning', 'danger');
+        if (len > max * 0.9) counter.classList.add('danger');
+        else if (len > max * 0.75) counter.classList.add('warning');
+    }
+
+    function userSetEditorMode(page, rawMode) {
+        var wysiwyg  = page.querySelector('#ip-user-body-wysiwyg');
+        var textarea = page.querySelector('#ip-user-body');
+        var toggle   = page.querySelector('#ip-user-preview-toggle');
+        if (!wysiwyg || !textarea) return;
+        if (rawMode) {
+            userSyncWysiwygToTextarea(page);
+            wysiwyg.style.display  = 'none';
+            textarea.style.display = 'block';
+            textarea.focus();
+            if (toggle) toggle.checked = true;
+        } else {
+            userSyncTextareaToWysiwyg(page);
+            textarea.style.display = 'none';
+            wysiwyg.style.display  = 'block';
+            wysiwyg.focus();
+            if (toggle) toggle.checked = false;
+        }
+        userUpdateCharCount(page);
+    }
+
+    function userIsRawMode(page) {
+        var textarea = page.querySelector('#ip-user-body');
+        return textarea && textarea.style.display !== 'none';
+    }
+
+    /**
+     * Met à jour l'état actif des boutons toolbar en mode WYSIWYG (via queryCommandState).
+     */
+    function userUpdateToolbarActiveStateWysiwyg(page) {
+        var toolbar = page.querySelector('#ip-user-format-toolbar');
+        if (!toolbar) return;
+        var cmdMap = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strikeThrough' };
+        toolbar.querySelectorAll('.ip-fmt-btn[data-action]').forEach(function (btn) {
+            var action = btn.dataset.action;
+            if (action && action !== 'list' && cmdMap[action]) {
+                try {
+                    if (document.queryCommandState(cmdMap[action])) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                } catch (e) { /* IE legacy */ }
+            }
+        });
+    }
+
+    /**
+     * Met à jour l'état actif des boutons toolbar en mode Raw (analyse markdown autour
+     * du curseur dans la textarea). Pattern identique à ip-admin.js.
+     */
+    function userUpdateToolbarActiveStateRaw(page, ta) {
+        var toolbar = page.querySelector('#ip-user-format-toolbar');
+        if (!toolbar || !ta) return;
+        var val = ta.value, pos = ta.selectionStart;
+        var sel = ta.selectionStart < ta.selectionEnd ? val.slice(ta.selectionStart, ta.selectionEnd) : '';
+        // Détecte les délimiteurs entourant la sélection / le curseur.
+        function isActive(prefix, suffix) {
+            if (sel) return sel.startsWith(prefix) && sel.endsWith(suffix);
+            // Curseur : on regarde si on est entre prefix...suffix sur la même ligne.
+            var before = val.slice(0, pos), after = val.slice(pos);
+            var p = before.lastIndexOf(prefix);
+            if (p < 0) return false;
+            var s = after.indexOf(suffix);
+            if (s < 0) return false;
+            // Pas de séparateur prefix/suffix entre p et notre pos
+            return before.indexOf(suffix, p + prefix.length) < 0;
+        }
+        var map = { bold: ['**','**'], italic: ['_','_'], underline: ['__','__'], strike: ['~~','~~'] };
+        toolbar.querySelectorAll('.ip-fmt-btn[data-action]').forEach(function (btn) {
+            var action = btn.dataset.action;
+            if (map[action]) {
+                if (isActive(map[action][0], map[action][1])) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        });
+    }
+
+    function initFormatToolbar(page) {
+        var toolbar  = page.querySelector('#ip-user-format-toolbar');
+        var wysiwyg  = page.querySelector('#ip-user-body-wysiwyg');
+        var textarea = page.querySelector('#ip-user-body');
+        var toggle   = page.querySelector('#ip-user-preview-toggle');
+        if (!toolbar || !textarea) return;
+
+        // État initial : WYSIWYG visible.
+        userSetEditorMode(page, false);
+
+        // Toggle Raw / WYSIWYG.
+        if (toggle) {
+            toggle.addEventListener('change', function () {
+                userSetEditorMode(page, toggle.checked);
+            });
+        }
+
+        var fmtMap     = { bold: ['**','**'], italic: ['_','_'], strike: ['~~','~~'], underline: ['__','__'] };
+        var wysiwygCmd = { bold: 'bold',     italic: 'italic',   underline: 'underline', strike: 'strikeThrough' };
+
+        // Empêche le clic-toolbar de retirer le focus du contenteditable (sinon perte de
+        // sélection avant execCommand). En mode WYSIWYG seulement.
+        toolbar.addEventListener('mousedown', function (e) {
+            var btn = e.target.closest('.ip-fmt-btn');
+            if (!btn || userIsRawMode(page)) return;
+            e.preventDefault();
+        });
 
         toolbar.addEventListener('click', function (e) {
             var btn = e.target.closest('.ip-fmt-btn');
             if (!btn) return;
             e.preventDefault();
             var action = btn.dataset.action;
-            if (action === 'list') {
-                toggleListLines(bodyEl);
-            } else if (fmtMap[action]) {
-                applyFormat(bodyEl, fmtMap[action][0], fmtMap[action][1]);
+            if (userIsRawMode(page)) {
+                if (action === 'list') {
+                    toggleListLines(textarea);
+                } else if (fmtMap[action]) {
+                    applyFormat(textarea, fmtMap[action][0], fmtMap[action][1]);
+                }
+                textarea.focus();
+                userUpdateCharCount(page);
+                userUpdateToolbarActiveStateRaw(page, textarea);
+            } else if (wysiwyg) {
+                if (action === 'list') {
+                    if (ns.applyWysiwygFormat) ns.applyWysiwygFormat('insertUnorderedList');
+                    else document.execCommand('insertUnorderedList', false, null);
+                } else if (wysiwygCmd[action]) {
+                    if (ns.applyWysiwygFormat) ns.applyWysiwygFormat(wysiwygCmd[action]);
+                    else document.execCommand(wysiwygCmd[action], false, null);
+                }
+                wysiwyg.focus();
+                userSyncWysiwygToTextarea(page);
+                userUpdateToolbarActiveStateWysiwyg(page);
             }
-            bodyEl.focus();
         });
+
+        if (wysiwyg) {
+            // Raccourcis clavier dans le WYSIWYG.
+            wysiwyg.addEventListener('keydown', function (e) {
+                if (!(e.ctrlKey || e.metaKey)) return;
+                var handled = true;
+                switch (e.key.toLowerCase()) {
+                    case 'b': if (ns.applyWysiwygFormat) ns.applyWysiwygFormat('bold');      else document.execCommand('bold'); break;
+                    case 'i': if (ns.applyWysiwygFormat) ns.applyWysiwygFormat('italic');    else document.execCommand('italic'); break;
+                    case 'u': if (ns.applyWysiwygFormat) ns.applyWysiwygFormat('underline'); else document.execCommand('underline'); break;
+                    case 's':
+                        if (e.shiftKey) {
+                            if (ns.applyWysiwygFormat) ns.applyWysiwygFormat('strikeThrough'); else document.execCommand('strikeThrough');
+                        } else handled = false;
+                        break;
+                    default: handled = false;
+                }
+                if (handled) {
+                    e.preventDefault();
+                    userSyncWysiwygToTextarea(page);
+                    userUpdateToolbarActiveStateWysiwyg(page);
+                }
+            });
+            wysiwyg.addEventListener('input',  function () { userSyncWysiwygToTextarea(page); userUpdateToolbarActiveStateWysiwyg(page); });
+            wysiwyg.addEventListener('mouseup', function () { userUpdateToolbarActiveStateWysiwyg(page); });
+            wysiwyg.addEventListener('keyup',   function () { userUpdateToolbarActiveStateWysiwyg(page); });
+        }
+
+        // Mode Raw : raccourcis clavier + active state.
+        textarea.addEventListener('keydown', function (e) {
+            if (!(e.ctrlKey || e.metaKey)) return;
+            var key = e.key.toLowerCase();
+            var pair = null;
+            if (key === 'b') pair = fmtMap.bold;
+            else if (key === 'i') pair = fmtMap.italic;
+            else if (key === 'u') pair = fmtMap.underline;
+            else if (key === 's' && e.shiftKey) pair = fmtMap.strike;
+            if (pair) {
+                e.preventDefault();
+                applyFormat(textarea, pair[0], pair[1]);
+                userUpdateCharCount(page);
+                userUpdateToolbarActiveStateRaw(page, textarea);
+            }
+        });
+        textarea.addEventListener('input',    function () { userUpdateCharCount(page); userUpdateToolbarActiveStateRaw(page, textarea); });
+        textarea.addEventListener('keyup',    function () { userUpdateToolbarActiveStateRaw(page, textarea); });
+        textarea.addEventListener('mouseup',  function () { userUpdateToolbarActiveStateRaw(page, textarea); });
+
+        userUpdateCharCount(page);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1037,9 +1238,14 @@
         publishBtn.addEventListener('click', function () {
             var titleEl  = page.querySelector('#ip-user-title');
             var bodyEl   = page.querySelector('#ip-user-body');
+            var wysiwyg  = page.querySelector('#ip-user-body-wysiwyg');
             var titleErr = page.querySelector('#ip-user-title-err');
             var bodyErr  = page.querySelector('#ip-user-body-err');
             var toast    = page.querySelector('#ip-user-toast');
+            // v3.8.8.0 : sync défensif WYSIWYG → textarea avant lecture, au cas où la
+            // dernière frappe n'aurait pas encore déclenché input. Si on est en mode Raw,
+            // pas besoin (textarea déjà à jour).
+            if (!userIsRawMode(page)) userSyncWysiwygToTextarea(page);
             var title = titleEl ? titleEl.value.trim() : '';
             var body  = bodyEl  ? bodyEl.value.trim()  : '';
             var ok = true;
@@ -1074,6 +1280,8 @@
                 if (!res.ok) throw new Error(String(res.status));
                 if (titleEl) titleEl.value = '';
                 if (bodyEl)  bodyEl.value  = '';
+                if (wysiwyg) wysiwyg.innerHTML = '';
+                userUpdateCharCount(page);
                 loadSentMessages(page);
                 if (toast) {
                     toast.textContent = t('toast_published');

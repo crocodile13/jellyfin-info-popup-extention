@@ -6,6 +6,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.8.8.0] — 2026-05-31
+
+### Changed
+- **Self-sent messages are no longer shown in "Received" views** — a user (admin or not) who sends a message to "All users" no longer sees their own message appear in their popup, Inbox, or `/messages` listing. The filter is applied server-side in `GetMessages` (non-admin path), `GetPopupData`, and `GetUnseen` via `IsOwner` (GUID-normalized comparison). The admin view of `/messages` still shows all messages.
+- **Admin row in the Rights tab now has a dedicated "Administrator" role** — instead of showing "Reader" or "Custom" for admin Jellyfin users (which was misleading since they have all rights server-side), a non-selectable "Administrateur / Administrator" option is pre-selected. The card stays greyed out and excluded from save/bulk-apply as before. Eight new translations: `perm_role_admin`.
+
+### Fixed
+- **Reply toast notifications were silenced on first connection** — the v3.8.0.0 "anti-spam bootstrap" logic marked every reply in the first poll as already-seen if `localStorage` was empty. Result: a fresh user (or anyone who cleared site data) never saw their very first reply notification. Now the bootstrap silencing only kicks in if there are more than 3 pending replies on the first poll (the actual upgrade-spam case). Below the threshold, normal notifications fire.
+- **First reply poll deferred up to 10 seconds after page load** — the poll loop only fired on the first 10 s tick. Now `pollRepliesReceived()` runs immediately at observer init, so a user who opens Jellyfin right after someone replied gets the toast within ~1 s instead of up to 55 s (10 s tick + 45 s interval).
+
+### Added
+- **Full rich-text editor in the "My Messages" → Send tab** — parity with the admin editor: WYSIWYG contenteditable mode by default with a Raw toggle for direct markdown, keyboard shortcuts (Ctrl+B/I/U, Ctrl+Shift+S), live char counter (warning/danger states), active-state highlighting on toolbar buttons (the B button lights up when your cursor is inside `**bold**`, etc.), tooltips with shortcut hints. Markdown ↔ HTML conversion reuses the admin helpers via the `window.__IP` namespace (`markdownToHtml`, `htmlToMarkdown`, `applyWysiwygFormat`).
+
+---
+
 ## [3.8.7.0] — 2026-05-30
 
 ### Added
