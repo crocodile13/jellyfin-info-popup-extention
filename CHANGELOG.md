@@ -21,7 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **8-language i18n parity** maintained across all new features.
 
 ### Fixed
-- **First-load styling glitch after fresh install** — `Cache-Control: no-cache, must-revalidate` on injected HTML response (issue #2). A regular `F5` is now enough; no more hard refresh required.
+- **First-load styling glitch after fresh install — real root cause** (hotfix on the v4.0.0.0 release). Initial diagnosis attributed this to HTML caching (`Cache-Control` fix), but the real culprit was a race condition: when the plugin gets installed, Jellyfin restarts and returns `503 Service Unavailable` for ~5–30 s on every request. If the browser fetches `/InfoPopup/client.js` during that window it gets a 503, and the `<script>` tag is then marked as failed — browsers do NOT retry script loads on transient errors. Result: no plugin JS runs → no CSS injected → toolbar buttons stay white until `Ctrl+Shift+R`. `ScriptInjectionMiddleware` now injects a tiny inline loader instead of a static `<script src>` — it retries the `client.js` fetch up to 5 total attempts (initial + 4 retries) with backoff (500 ms, 1 s, 1.5 s, 2 s, ~5 s total) on network/5xx errors. Covers normal post-install boot times. The earlier `Cache-Control: no-cache` from the same release is preserved (still useful for HTML revalidation), but this is what actually fixes issue #2.
 - **Self-sent messages no longer appear in "Received" views** for the sender (popup, Inbox, `/messages` user view).
 - **Memory leaks** — popup `keydown` and overlay `keydown`/`hashchange`/`popstate` listeners are now detached on every close path, not just on Escape.
 - Reply toast notifications were silenced on first connection if `localStorage` was empty.
