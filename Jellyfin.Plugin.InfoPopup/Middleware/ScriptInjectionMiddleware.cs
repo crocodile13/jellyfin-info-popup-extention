@@ -85,6 +85,21 @@ public sealed class ScriptInjectionMiddleware
 
         var injected = InjectScript(html);
         var bytes = Encoding.UTF8.GetBytes(injected);
+
+        // v3.8.9.0 : forcer la revalidation côté navigateur pour le HTML modifié.
+        // Sans ça, un user qui installe le plugin alors qu'un onglet Jellyfin est déjà
+        // ouvert garde un index.html caché AVANT injection → aucun script plugin chargé
+        // → CSS non appliqué → boutons sans style (les fameux « boutons blancs »
+        // observés au premier load post-install). Avec `no-cache, must-revalidate`, le
+        // navigateur revalide systématiquement sur les chargements suivants → un simple
+        // F5 normal suffit (plus besoin de Ctrl+Shift+R).
+        //
+        // Note : ne RÉSOUT PAS le tout premier affichage post-install si le browser a
+        // déjà un cache long TTL (les headers d'AVANT l'install restent dans le cache).
+        // Mais réduit la fenêtre de mauvaise UX à 1 reload classique au lieu d'un
+        // hard-refresh explicite à enseigner aux utilisateurs.
+        context.Response.Headers["Cache-Control"] = "no-cache, must-revalidate";
+        context.Response.Headers["Pragma"] = "no-cache";
         context.Response.ContentLength = bytes.Length;
         await originalBody.WriteAsync(bytes);
     }
