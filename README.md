@@ -245,10 +245,37 @@ Access control                        |   date+preview), lazy body loading      
 
 ## Compatibility
 
+### Jellyfin server
+
 | Jellyfin | .NET | Status |
 |----------|------|--------|
 | 10.10.x  | 9.0  | Supported |
 | 10.11.x  | 9.0  | Tested (React/MUI dashboard) |
+
+### Clients
+
+This plugin's UI is **delivered through the Jellyfin Web client only** (`/web/index.html`). It works on any browser-based or browser-embedded client. It does **not** appear on native clients that bypass the web layer.
+
+| Client | UI / popup | REST data | Notes |
+|--------|------------|-----------|-------|
+| Web browser (Firefox, Chrome, Safari, Edge…) | ✅ Full | ✅ | Primary target. ES5 client, works on browsers shipped since ~2016. |
+| Jellyfin Media Player (desktop) | ✅ Full | ✅ | Embeds the web client (Qt WebEngine / CEF). |
+| PWA / installed web app | ✅ Full | ✅ | Same as the browser. |
+| Jellyfin for Android (native) | ❌ | ✅ partial | Native UI bypasses web JS — no popup, no inbox sidebar. |
+| Jellyfin for Android TV | ❌ | ✅ partial | Same as above. |
+| Jellyfin for iOS / Swiftfin / Findroid / Streamyfin | ❌ | ✅ partial | All native UIs — bypass web JS. |
+| Jellyfin for Roku | ❌ | ✅ partial | Native, bypasses web. |
+| Kodi addon | ❌ | ✅ partial | Renders independently. |
+
+"REST data partial" means: the server still tracks targeting, view counts, replies, etc. for users on native clients (entries remain in `infopopup_seen.json`, `infopopup_permissions.json`, etc.), but they will never see a popup or send a reply from those apps. They will see pending messages the next time they connect via a browser.
+
+### Browser support
+
+Client JS is **ES5** (`var`, plain `function()`, no arrow / `let` / `const` / optional chaining). Uses only baseline 2015 APIs: `fetch`, `Promise`, `Set`, `Map`, `MutationObserver`, `requestAnimationFrame`. Works on every browser shipped after early 2016 (Chrome 49+, Firefox 45+, Safari 10+, Edge 14+).
+
+### Reverse-proxy / CSP
+
+The plugin injects one inline `<script>` retry loader into the Jellyfin Web `index.html` (as of v4.0.1.0). If your reverse proxy enforces a strict Content-Security-Policy without `script-src 'unsafe-inline'` or a matching nonce, the loader will be blocked. The default Jellyfin server and the official nginx configuration **do not** set a CSP, so this is only relevant if you've added a custom one.
 
 ---
 
