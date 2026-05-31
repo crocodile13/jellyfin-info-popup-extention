@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.0.1.0] — 2026-05-31
+
+### Fixed
+- **Plugin UI broken after first install until hard refresh** (real root cause, follow-up to v3.8.9.0's partial fix) — when the plugin is installed Jellyfin restarts to load the DLL, returning 503 on every request for ~5–30 s. If the browser tries to fetch `/InfoPopup/client.js` during that window, it gets a 503 and the `<script src>` tag is marked as failed: browsers do NOT retry script loads on transient errors. Result: no plugin JS runs → no CSS injected → buttons stay white until `Ctrl+Shift+R`. The previous v3.8.9.0 `Cache-Control: no-cache` fix helped HTML revalidation but didn't address the actual race. Now `ScriptInjectionMiddleware` injects a tiny inline loader instead of a plain `<script src>` — it retries the `client.js` fetch up to 5 total attempts (initial + 4 retries) with backoff (500 ms, 1 s, 1.5 s, 2 s between attempts, ~5 s total) on network/5xx errors. Covers normal post-install boot times. After this, fresh installs land on a working UI immediately, no hard refresh required.
+
+---
+
 ## [4.0.0.0] — 2026-05-31
 
 ### Changed

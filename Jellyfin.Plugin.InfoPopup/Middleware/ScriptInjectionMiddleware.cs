@@ -19,8 +19,27 @@ public sealed class ScriptInjectionMiddleware
     // automatiquement. Le loader client.js propage ce `?v=…` aux modules qu'il charge.
     private static readonly string _versionQuery =
         "?v=" + (Plugin.Instance?.Version?.ToString() ?? "0");
+
+    // Injection v4.0.1.0 : retry inline avec backoff au lieu d'une simple balise <script src>.
+    //
+    // Problème résolu : sur une fresh install, Jellyfin redémarre pour charger la DLL du plugin.
+    // Pendant ~5-30 s le serveur renvoie 503 sur tout. Si le navigateur tente de fetch
+    // `/InfoPopup/client.js` à ce moment-là, il se mange un 503 et n'essaie PAS de retry tout
+    // seul — la balise <script> est marquée "done with error", point final. Conséquence :
+    // aucun script plugin ne s'exécute → CSS pas injecté → boutons blancs jusqu'au Ctrl+Shift+R.
+    //
+    // Solution : injecter un loader inline qui retry jusqu'à 5 tentatives au total (load
+    // initial + 4 retries) avec backoff (500ms, 1s, 1.5s, 2s entre tentatives — total max
+    // ~5s) sur les erreurs réseau / 5xx. Délai suffisant pour que Jellyfin finisse son boot
+    // post-install dans la quasi-totalité des cas.
+    //
+    // L'idempotence (`html.Contains("/InfoPopup/client.js")`) reste vérifiée parce que la chaîne
+    // littérale est toujours présente dans le contenu du <script>.
     private static readonly string ScriptTag =
-        $"<script src=\"/InfoPopup/client.js{_versionQuery}\"></script>";
+        "<script>(function(){var t=0;function l(){var s=document.createElement('script');" +
+        "s.src='/InfoPopup/client.js" + _versionQuery + "';" +
+        "s.onerror=function(){if(++t<5){setTimeout(l,500*t);}};" +
+        "document.head.appendChild(s);}l();})();</script>";
     private readonly RequestDelegate _next;
 
     /// <summary>Constructeur.</summary>
