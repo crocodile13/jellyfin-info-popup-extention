@@ -6,6 +6,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.0.0.0] — 2026-05-31
+
+### Changed
+- **Fresh stable baseline on a new 2-channel release workflow.** Cumulative of all 3.8.x iteration (~10 weeks). The `main` branch now tracks stable releases only; the `dev` branch carries iterative pre-releases through a dedicated `manifest-dev.json` channel. `make promote VERSION_ARG=X.Y.Z.W` ships a tested dev version to stable via a clean rebuild on `main`. The dev plugin appears in Jellyfin catalogs as *Info Popup (Dev)* to disambiguate from stable.
+
+### Added
+- **Rich-text WYSIWYG editor in "My Messages → Send"** (parity with admin): contenteditable mode by default with Raw markdown toggle, keyboard shortcuts (Ctrl+B/I/U, Ctrl+Shift+S), live char counter, active-state highlighting on toolbar buttons, tooltips with shortcut hints.
+- **Read receipts** — admin Messages tab shows a per-message `seen/targeted` badge, click opens a modal listing exactly who has seen / not seen each message. New endpoint `GET /messages/{id}/views`.
+- **Search filters** — instant client-side filter bar above the Messages list and the Rights cards. Escape clears, `select all` and bulk-apply only touch visible rows.
+- **Maintenance section** in admin Settings: clear read receipts, clear all replies, purge soft-deleted messages, reset settings to defaults — each gated by a confirmation prompt.
+- **"Administrator" role** in the Rights tab — admin users now display a dedicated greyed-out card with the Administrator role pre-selected (instead of a misleading "Reader" or "Custom").
+- **Real-time reply toast notifications** with instant first-poll, bootstrap silencing only above 3 pending replies.
+- **8-language i18n parity** maintained across all new features.
+
+### Fixed
+- **First-load styling glitch after fresh install** — `Cache-Control: no-cache, must-revalidate` on injected HTML response (issue #2). A regular `F5` is now enough; no more hard refresh required.
+- **Self-sent messages no longer appear in "Received" views** for the sender (popup, Inbox, `/messages` user view).
+- **Memory leaks** — popup `keydown` and overlay `keydown`/`hashchange`/`popstate` listeners are now detached on every close path, not just on Escape.
+- Reply toast notifications were silenced on first connection if `localStorage` was empty.
+
+### Security
+- DTO `List<string>` fields capped (`TargetUserIds`, `Ids`, `UserIds`).
+- Daily message quota check moved atomically inside `MessageStore.Create`.
+- `IsOwner` comparisons normalized via `PermissionService.NormalizeUserId` defensively.
+- `X-Content-Type-Options: nosniff` + explicit `charset=utf-8` on `GET /InfoPopup/{module}.js`.
+
+---
+
 ## [3.8.9.0] — 2026-05-31
 
 ### Changed
