@@ -6,6 +6,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.1.1.0] — 2026-06-01
+
+### Added
+- **xUnit test project** at `tests/Jellyfin.Plugin.InfoPopup.Tests/` with 11 tests covering `PermissionService.NormalizeUserId` — the most critical helper of the codebase (cf. CLAUDE.md `[[guid-format-userid]]`). If this function ever regresses, user permissions become silently inoperative because Admin-side IDs (`"D"` format with hyphens) stop matching user-side claims (`"N"` format without hyphens). Run via `make test`. Independent from `make release-*` workflows — the tests project is NOT bundled in plugin variants. Tests cover both formats N/D/B, casing, null/empty/garbage inputs, and the cross-format equality property that `IsOwner` relies on.
+- **`CancellationToken` on all 9 public async controller methods** — `[FromRoute]/[FromBody]` parameters are now followed by `CancellationToken ct = default`. ASP.NET Core auto-binds `HttpContext.RequestAborted` to this parameter, so canceled HTTP requests stop wasting server threads on long iterations. `GetMessages` and `GetPopupData` also call `ct.ThrowIfCancellationRequested()` at strategic points (after the initial `_store.GetAll()`).
+- **`make test` target** in the Makefile.
+
+### Changed
+- **`InfoPopupController` split into 4 controllers** for maintainability. The previous 1400-line god class with 30 endpoints is now split by concern: `MessagesController` (CRUD + popup-data + seen), `RepliesController`, `PermissionsController`, `SettingsController` (settings + maintenance + JS assets). All four share an `InfoPopupControllerBase` containing the helpers and per-request caches (`_userNameCache`, `_permCache`, `_repliesByMessage`). All endpoints keep their exact paths and behavior — purely an internal restructuring, no API changes for the JS client. Diffs and code reviews become readable again; future per-domain changes touch one file instead of churning across the giant one.
+
+### Fixed
+- **`StreamReader` resource leak in `ScriptInjectionMiddleware`** — the reader was never disposed, holding open a handle on the buffer MemoryStream. Now wrapped in `using` with `leaveOpen: true` so the buffer can still be consumed afterwards.
+- **Two silent `catch { }` blocks** in `ResolveUserName` and `ComputeSenderRole` now log at Debug level with the offending userId. They previously swallowed any exception (malformed Guid, transient Jellyfin lookup failure) without trace, making "why is this user showing as empty" bugs impossible to diagnose from logs alone. Fallback behavior unchanged.
+- **`Makefile` variant→targetAbi lookup** — replaced the broken `eval $$TARGET_ABI_$$v` (bash doesn't support dots in variable names, returned `.10` and `.11` instead of `10.10.0.0` and `10.11.9.0`) with a clean `case "$$v" in jf10.10) ABI="$(TARGET_ABI_jf10.10)" ;; …` that interpolates on the Make side. Applied in `manifest-update`, `verify`, and `version` recipes.
+
+---
+
 ## [4.1.0.0] — 2026-06-01
 
 ### Added

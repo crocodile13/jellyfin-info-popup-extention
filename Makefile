@@ -159,6 +159,7 @@ help: ## Affiche cette aide
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "build"         "Compile en mode Debug"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "build-release" "Compile en mode Release (sans ZIP)"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "pack"          "Compile Release + crée le ZIP dans dist/"
+	@printf "  $(CYAN)%-22s$(RESET) %s\n" "test"          "Lance la suite de tests xUnit (v4.1.1.0)"
 	@printf "  $(CYAN)%-22s$(RESET) %s\n" "clean"         "Supprime les artefacts de build et les ZIPs dans dist/"
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)── Versioning ──────────────────────────────────────────────$(RESET)"
@@ -215,8 +216,11 @@ version: ## Affiche la version courante et la matrice variant → targetAbi → 
 	@printf "%b\n" "$(BOLD)Matrice multi-target (v4.1.0.0) :$(RESET)"
 	@for v in $(JF_VARIANTS); do \
 		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
-		ABI_VAR="TARGET_ABI_$$v"; \
-		ABI=$$(eval echo \$$$$ABI_VAR); \
+		case "$$v" in \
+			jf10.10) ABI="$(TARGET_ABI_jf10.10)" ;; \
+			jf10.11) ABI="$(TARGET_ABI_jf10.11)" ;; \
+			*) ABI="?" ;; \
+		esac; \
 		printf "  $(CYAN)%-10s$(RESET) targetAbi=%-12s ZIP=%s\n" "$$v" "$$ABI" "$$ZIP_NAME"; \
 	done
 
@@ -226,8 +230,11 @@ verify: ## Vérifie que chaque ZIP variant sur GitHub correspond à son checksum
 	@for v in $(JF_VARIANTS); do \
 		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
 		RELEASE_URL="https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$$ZIP_NAME"; \
-		ABI_VAR="TARGET_ABI_$$v"; \
-		ABI=$$(eval echo \$$$$ABI_VAR); \
+		case "$$v" in \
+			jf10.10) ABI="$(TARGET_ABI_jf10.10)" ;; \
+			jf10.11) ABI="$(TARGET_ABI_jf10.11)" ;; \
+			*) printf "%b\n" "$(RED)✗ Variant inconnu : $$v$(RESET)"; exit 1 ;; \
+		esac; \
 		MANIFEST_MD5=$$(jq -r --arg ver "$(VERSION)" --arg abi "$$ABI" \
 			'.[] | .versions[] | select(.version == $$ver and .targetAbi == $$abi) | .checksum' \
 			$(MANIFEST_FILE)); \
@@ -273,11 +280,20 @@ build-release: restore ## Compile en mode Release
 	dotnet build $(SLN_FILE) --configuration Release --no-restore
 	@printf "%b\n" "$(GREEN)✓ Build Release terminé$(RESET)"
 
+.PHONY: test
+test: ## Lance la suite de tests xUnit (v4.1.1.0). Indépendant des release-* targets.
+	@printf "%b\n" "$(BOLD)Running xUnit tests...$(RESET)"
+	dotnet test tests/Jellyfin.Plugin.InfoPopup.Tests/Jellyfin.Plugin.InfoPopup.Tests.csproj \
+		--logger "console;verbosity=normal" \
+		--nologo
+	@printf "%b\n" "$(GREEN)✓ Tests réussis$(RESET)"
+
 .PHONY: clean
 clean: ## Supprime les artefacts de build de tous les variants et le dossier dist/
 	@printf "%b\n" "$(BOLD)Nettoyage (variants : $(JF_VARIANTS))...$(RESET)"
 	@dotnet clean $(SLN_FILE) --configuration Release 2>/dev/null || true
 	@rm -rf $(PROJECT_DIR)/bin $(PROJECT_DIR)/obj
+	@rm -rf tests/Jellyfin.Plugin.InfoPopup.Tests/bin tests/Jellyfin.Plugin.InfoPopup.Tests/obj
 	@rm -rf $(DIST_DIR)/*.zip
 	@printf "%b\n" "$(GREEN)✓ Nettoyé$(RESET)"
 
@@ -348,8 +364,11 @@ manifest-update: ## Télécharge chaque ZIP GitHub, calcule son MD5, prepend N e
 		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
 		ZIP_PATH="$(DIST_DIR)/$$ZIP_NAME"; \
 		RELEASE_URL="https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$$ZIP_NAME"; \
-		ABI_VAR="TARGET_ABI_$$v"; \
-		ABI=$$(eval echo \$$$$ABI_VAR); \
+		case "$$v" in \
+			jf10.10) ABI="$(TARGET_ABI_jf10.10)" ;; \
+			jf10.11) ABI="$(TARGET_ABI_jf10.11)" ;; \
+			*) printf "%b\n" "$(RED)✗ Variant inconnu : $$v — ajoutez son targetAbi dans le Makefile$(RESET)"; exit 1 ;; \
+		esac; \
 		[ -f "$$ZIP_PATH" ] || \
 			{ printf "%b\n" "$(RED)✗ ZIP local introuvable : $$ZIP_PATH — lancez 'make pack' d'abord$(RESET)"; exit 1; }; \
 		printf "%b\n" ""; \

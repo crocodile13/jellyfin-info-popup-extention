@@ -91,7 +91,13 @@ public sealed class ScriptInjectionMiddleware
             return;
         }
 
-        var html = await new StreamReader(buffer, Encoding.UTF8).ReadToEndAsync();
+        // v4.1.1.0 : `using` pour libérer le StreamReader avant le write de la réponse.
+        // `leaveOpen: true` car `buffer` est utilisé après (await CopyToAsync ci-dessous).
+        string html;
+        using (var reader = new StreamReader(buffer, Encoding.UTF8, leaveOpen: true))
+        {
+            html = await reader.ReadToEndAsync();
+        }
 
         // Ne pas injecter deux fois
         if (html.Contains("/InfoPopup/client.js", StringComparison.Ordinal))
