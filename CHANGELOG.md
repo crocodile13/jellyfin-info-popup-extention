@@ -6,6 +6,66 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.1.1.0] — 2026-06-01
+
+### Added
+- **xUnit test project** at `tests/Jellyfin.Plugin.InfoPopup.Tests/` with 11 tests covering `PermissionService.NormalizeUserId` — the most critical helper of the codebase (cf. CLAUDE.md `[[guid-format-userid]]`). If this function ever regresses, user permissions become silently inoperative because Admin-side IDs (`"D"` format with hyphens) stop matching user-side claims (`"N"` format without hyphens). Run via `make test`. Independent from `make release-*` workflows — the tests project is NOT bundled in plugin variants. Tests cover both formats N/D/B, casing, null/empty/garbage inputs, and the cross-format equality property that `IsOwner` relies on.
+- **`CancellationToken` on all 9 public async controller methods** — `[FromRoute]/[FromBody]` parameters are now followed by `CancellationToken ct = default`. ASP.NET Core auto-binds `HttpContext.RequestAborted` to this parameter, so canceled HTTP requests stop wasting server threads on long iterations. `GetMessages` and `GetPopupData` also call `ct.ThrowIfCancellationRequested()` at strategic points (after the initial `_store.GetAll()`).
+- **`make test` target** in the Makefile.
+
+### Changed
+- **`InfoPopupController` split into 4 controllers** for maintainability. The previous 1400-line god class with 30 endpoints is now split by concern: `MessagesController` (CRUD + popup-data + seen), `RepliesController`, `PermissionsController`, `SettingsController` (settings + maintenance + JS assets). All four share an `InfoPopupControllerBase` containing the helpers and per-request caches (`_userNameCache`, `_permCache`, `_repliesByMessage`). All endpoints keep their exact paths and behavior — purely an internal restructuring, no API changes for the JS client. Diffs and code reviews become readable again; future per-domain changes touch one file instead of churning across the giant one.
+
+### Fixed
+- **`StreamReader` resource leak in `ScriptInjectionMiddleware`** — the reader was never disposed, holding open a handle on the buffer MemoryStream. Now wrapped in `using` with `leaveOpen: true` so the buffer can still be consumed afterwards.
+- **Two silent `catch { }` blocks** in `ResolveUserName` and `ComputeSenderRole` now log at Debug level with the offending userId. They previously swallowed any exception (malformed Guid, transient Jellyfin lookup failure) without trace, making "why is this user showing as empty" bugs impossible to diagnose from logs alone. Fallback behavior unchanged.
+- **`Makefile` variant→targetAbi lookup** — replaced the broken `eval $$TARGET_ABI_$$v` (bash doesn't support dots in variable names, returned `.10` and `.11` instead of `10.10.0.0` and `10.11.9.0`) with a clean `case "$$v" in jf10.10) ABI="$(TARGET_ABI_jf10.10)" ;; …` that interpolates on the Make side. Applied in `manifest-update`, `verify`, and `version` recipes.
+
+---
+
+## [4.1.0.0] — 2026-06-01
+
+### Added
+- **Multi-target architecture** — the plugin now ships two distinct binaries per release, one for each supported Jellyfin major version, both bundled in the same manifest:
+  - `infopopup_X.Y.Z.W-jf10.10.zip` targets Jellyfin **10.10.x** (`targetAbi: 10.10.0.0`, net8.0, uses `IUserManager.Users` + `User.Policy.IsAdministrator`).
+  - `infopopup_X.Y.Z.W-jf10.11.zip` targets Jellyfin **10.11.9+** (`targetAbi: 10.11.9.0`, net9.0, uses `IUserManager.GetUsers()` + `User.HasPermission(PermissionKind.IsAdministrator)`).
+  Jellyfin's catalog automatically picks the right variant for the running server — users don't see two entries, they see one plugin that installs the correct DLL. The manifest has one `versions[]` entry per variant per release.
+
+### Changed
+- **All reflection-based access to Jellyfin APIs has been removed.** `ResolveIsAdmin` (4 fallback paths via reflection) and `EnumerateUsers` (`Users` property vs `GetUsers()` method probing) are replaced by a single `IJellyfinCompat` interface in `Services/`, with one statically-typed implementation per variant in `Compat/Jellyfin10_XX/`. Each csproj excludes the sibling variant's folder via `<Compile Remove>`. The reflection path was correct but slow and noisy; the multi-target path produces clean, type-safe C# code in each ZIP, with version mismatches caught at build time rather than at runtime.
+
+### Notes
+- **10.11.0 – 10.11.8 are no longer supported** — these versions had `User.HasPermission()` not yet available and `IUserManager.Users` already on its way out, so neither variant cleanly serves them. If you're on one of these, update to 10.11.9 (current stable).
+- **Building** now requires both .NET 8 SDK (for jf10.10) and .NET 9 SDK (for jf10.11). The Makefile's `make pack` loops over `JF_VARIANTS` to build both. Adding a future variant (e.g. `jf12.0`) is documented in CLAUDE.md.
+
+---
+
+## [4.0.3.0] — 2026-06-01
+
+### Added
+- **User Guide** at [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — non-technical walkthrough of every admin and user feature, with a FAQ. Linked from the README. Replaces the verbose Features section in the README, which now keeps a short bullet summary plus architecture/dev sections.
+
+### Fixed
+- **Reply UI no longer appears when global "Allow replies" is OFF (admin path).** The popup reply form was showing for admins even when the master switch was disabled — clicking *Send* then triggered a 403 `Replies are disabled`. The server's `EffectivePermissionsDto` for admins (in `GET /popup-data` and `GET /permissions/me`) now respects `cfg.AllowReplies` instead of always returning `CanReply=true`. Non-admin users were already correctly gated; this aligns admins with the same semantics, matching the reply endpoint's existing master-switch behavior.
+- **Admin accounts in Droits tab now display as administrator more reliably.** `ResolveIsAdmin` adds two extra fallback paths for Jellyfin variants that don't expose `User.Policy.IsAdministrator` or `HasPermission(PermissionKind)` the way earlier 10.11 builds did: it now also tries `user.GetPermission(...)` and a direct `user.IsAdministrator` property. Admin rows show the ADMIN badge + forced *Administrateur* role consistently across 10.11.x patch levels.
+- **Editing a message and then deleting it no longer leaves a ghost edit form.** When an in-edit message is part of the deletion (or returns 404 on save because another admin/retention deleted it), the editor cleanly exits, the form resets, and the messages list refreshes. Same fix in the *My Messages → Sent* editor: a 404 on save now closes the editor and refreshes the inbox.
+
+---
+
+## [4.0.2.0] — 2026-05-31
+
+### Fixed
+- **Auto-recovery from cached pre-install `index.html`** (third and final fix for the long-running first-load UI bug). v3.8.9.0 (`Cache-Control: no-cache`) and v4.0.1.0 (inline retry loader for `client.js`) both addressed real bug paths but couldn't fully solve the underlying issue: when the browser already has a cached `index.html` from BEFORE the plugin install, the cached HTML simply has no `<script>` tag to inject. No server-side change can rewrite a cached response that already exists in the user's browser. Confirmed against multiple Jellyfin plugin discussions (issue jellyfin/jellyfin-web#5494, #4549) — this is a known cross-plugin platform issue, and every other JS-injection plugin tells users "refresh after install" in their README. New approach: `configurationpage.html` itself now embeds a tiny inline bootstrap that checks for `window.__IP` after 2 s and, if missing, force-reloads the page once via `window.location.reload()` (guarded by `sessionStorage.ipBootstrapReloadAttempted` to prevent loops). The reload revalidates against the server (helped by the v3.8.9.0 `Cache-Control` headers), which serves the latest HTML with the v4.0.1.0 retry loader. User sees a brief page refresh on the config page instead of a permanently broken UI. The hard refresh is no longer required for any normal install/update path.
+
+---
+
+## [4.0.1.0] — 2026-05-31
+
+### Fixed
+- **Plugin UI broken after first install until hard refresh** (real root cause, follow-up to v4.0.0.0's partial `Cache-Control` fix) — when the plugin is installed Jellyfin restarts to load the DLL, returning 503 on every request for ~5–30 s. If the browser tries to fetch `/InfoPopup/client.js` during that window, it gets a 503 and the `<script>` tag is marked as failed: browsers do NOT retry script loads on transient errors. Result: no plugin JS runs → no CSS injected → toolbar buttons stay white until `Ctrl+Shift+R`. The previous `Cache-Control: no-cache` fix helped HTML revalidation but didn't address the actual race. `ScriptInjectionMiddleware` now injects a tiny inline loader instead of a plain `<script src>` — it retries the `client.js` fetch up to 5 total attempts (initial + 4 retries) with backoff (500 ms, 1 s, 1.5 s, 2 s, ~5 s total) on network/5xx errors. Covers normal post-install boot times. Fresh installs now land on a working UI immediately, no hard refresh required.
+
+---
+
 ## [4.0.0.0] — 2026-05-31
 
 ### Changed

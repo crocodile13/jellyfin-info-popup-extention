@@ -616,8 +616,18 @@
                 exit();
                 if (typeof refreshFn === 'function') refreshFn();
             }).catch(function (err) {
+                // v4.0.3.0 : 404 = le message a disparu entre l'ouverture du mode édition
+                // et le Save (admin a supprimé, rétention, autre onglet…). On sort du mode
+                // édition et on rafraîchit pour cohérence — sinon l'utilisateur reste piégé
+                // dans un éditeur sur un message fantôme.
+                var msg = err && err.message ? err.message : '';
+                if (msg.indexOf('404') !== -1) {
+                    exit();
+                    if (typeof refreshFn === 'function') refreshFn();
+                    return;
+                }
                 save.disabled = false;
-                status.textContent = t('user_msg_edit_err') + (err && err.message ? ' (' + err.message + ')' : '');
+                status.textContent = t('user_msg_edit_err') + (msg ? ' (' + msg + ')' : '');
                 status.className = 'ip-user-msg-edit-status err';
             });
         });
