@@ -6,6 +6,7 @@ using Jellyfin.Plugin.InfoPopup.DTOs;
 using Jellyfin.Plugin.InfoPopup.Models;
 using Jellyfin.Plugin.InfoPopup.Services;
 using MediaBrowser.Controller.Library;
+// IJellyfinCompat est dans Jellyfin.Plugin.InfoPopup.Services (déjà importé ci-dessus).
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +27,7 @@ public class InfoPopupController : ControllerBase
     private readonly ReplyStoreService _replyStore;
     private readonly PermissionService _permService;
     private readonly IUserManager _userManager;
+    private readonly IJellyfinCompat _compat;
     private readonly ILogger<InfoPopupController> _logger;
     private readonly IAuthorizationService _authorizationService;
 
@@ -36,6 +38,7 @@ public class InfoPopupController : ControllerBase
         ReplyStoreService replyStore,
         PermissionService permService,
         IUserManager userManager,
+        IJellyfinCompat compat,
         ILogger<InfoPopupController> logger,
         IAuthorizationService authorizationService)
     {
@@ -44,6 +47,7 @@ public class InfoPopupController : ControllerBase
         _replyStore = replyStore;
         _permService = permService;
         _userManager = userManager;
+        _compat = compat;
         _logger = logger;
         _authorizationService = authorizationService;
     }
@@ -85,54 +89,6 @@ public class InfoPopupController : ControllerBase
     /// </summary>
     private static bool IsOwner(string? sentByUserId, string? userId) =>
         PermissionService.NormalizeUserId(sentByUserId) == PermissionService.NormalizeUserId(userId);
-
-    /// <summary>
-    /// Détermine via réflexion si un User Jellyfin est administrateur.
-    /// Essaie successivement :
-    ///   (1) `user.Policy.IsAdministrator` (10.10 / début 10.11) — propriété directe.
-    ///   (2) `user.HasPermission(PermissionKind.IsAdministrator)` (10.11.9+) — méthode réflexive.
-    ///   (3) `user.GetPermission(PermissionKind.IsAdministrator)` (alias présent sur certaines
-    ///       branches 10.11.x où `HasPermission` a été retirée — fallback v4.0.3.0).
-    ///   (4) Recherche directe d'une propriété `IsAdministrator` sur le user lui-même
-    ///       (cas dégénérés du modèle de données où c'est un raccourci) — fallback v4.0.3.0.
-    /// Tout échec → false (permission par défaut la plus restrictive).
-    /// </summary>
-    private static bool ResolveIsAdmin(object user, Type type)
-    {
-        try
-        {
-            // Path 1: user.Policy.IsAdministrator
-            var policy = type.GetProperty("Policy")?.GetValue(user);
-            if (policy is not null)
-            {
-                var isAdminProp = policy.GetType().GetProperty("IsAdministrator");
-                if (isAdminProp is not null && isAdminProp.GetValue(policy) is bool b)
-                    return b;
-            }
-            // Path 2/3: méthode HasPermission(PermissionKind) ou GetPermission(PermissionKind).
-            // PermissionKind est un enum dans Jellyfin.Data ; on cherche la valeur nommée
-            // "IsAdministrator" puis on invoke la méthode trouvée.
-            foreach (var methodName in new[] { "HasPermission", "GetPermission" })
-            {
-                var m = type.GetMethod(methodName);
-                if (m is null) continue;
-                var enumParam = m.GetParameters().FirstOrDefault()?.ParameterType;
-                if (enumParam is null || !enumParam.IsEnum) continue;
-                var adminVal = System.Enum.GetNames(enumParam).FirstOrDefault(n =>
-                    string.Equals(n, "IsAdministrator", System.StringComparison.OrdinalIgnoreCase));
-                if (adminVal is null) continue;
-                var enumVal = System.Enum.Parse(enumParam, adminVal);
-                var res = m.Invoke(user, new[] { enumVal });
-                if (res is bool b2) return b2;
-            }
-            // Path 4: raccourci `IsAdministrator` posé directement sur le user.
-            var directProp = type.GetProperty("IsAdministrator");
-            if (directProp is not null && directProp.GetValue(user) is bool b3)
-                return b3;
-        }
-        catch { /* ignoré — défaut : non-admin */ }
-        return false;
-    }
 
     /// <summary>
     /// Cache de noms d'utilisateurs au scope de la requête (v3.8.4.0).
@@ -1241,49 +1197,22 @@ public class InfoPopupController : ControllerBase
     }
 
     /// <summary>
-    /// Énumère les utilisateurs Jellyfin (id + nom) via réflexion sur IUserManager.Users.
-    /// La réflexion lie l'appel au runtime : la signature de la propriété Users a changé
-    /// pendant le cycle 10.11 (User déplacé dans Jellyfin.Database.Implementations.Entities),
-    /// ce qui provoquait un MissingMethodException avec un accès typé statiquement.
-    /// Ne JAMAIS revenir à `_userManager.Users` en accès direct.
+    /// Énumère les utilisateurs Jellyfin via la frontière <see cref="IJellyfinCompat"/>
+    /// (v4.1.0.0). Le pattern multi-target remplace la réflexion défensive d'avant 4.1 :
+    /// chaque variant ZIP (<c>jf10.10</c> / <c>jf10.11</c>) embarque l'implémentation
+    /// typée statiquement adaptée à sa branche Jellyfin.
     /// </summary>
     private List<(string Id, string Name, bool IsAdmin)> EnumerateUsers()
     {
-        var list = new List<(string, string, bool)>();
         try
         {
-            // 10.10 / début 10.11 : propriété IUserManager.Users.
-            object? usersValue = _userManager.GetType().GetProperty("Users")?.GetValue(_userManager)
-                ?? typeof(IUserManager).GetProperty("Users")?.GetValue(_userManager);
-
-            // 10.11.9+ : la propriété Users a été remplacée par la méthode GetUsers().
-            // Sans ce fallback, GetProperty("Users") renvoie null → liste vide → "Aucun utilisateur".
-            if (usersValue is not System.Collections.IEnumerable)
-            {
-                usersValue = _userManager.GetType().GetMethod("GetUsers", Type.EmptyTypes)?.Invoke(_userManager, null)
-                    ?? typeof(IUserManager).GetMethod("GetUsers", Type.EmptyTypes)?.Invoke(_userManager, null);
-            }
-
-            if (usersValue is not System.Collections.IEnumerable users)
-                return list;
-
-            foreach (var user in users)
-            {
-                if (user is null) continue;
-                var type = user.GetType();
-                var id = type.GetProperty("Id")?.GetValue(user)?.ToString();
-                if (string.IsNullOrEmpty(id)) continue;
-                var name = type.GetProperty("Username")?.GetValue(user) as string;
-                bool isAdmin = ResolveIsAdmin(user, type);
-                list.Add((id, name ?? string.Empty, isAdmin));
-            }
+            return _compat.EnumerateUsers().ToList();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "InfoPopup: échec de l'énumération des utilisateurs (IUserManager.Users / GetUsers)");
+            _logger.LogError(ex, "InfoPopup: échec de l'énumération des utilisateurs via IJellyfinCompat");
+            return new List<(string, string, bool)>();
         }
-
-        return list;
     }
 
     /// <summary>Retourne les droits effectifs de l'utilisateur courant.</summary>

@@ -286,6 +286,12 @@ Two switches must both be ON:
 
 If the global switch is OFF, even users with the per-user permission can't reply. Since v4.0.3.0, the reply zone is hidden entirely when the global switch is off, so no one gets a surprise 403.
 
+### I see one plugin in the catalog but there are actually two binaries — what gives?
+
+Since v4.1.0.0 the plugin ships a different DLL for Jellyfin 10.10.x and Jellyfin 10.11.9+ (the underlying user-management APIs differ between these versions). The manifest declares both with their respective `targetAbi`, and Jellyfin automatically downloads the right one for your server — so you still see and install **one** plugin entry. If you're curious which variant you got, the file name visible in the plugins folder will be either `infopopup_X.Y.Z.W-jf10.10.zip` or `infopopup_X.Y.Z.W-jf10.11.zip` (only one is installed).
+
+If you run a Jellyfin between 10.11.0 and 10.11.8, the catalog will show no compatible version. Update Jellyfin to 10.11.9 (current stable) — the plugin will then install cleanly.
+
 ### Where is the plugin data stored?
 
 Inside the Jellyfin plugins folder (e.g., `/config/plugins/InfoPopup/` on Docker, `~/.local/share/jellyfin/plugins/InfoPopup/` on Linux):

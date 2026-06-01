@@ -46,10 +46,30 @@ GITHUB_REPO   ?= jellyfin-info-popup-extention
 
 PLUGIN_NAME   := Jellyfin.Plugin.InfoPopup
 PROJECT_DIR   := $(PLUGIN_NAME)
-PROJECT_FILE  := $(PROJECT_DIR)/$(PLUGIN_NAME).csproj
 SLN_FILE      := $(PLUGIN_NAME).sln
 DIST_DIR      := dist
 SCRIPTS_DIR   := scripts
+
+# ---------------------------------------------------------------------------
+# Multi-target variants — v4.1.0.0
+# ---------------------------------------------------------------------------
+# Chaque variant correspond à UN csproj distinct dans $(PROJECT_DIR)/ et produit
+# UN ZIP distinct uploadé sur GitHub Release. Le manifest Jellyfin contient une
+# entrée versions[] par variant, avec son propre targetAbi. Jellyfin filtre
+# automatiquement à l'installation la variant compatible avec sa propre version.
+#
+# Pour ajouter une variant (ex: jf12.0) :
+#   1. Créer $(PROJECT_DIR)/$(PLUGIN_NAME).jf12.0.csproj (cf. jf10.11 pour modèle)
+#   2. Créer $(PROJECT_DIR)/Compat/Jellyfin12_0/JellyfinCompat.cs (impl typée)
+#   3. Adapter <Compile Remove> dans TOUS les csproj sœurs pour s'exclure
+#   4. Ajouter jf12.0 dans JF_VARIANTS + map TARGET_ABI_jf12.0 ci-dessous
+# ---------------------------------------------------------------------------
+JF_VARIANTS := jf10.10 jf10.11
+
+# Mapping variant → targetAbi déclaré dans le manifest Jellyfin.
+# C'est cette valeur qui détermine quelle variant Jellyfin propose à l'install.
+TARGET_ABI_jf10.10 := 10.10.0.0
+TARGET_ABI_jf10.11 := 10.11.9.0
 
 # ---------------------------------------------------------------------------
 # CHANNEL — sélection dev vs stable (v3.8.9.0)
@@ -90,11 +110,17 @@ TARGET_ABI    := $(shell jq -r '.targetAbi' version.json)
 
 VERSION       := $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).0
 GIT_TAG       := v$(VERSION)$(TAG_SUFFIX)
-ZIP_NAME      := infopopup_$(VERSION)$(ZIP_SUFFIX).zip
-ZIP_PATH      := $(DIST_DIR)/$(ZIP_NAME)
-
-RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$(ZIP_NAME)
 TIMESTAMP     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Helpers per-variant (v4.1.0.0).
+# - csproj_for(variant)    = chemin du csproj
+# - zip_name_for(variant)  = nom du ZIP (avec suffixes channel + variant)
+# - zip_path_for(variant)  = chemin local du ZIP dans dist/
+# - release_url_for(variant) = URL GitHub du ZIP servi
+csproj_for     = $(PROJECT_DIR)/$(PLUGIN_NAME).$(1).csproj
+zip_name_for   = infopopup_$(VERSION)-$(1)$(ZIP_SUFFIX).zip
+zip_path_for   = $(DIST_DIR)/$(call zip_name_for,$(1))
+release_url_for = https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$(call zip_name_for,$(1))
 
 # Détection MD5 (Linux: md5sum, macOS: md5 -q)
 MD5_CMD       := $(shell command -v md5sum >/dev/null 2>&1 && echo "md5sum" || echo "md5 -q")
@@ -180,34 +206,51 @@ check: ## Vérifie que tous les outils requis sont installés
 	@printf "%b\n" "$(GREEN)✓ Tout est prêt$(RESET)"
 
 .PHONY: version
-version: ## Affiche la version courante
+version: ## Affiche la version courante et la matrice variant → targetAbi → ZIP
 	@printf "%b\n" "$(BOLD)Channel :$(RESET) $(CYAN)$(CHANNEL_LABEL)$(RESET)  $(BOLD)Branche :$(RESET) $(BRANCH)"
 	@printf "%b\n" "$(BOLD)Version :$(RESET) $(CYAN)$(VERSION)$(RESET)"
 	@printf "%b\n" "$(BOLD)Git tag :$(RESET) $(GIT_TAG)"
-	@printf "%b\n" "$(BOLD)targetAbi :$(RESET) $(TARGET_ABI)"
 	@printf "%b\n" "$(BOLD)Manifest :$(RESET) $(MANIFEST_FILE)"
-	@printf "%b\n" "$(BOLD)ZIP :$(RESET) $(ZIP_NAME)"
-	@printf "%b\n" "$(BOLD)Release URL :$(RESET) $(RELEASE_URL)"
+	@printf "%b\n" ""
+	@printf "%b\n" "$(BOLD)Matrice multi-target (v4.1.0.0) :$(RESET)"
+	@for v in $(JF_VARIANTS); do \
+		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
+		ABI_VAR="TARGET_ABI_$$v"; \
+		ABI=$$(eval echo \$$$$ABI_VAR); \
+		printf "  $(CYAN)%-10s$(RESET) targetAbi=%-12s ZIP=%s\n" "$$v" "$$ABI" "$$ZIP_NAME"; \
+	done
 
 .PHONY: verify
-verify: ## Vérifie que le ZIP sur GitHub correspond au checksum dans $(MANIFEST_FILE)
-	@printf "%b\n" "$(BOLD)Vérification de cohérence release ↔ $(MANIFEST_FILE)...$(RESET)"
-	@MANIFEST_MD5=$$(jq -r '.[] | .versions[] | select(.version == "$(VERSION)") | .checksum' $(MANIFEST_FILE)); \
-	if [ -z "$$MANIFEST_MD5" ]; then \
-		printf "%b\n" "$(RED)✗ Version $(VERSION) introuvable dans $(MANIFEST_FILE)$(RESET)"; exit 1; \
-	fi; \
-	printf "%b\n" "  Checksum manifest : $$MANIFEST_MD5"; \
-	printf "%b\n" "  Téléchargement de $(RELEASE_URL) ..."; \
-	REMOTE_MD5=$$(bash $(SCRIPTS_DIR)/gh_checksum.sh "$(RELEASE_URL)"); \
-	if [ -z "$$REMOTE_MD5" ]; then \
-		printf "%b\n" "$(RED)✗ Impossible de télécharger le ZIP depuis GitHub$(RESET)"; exit 1; \
-	fi; \
-	printf "%b\n" "  Checksum GitHub   : $$REMOTE_MD5"; \
-	if [ "$$(echo $$MANIFEST_MD5 | tr '[:upper:]' '[:lower:]')" = "$$(echo $$REMOTE_MD5 | tr '[:upper:]' '[:lower:]')" ]; then \
-		printf "%b\n" "$(GREEN)✓ Checksums identiques — Jellyfin pourra installer le plugin$(RESET)"; \
-	else \
-		printf "%b\n" "$(RED)✗ DÉSYNCHRONISÉ — lancez 'make release-hotfix' pour corriger$(RESET)"; exit 1; \
-	fi
+verify: ## Vérifie que chaque ZIP variant sur GitHub correspond à son checksum dans $(MANIFEST_FILE)
+	@printf "%b\n" "$(BOLD)Vérification de cohérence release ↔ $(MANIFEST_FILE) ($(JF_VARIANTS))...$(RESET)"
+	@for v in $(JF_VARIANTS); do \
+		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
+		RELEASE_URL="https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$$ZIP_NAME"; \
+		ABI_VAR="TARGET_ABI_$$v"; \
+		ABI=$$(eval echo \$$$$ABI_VAR); \
+		MANIFEST_MD5=$$(jq -r --arg ver "$(VERSION)" --arg abi "$$ABI" \
+			'.[] | .versions[] | select(.version == $$ver and .targetAbi == $$abi) | .checksum' \
+			$(MANIFEST_FILE)); \
+		printf "%b\n" ""; \
+		printf "%b\n" "$(BOLD)── Variant $$v (targetAbi=$$ABI) ──────────$(RESET)"; \
+		if [ -z "$$MANIFEST_MD5" ]; then \
+			printf "%b\n" "$(RED)✗ Entrée (version=$(VERSION), targetAbi=$$ABI) introuvable dans $(MANIFEST_FILE)$(RESET)"; exit 1; \
+		fi; \
+		printf "%b\n" "  Checksum manifest : $$MANIFEST_MD5"; \
+		printf "%b\n" "  Téléchargement de $$RELEASE_URL ..."; \
+		REMOTE_MD5=$$(bash $(SCRIPTS_DIR)/gh_checksum.sh "$$RELEASE_URL"); \
+		if [ -z "$$REMOTE_MD5" ]; then \
+			printf "%b\n" "$(RED)✗ Impossible de télécharger le ZIP depuis GitHub$(RESET)"; exit 1; \
+		fi; \
+		printf "%b\n" "  Checksum GitHub   : $$REMOTE_MD5"; \
+		if [ "$$(echo $$MANIFEST_MD5 | tr '[:upper:]' '[:lower:]')" = "$$(echo $$REMOTE_MD5 | tr '[:upper:]' '[:lower:]')" ]; then \
+			printf "%b\n" "  $(GREEN)✓ Checksums identiques$(RESET)"; \
+		else \
+			printf "%b\n" "$(RED)✗ DÉSYNCHRONISÉ pour $$v — lancez 'make release-hotfix'$(RESET)"; exit 1; \
+		fi; \
+	done
+	@printf "%b\n" ""
+	@printf "%b\n" "$(GREEN)✓ Tous les variants vérifiés — Jellyfin pourra installer le plugin$(RESET)"
 
 # =============================================================================
 # BUILD
@@ -231,11 +274,11 @@ build-release: restore ## Compile en mode Release
 	@printf "%b\n" "$(GREEN)✓ Build Release terminé$(RESET)"
 
 .PHONY: clean
-clean: ## Supprime les artefacts de build et le dossier dist/
-	@printf "%b\n" "$(BOLD)Nettoyage...$(RESET)"
-	dotnet clean $(SLN_FILE) --configuration Release 2>/dev/null || true
-	rm -rf $(PROJECT_DIR)/bin $(PROJECT_DIR)/obj
-	rm -rf $(DIST_DIR)/*.zip
+clean: ## Supprime les artefacts de build de tous les variants et le dossier dist/
+	@printf "%b\n" "$(BOLD)Nettoyage (variants : $(JF_VARIANTS))...$(RESET)"
+	@dotnet clean $(SLN_FILE) --configuration Release 2>/dev/null || true
+	@rm -rf $(PROJECT_DIR)/bin $(PROJECT_DIR)/obj
+	@rm -rf $(DIST_DIR)/*.zip
 	@printf "%b\n" "$(GREEN)✓ Nettoyé$(RESET)"
 
 # =============================================================================
@@ -243,19 +286,31 @@ clean: ## Supprime les artefacts de build et le dossier dist/
 # =============================================================================
 
 .PHONY: pack
-pack: build-release ## Compile Release + crée le ZIP dans dist/
-	@printf "%b\n" "$(BOLD)Packaging $(VERSION)...$(RESET)"
+pack: restore ## Compile Release + crée 1 ZIP par variant dans dist/ (v4.1.0.0)
+	@printf "%b\n" "$(BOLD)Packaging $(VERSION) — variants : $(JF_VARIANTS)$(RESET)"
 	@mkdir -p $(DIST_DIR)
 	@rm -f $(DIST_DIR)/*.zip
-	dotnet publish $(PROJECT_FILE) \
-		--configuration Release \
-		--output $(DIST_DIR)/_publish \
-		--no-build
-	@cd $(DIST_DIR)/_publish && zip -j ../$(ZIP_NAME) $(PLUGIN_NAME).dll
-	@rm -rf $(DIST_DIR)/_publish
-	@LOCAL_MD5=$$($(MD5_CMD) $(ZIP_PATH) | awk '{print $$1}'); \
-	printf "%b\n" "$(GREEN)✓ ZIP créé : $(ZIP_PATH)$(RESET)"; \
-	printf "%b\n" "   MD5 local : $$LOCAL_MD5 (le MD5 final sera celui servi par GitHub)"
+	@for v in $(JF_VARIANTS); do \
+		CSPROJ="$(PROJECT_DIR)/$(PLUGIN_NAME).$$v.csproj"; \
+		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
+		ZIP_PATH="$(DIST_DIR)/$$ZIP_NAME"; \
+		PUBLISH_DIR="$(DIST_DIR)/_publish_$$v"; \
+		printf "%b\n" ""; \
+		printf "%b\n" "$(BOLD)── Variant $$v ─────────────────────────────────$(RESET)"; \
+		printf "%b\n" "  csproj : $$CSPROJ"; \
+		printf "%b\n" "  ZIP    : $$ZIP_NAME"; \
+		dotnet build "$$CSPROJ" --configuration Release || exit 1; \
+		dotnet publish "$$CSPROJ" \
+			--configuration Release \
+			--output "$$PUBLISH_DIR" \
+			--no-build || exit 1; \
+		(cd "$$PUBLISH_DIR" && zip -j "../$$ZIP_NAME" $(PLUGIN_NAME).dll) || exit 1; \
+		rm -rf "$$PUBLISH_DIR"; \
+		LOCAL_MD5=$$($(MD5_CMD) "$$ZIP_PATH" | awk '{print $$1}'); \
+		printf "%b\n" "  $(GREEN)✓ $$ZIP_PATH$(RESET)  (MD5 local : $$LOCAL_MD5)"; \
+	done
+	@printf "%b\n" ""
+	@printf "%b\n" "$(GREEN)✓ Tous les variants packagés$(RESET)"
 
 # =============================================================================
 # VERSIONING
@@ -287,20 +342,31 @@ bump-major: ## Incrémente le majeur (1.0.0 → 2.0.0) — remet minor et patch 
 # =============================================================================
 
 .PHONY: manifest-update
-manifest-update: ## Télécharge le ZIP GitHub, calcule son MD5 réel, met à jour $(MANIFEST_FILE)
-	@[ -f "$(ZIP_PATH)" ] || \
-		{ printf "%b\n" "$(RED)✗ ZIP local introuvable : $(ZIP_PATH) — lancez 'make pack' d'abord$(RESET)"; exit 1; }
-	@printf "%b\n" "$(BOLD)Mise à jour du manifest Jellyfin ($(MANIFEST_FILE))...$(RESET)"
-	@bash $(SCRIPTS_DIR)/update_manifest.sh \
-		"$(VERSION)" \
-		"$(TARGET_ABI)" \
-		"$(RELEASE_URL)" \
-		"$(TIMESTAMP)" \
-		"$(GITHUB_USER)" \
-		"$(GITHUB_REPO)" \
-		"$(MANIFEST_FILE)" \
-		"$(CHANNEL)"
-	@printf "%b\n" "$(GREEN)✓ $(MANIFEST_FILE) mis à jour$(RESET)"
+manifest-update: ## Télécharge chaque ZIP GitHub, calcule son MD5, prepend N entrées dans $(MANIFEST_FILE)
+	@printf "%b\n" "$(BOLD)Mise à jour du manifest Jellyfin ($(MANIFEST_FILE)) — $(JF_VARIANTS)...$(RESET)"
+	@for v in $(JF_VARIANTS); do \
+		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
+		ZIP_PATH="$(DIST_DIR)/$$ZIP_NAME"; \
+		RELEASE_URL="https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$$ZIP_NAME"; \
+		ABI_VAR="TARGET_ABI_$$v"; \
+		ABI=$$(eval echo \$$$$ABI_VAR); \
+		[ -f "$$ZIP_PATH" ] || \
+			{ printf "%b\n" "$(RED)✗ ZIP local introuvable : $$ZIP_PATH — lancez 'make pack' d'abord$(RESET)"; exit 1; }; \
+		printf "%b\n" ""; \
+		printf "%b\n" "$(BOLD)── manifest entry pour $$v ─────────────────────$(RESET)"; \
+		printf "%b\n" "  targetAbi : $$ABI"; \
+		bash $(SCRIPTS_DIR)/update_manifest.sh \
+			"$(VERSION)" \
+			"$$ABI" \
+			"$$RELEASE_URL" \
+			"$(TIMESTAMP)" \
+			"$(GITHUB_USER)" \
+			"$(GITHUB_REPO)" \
+			"$(MANIFEST_FILE)" \
+			"$(CHANNEL)" || exit 1; \
+	done
+	@printf "%b\n" ""
+	@printf "%b\n" "$(GREEN)✓ $(MANIFEST_FILE) mis à jour ($(words $(JF_VARIANTS)) entrées ajoutées)$(RESET)"
 
 # =============================================================================
 # GIT & GITHUB
@@ -331,33 +397,49 @@ tag: ## Crée et push le tag git $(GIT_TAG) (échoue si le tag existe déjà)
 	@printf "%b\n" "$(GREEN)✓ Tag $(GIT_TAG) créé et poussé$(RESET)"
 
 .PHONY: gh-release
-gh-release: ## Crée la GitHub Release et upload le ZIP (échoue si la release existe)
-	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH)$(RESET)"; exit 1; }
+gh-release: ## Crée la GitHub Release et upload tous les ZIPs variants (v4.1.0.0)
 	@printf "%b\n" "$(BOLD)Création de la GitHub Release $(GIT_TAG) ($(CHANNEL_LABEL))...$(RESET)"
+	@for v in $(JF_VARIANTS); do \
+		ZIP_PATH="$(DIST_DIR)/infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
+		[ -f "$$ZIP_PATH" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $$ZIP_PATH$(RESET)"; exit 1; }; \
+	done
 	@NOTES=$$(bash $(SCRIPTS_DIR)/extract_changelog.sh "$(VERSION)" 2>/dev/null || echo "Release $(GIT_TAG)"); \
-	gh release create "$(GIT_TAG)" \
-		"$(ZIP_PATH)#$(ZIP_NAME)" \
+	ZIPS=""; \
+	for v in $(JF_VARIANTS); do \
+		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
+		ZIPS="$$ZIPS $(DIST_DIR)/$$ZIP_NAME#$$ZIP_NAME"; \
+	done; \
+	printf "%b\n" "  Upload de $(words $(JF_VARIANTS)) ZIPs..."; \
+	gh release create "$(GIT_TAG)" $$ZIPS \
 		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
 		--title "$(GIT_TAG)" \
 		--notes "$$NOTES" \
 		$(GH_PRERELEASE_FLAG)
-	@printf "%b\n" "$(GREEN)✓ GitHub Release $(GIT_TAG) créée avec le ZIP$(RESET)"
+	@printf "%b\n" "$(GREEN)✓ GitHub Release $(GIT_TAG) créée avec $(words $(JF_VARIANTS)) ZIPs$(RESET)"
 
 .PHONY: gh-release-upload
-gh-release-upload: ## Re-upload le ZIP sur une GitHub Release existante (supprime l'asset pour invalider le cache CDN)
-	@[ -f "$(ZIP_PATH)" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $(ZIP_PATH)$(RESET)"; exit 1; }
-	@printf "%b\n" "$(BOLD)Re-upload du ZIP sur la release $(GIT_TAG)...$(RESET)"
-	@printf "%b\n" "  Suppression de l'ancien asset (invalide le cache CDN GitHub)..."
-	@gh release delete-asset "$(GIT_TAG)" "$(ZIP_NAME)" \
-		--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
-		--yes 2>/dev/null && \
-		printf "%b\n" "  $(GREEN)✓ Ancien asset supprimé$(RESET)" || \
-		printf "%b\n" "  $(YELL)⚠ Aucun asset existant à supprimer$(RESET)"
-	@printf "%b\n" "  Upload du nouveau ZIP..."
-	gh release upload "$(GIT_TAG)" \
-		"$(ZIP_PATH)#$(ZIP_NAME)" \
-		--repo "$(GITHUB_USER)/$(GITHUB_REPO)"
-	@printf "%b\n" "$(GREEN)✓ ZIP re-uploadé sur la release $(GIT_TAG)$(RESET)"
+gh-release-upload: ## Re-upload tous les ZIPs variants sur la release existante (supprime + ré-upload pour invalider cache CDN)
+	@printf "%b\n" "$(BOLD)Re-upload des ZIPs sur la release $(GIT_TAG)...$(RESET)"
+	@for v in $(JF_VARIANTS); do \
+		ZIP_NAME="infopopup_$(VERSION)-$$v$(ZIP_SUFFIX).zip"; \
+		ZIP_PATH="$(DIST_DIR)/$$ZIP_NAME"; \
+		[ -f "$$ZIP_PATH" ] || { printf "%b\n" "$(RED)✗ ZIP introuvable : $$ZIP_PATH$(RESET)"; exit 1; }; \
+		printf "%b\n" ""; \
+		printf "%b\n" "$(BOLD)── Variant $$v ($$ZIP_NAME) ─────────────$(RESET)"; \
+		printf "%b\n" "  Suppression de l'ancien asset..."; \
+		gh release delete-asset "$(GIT_TAG)" "$$ZIP_NAME" \
+			--repo "$(GITHUB_USER)/$(GITHUB_REPO)" \
+			--yes 2>/dev/null && \
+			printf "%b\n" "  $(GREEN)✓ Ancien asset supprimé$(RESET)" || \
+			printf "%b\n" "  $(YELL)⚠ Aucun asset existant à supprimer$(RESET)"; \
+		printf "%b\n" "  Upload du nouveau ZIP..."; \
+		gh release upload "$(GIT_TAG)" \
+			"$$ZIP_PATH#$$ZIP_NAME" \
+			--repo "$(GITHUB_USER)/$(GITHUB_REPO)" || exit 1; \
+		printf "%b\n" "  $(GREEN)✓ Uploadé$(RESET)"; \
+	done
+	@printf "%b\n" ""
+	@printf "%b\n" "$(GREEN)✓ Tous les ZIPs re-uploadés sur $(GIT_TAG)$(RESET)"
 
 # =============================================================================
 # WORKFLOWS COMPLETS DE RELEASE
@@ -455,37 +537,31 @@ promote: check ## 🎯 Promeut une dev en stable [VERSION=X.Y.Z.W requis]
 	@printf "%b\n" "  N'oubliez pas de revenir sur dev : git checkout dev"
 
 .PHONY: release-hotfix
-release-hotfix: check _check-branch ## 🔧 Recompile + re-upload le ZIP sans changer de version (current channel)
+release-hotfix: check _check-branch ## 🔧 Recompile + re-upload tous les ZIPs variants sans changer de version
 	@printf "%b\n" "$(BOLD)$(YELL)═══ RELEASE HOTFIX $(GIT_TAG) ($(CHANNEL_LABEL)) ═══$(RESET)"
-	@printf "%b\n" "  Recompile et remplace le ZIP sur la release existante."
+	@printf "%b\n" "  Recompile et remplace les $(words $(JF_VARIANTS)) ZIPs sur la release existante."
 	$(MAKE) _reload-version
-	$(MAKE) pack STABLE=$(STABLE) \
-		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
-	$(MAKE) gh-release-upload STABLE=$(STABLE) \
-		VERSION=$(VERSION) GIT_TAG=$(GIT_TAG) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
-	$(MAKE) manifest-update STABLE=$(STABLE) \
-		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
-		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP) \
-		MANIFEST_FILE=$(MANIFEST_FILE)
+	$(MAKE) pack STABLE=$(STABLE) VERSION=$(VERSION)
+	$(MAKE) gh-release-upload STABLE=$(STABLE) VERSION=$(VERSION) GIT_TAG=$(GIT_TAG)
+	$(MAKE) manifest-update STABLE=$(STABLE) VERSION=$(VERSION) \
+		TIMESTAMP=$(TIMESTAMP) MANIFEST_FILE=$(MANIFEST_FILE)
 	$(MAKE) verify STABLE=$(STABLE)
 	$(MAKE) push STABLE=$(STABLE)
 	@printf "%b\n" ""
 	@printf "%b\n" "$(BOLD)$(GREEN)✓ Hotfix $(GIT_TAG) appliqué$(RESET)"
-	@printf "%b\n" "  $(MANIFEST_FILE) et ZIP GitHub sont maintenant synchronisés."
+	@printf "%b\n" "  $(MANIFEST_FILE) et tous les ZIPs GitHub sont maintenant synchronisés."
 	@printf "%b\n" "  Rafraîchissez le dépôt dans Jellyfin puis réinstallez."
 
-# Cible interne — recharge les variables depuis version.json après un bump
+# Cible interne — recharge les variables depuis version.json après un bump.
+# v4.1.0.0 : ZIP_NAME/ZIP_PATH/RELEASE_URL retirés — chaque variant a son nom,
+# calculé inline dans les recipes via les helpers $(call zip_name_for,V) etc.
 .PHONY: _reload-version
 _reload-version:
 	$(eval VERSION       := $(shell jq -r '"\(.major).\(.minor).\(.patch).0"' version.json))
 	$(eval VERSION_MAJOR := $(shell jq -r '.major' version.json))
 	$(eval VERSION_MINOR := $(shell jq -r '.minor' version.json))
 	$(eval VERSION_PATCH := $(shell jq -r '.patch' version.json))
-	$(eval TARGET_ABI    := $(shell jq -r '.targetAbi' version.json))
 	$(eval GIT_TAG       := v$(VERSION)$(TAG_SUFFIX))
-	$(eval ZIP_NAME      := infopopup_$(VERSION)$(ZIP_SUFFIX).zip)
-	$(eval ZIP_PATH      := $(DIST_DIR)/$(ZIP_NAME))
-	$(eval RELEASE_URL   := https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/releases/download/$(GIT_TAG)/$(ZIP_NAME))
 	$(eval TIMESTAMP     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ"))
 
 # Garde-fou : refuse de release dans le mauvais channel/branche.
@@ -502,18 +578,13 @@ _check-branch:
 # Cible interne — ne pas appeler directement
 .PHONY: _do-release
 _do-release: _check-branch _reload-version
-	@printf "%b\n" "$(BOLD)Channel : $(CYAN)$(CHANNEL_LABEL)$(RESET)  Branche : $(BRANCH)  Version cible : $(CYAN)$(VERSION)$(RESET)"
-	$(MAKE) pack \
-		VERSION=$(VERSION) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
+	@printf "%b\n" "$(BOLD)Channel : $(CYAN)$(CHANNEL_LABEL)$(RESET)  Branche : $(BRANCH)  Version cible : $(CYAN)$(VERSION)$(RESET)  Variants : $(CYAN)$(JF_VARIANTS)$(RESET)"
+	$(MAKE) pack VERSION=$(VERSION)
 	$(MAKE) push STABLE=$(STABLE)
-	$(MAKE) tag STABLE=$(STABLE) \
-		VERSION=$(VERSION) GIT_TAG=$(GIT_TAG)
-	$(MAKE) gh-release STABLE=$(STABLE) \
-		VERSION=$(VERSION) GIT_TAG=$(GIT_TAG) ZIP_NAME=$(ZIP_NAME) ZIP_PATH=$(ZIP_PATH)
-	$(MAKE) manifest-update STABLE=$(STABLE) \
-		VERSION=$(VERSION) TARGET_ABI=$(TARGET_ABI) \
-		RELEASE_URL=$(RELEASE_URL) TIMESTAMP=$(TIMESTAMP) \
-		MANIFEST_FILE=$(MANIFEST_FILE)
+	$(MAKE) tag STABLE=$(STABLE) VERSION=$(VERSION) GIT_TAG=$(GIT_TAG)
+	$(MAKE) gh-release STABLE=$(STABLE) VERSION=$(VERSION) GIT_TAG=$(GIT_TAG)
+	$(MAKE) manifest-update STABLE=$(STABLE) VERSION=$(VERSION) \
+		TIMESTAMP=$(TIMESTAMP) MANIFEST_FILE=$(MANIFEST_FILE)
 	$(MAKE) verify STABLE=$(STABLE)
 	$(MAKE) push STABLE=$(STABLE)
 	@printf "%b\n" ""

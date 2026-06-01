@@ -164,10 +164,15 @@ if [ -z "$PLUGIN_GUID" ]; then
             versions:    [$entry]
         }]' > "${MANIFEST_FILE}.tmp"
 else
-    # Ajouter la nouvelle version en tête (ou remplacer si elle existe déjà)
+    # Ajouter la nouvelle version en tête (ou remplacer si elle existe déjà).
+    # v4.1.0.0 : dédup sur (version, targetAbi) — pas juste version. Sinon en
+    # multi-target le 2e appel update_manifest.sh écraserait l'entrée du 1er
+    # variant (même version, targetAbi différent). On garde ainsi 1 entrée par
+    # (version, targetAbi) pair, et toutes les variants de la même version
+    # cohabitent proprement dans le manifest.
     jq \
         --argjson entry "$NEW_VERSION_ENTRY" \
-        '.[0].versions = ([$entry] + (.[0].versions | map(select(.version != $entry.version))))' \
+        '.[0].versions = ([$entry] + (.[0].versions | map(select(.version != $entry.version or .targetAbi != $entry.targetAbi))))' \
         "$MANIFEST_FILE" > "${MANIFEST_FILE}.tmp"
 fi
 

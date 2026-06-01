@@ -166,6 +166,22 @@ ScriptInjectionMiddleware → index.html → client.js?v=X.Y.Z.W (versioned URL)
 
 The middleware injects an inline retry loader (v4.0.1.0) into `index.html` that fetches `client.js` with backoff to survive post-install 503s. `client.js` is a small sequential loader (~50 lines) that injects the six modules via `<script async=false>` so they fetch in parallel but execute in dependency order. All cross-module communication goes through `window.__IP`.
 
+### Multi-target build (v4.1.0.0)
+
+```
+Jellyfin.Plugin.InfoPopup/
+├── Jellyfin.Plugin.InfoPopup.jf10.10.csproj  ← pin 10.10.*, net8.0
+├── Jellyfin.Plugin.InfoPopup.jf10.11.csproj  ← pin 10.11.9, net9.0
+│
+├── Controllers/ Services/ Models/ DTOs/ Web/  ← 100% shared (no #if directives)
+│
+└── Compat/
+    ├── Jellyfin10_10/JellyfinCompat.cs        ← built only by jf10.10.csproj
+    └── Jellyfin10_11/JellyfinCompat.cs        ← built only by jf10.11.csproj
+```
+
+Each csproj excludes the sibling's `Compat/` folder via `<Compile Remove>`. The rest of the code calls `IJellyfinCompat.EnumerateUsers()` / `IsAdmin(guid)` and stays version-agnostic. `make pack` loops over both csprojs and produces two ZIPs; `make manifest-update` adds two entries to the manifest (one per `targetAbi`). This is the same pattern as `subbuzz` and `intro-skipper`.
+
 ### REST endpoints
 
 > `[auth]` = authenticated, perms checked. `[user]` = filtered by targeting; admins see everything. `[ADMIN]` = `RequiresElevation`. `[anon]` = `[AllowAnonymous]`.
@@ -216,10 +232,13 @@ The middleware injects an inline retry loader (v4.0.1.0) into `index.html` that 
 
 ### Jellyfin server
 
-| Jellyfin | .NET | Status |
-|----------|------|--------|
-| 10.10.x  | 9.0  | Supported |
-| 10.11.x  | 9.0  | Tested (React/MUI dashboard) |
+Since **v4.1.0.0** the plugin ships two binaries per release, bundled in the same manifest. Jellyfin's catalog automatically picks the right one for your server version — you see a single plugin entry and get the correct DLL installed.
+
+| Jellyfin | Variant binary | .NET | Compat layer | Status |
+|----------|----------------|------|--------------|--------|
+| 10.10.x  | `infopopup_X.Y.Z.W-jf10.10.zip` | net8.0 | `IUserManager.Users` / `User.Policy.IsAdministrator` | Supported |
+| 10.11.0 – 10.11.8 | — | — | — | **Not supported** (upgrade to 10.11.9) |
+| 10.11.9+ | `infopopup_X.Y.Z.W-jf10.11.zip` | net9.0 | `IUserManager.GetUsers()` / `User.HasPermission(PermissionKind)` | Tested (React/MUI dashboard) |
 
 ### Clients
 

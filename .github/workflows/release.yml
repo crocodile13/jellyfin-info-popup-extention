@@ -5,18 +5,21 @@ name: Release — Build, Pack & Publish (Manuel)
 #
 #  POURQUOI pas de déclenchement automatique sur les tags :
 #    Le workflow `make release-*` pousse un tag, crée la GitHub Release et
-#    uploade le ZIP local en local. Si ce workflow se déclenche sur le même
-#    tag, il recompile le plugin dans un environnement différent (ubuntu-latest
-#    runner ≠ machine locale) et écrase le ZIP avec un binaire différent.
-#    Résultat : le checksum dans manifest.json ne correspond plus au ZIP servi
-#    par GitHub → Jellyfin refuse l'installation.
+#    uploade les ZIPs locaux. Si ce workflow se déclenche sur le même tag, il
+#    recompile dans un environnement différent (ubuntu-latest runner ≠ machine
+#    locale) et écrase les ZIPs avec des binaires différents. Résultat : les
+#    checksums dans manifest.json ne correspondent plus aux ZIPs servis par
+#    GitHub → Jellyfin refuse l'installation.
 #
 #  QUAND utiliser ce workflow :
 #    - En dernier recours si la release locale a échoué
-#    - Pour vérifier que le code compile correctement en CI
+#    - Pour vérifier que les variants compilent correctement en CI
 #    - JAMAIS en même temps qu'un `make release-*` local sur le même tag
 #
 #  FLOW NORMAL : utiliser `make release-patch / release-minor / release-major`
+#
+#  v4.1.0.0 : multi-target — chaque variant produit son propre ZIP avec son
+#  propre suffixe. Le job builde et upload les deux en parallèle.
 # =============================================================================
 
 on:
@@ -28,10 +31,15 @@ on:
 
 jobs:
   release:
-    name: Package & Publish
+    name: Package & Publish ${{ matrix.variant.name }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      matrix:
+        variant:
+          - { name: "jf10.10", csproj: "Jellyfin.Plugin.InfoPopup.jf10.10.csproj" }
+          - { name: "jf10.11", csproj: "Jellyfin.Plugin.InfoPopup.jf10.11.csproj" }
 
     steps:
       - name: Checkout
@@ -45,26 +53,33 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.tag }}"
           VERSION="${TAG#v}"
+          # Strip optional -dev suffix for the bare version number
+          VERSION="${VERSION%-dev}"
+          ZIP_SUFFIX=""
+          if [[ "$TAG" == *-dev ]]; then ZIP_SUFFIX="-dev"; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "zip_name=infopopup_${VERSION}.zip" >> "$GITHUB_OUTPUT"
-          echo "Version : $VERSION"
+          echo "zip_name=infopopup_${VERSION}-${{ matrix.variant.name }}${ZIP_SUFFIX}.zip" >> "$GITHUB_OUTPUT"
+          echo "Version : $VERSION  Variant : ${{ matrix.variant.name }}"
 
-      - name: Setup .NET 8
+      - name: Setup .NET (8 + 9)
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            9.0.x
 
-      - name: Restore
-        run: dotnet restore Jellyfin.Plugin.InfoPopup.sln
+      - name: Restore (${{ matrix.variant.name }})
+        run: dotnet restore "Jellyfin.Plugin.InfoPopup/${{ matrix.variant.csproj }}"
 
-      - name: Build Release
-        run: dotnet build Jellyfin.Plugin.InfoPopup.sln --configuration Release --no-restore
-
-      - name: Publish
+      - name: Build Release (${{ matrix.variant.name }})
         run: |
-          dotnet publish \
-            Jellyfin.Plugin.InfoPopup/Jellyfin.Plugin.InfoPopup.csproj \
+          dotnet build "Jellyfin.Plugin.InfoPopup/${{ matrix.variant.csproj }}" \
+            --configuration Release --no-restore
+
+      - name: Publish (${{ matrix.variant.name }})
+        run: |
+          dotnet publish "Jellyfin.Plugin.InfoPopup/${{ matrix.variant.csproj }}" \
             --configuration Release \
             --output ./publish \
             --no-build
@@ -79,40 +94,18 @@ jobs:
           CHECKSUM=$(md5sum dist/${{ steps.version.outputs.zip_name }} | awk '{print $1}')
           echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
           echo "zip_path=dist/${{ steps.version.outputs.zip_name }}" >> "$GITHUB_OUTPUT"
-          echo "Checksum MD5 : $CHECKSUM"
-
-      - name: Extraire le changelog
-        id: changelog
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          NOTES=$(awk \
-            "BEGIN{found=0}
-             /^## \[?v?${VERSION//./\\.}\]?/{ found=1; next }
-             /^## / && found { exit }
-             found { print }" \
-            CHANGELOG.md | sed '/^[[:space:]]*$/d' | head -30)
-          if [ -z "$NOTES" ]; then
-            NOTES="Release v${VERSION}"
-          fi
-          {
-            echo "notes<<ENDOFNOTES"
-            echo "$NOTES"
-            echo "ENDOFNOTES"
-          } >> "$GITHUB_OUTPUT"
+          echo "Checksum MD5 (${{ matrix.variant.name }}) : $CHECKSUM"
 
       - name: Uploader le ZIP sur la release existante
-        # Note : utilise --clobber pour remplacer le ZIP si la release existe déjà.
-        # Après cet upload, relancer `make manifest-update` localement pour
-        # recalculer le MD5 depuis GitHub et mettre à jour manifest.json.
         run: |
           gh release upload "${{ steps.version.outputs.tag }}" \
             "${{ steps.zip.outputs.zip_path }}#${{ steps.version.outputs.zip_name }}" \
             --repo "${{ github.repository }}" \
             --clobber
-          echo "✓ ZIP uploadé. MD5 CI : ${{ steps.zip.outputs.checksum }}"
+          echo "✓ ZIP ${{ matrix.variant.name }} uploadé. MD5 CI : ${{ steps.zip.outputs.checksum }}"
           echo ""
           echo "⚠ IMPORTANT : si vous utilisez ce workflow manuellement,"
           echo "  relancez ensuite 'make manifest-update && make push' en local"
-          echo "  pour mettre à jour le checksum dans manifest.json."
+          echo "  pour mettre à jour les checksums dans le manifest."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

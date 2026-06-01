@@ -6,6 +6,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.1.0.0] — 2026-06-01
+
+### Added
+- **Multi-target architecture** — the plugin now ships two distinct binaries per release, one for each supported Jellyfin major version, both bundled in the same manifest:
+  - `infopopup_X.Y.Z.W-jf10.10.zip` targets Jellyfin **10.10.x** (`targetAbi: 10.10.0.0`, net8.0, uses `IUserManager.Users` + `User.Policy.IsAdministrator`).
+  - `infopopup_X.Y.Z.W-jf10.11.zip` targets Jellyfin **10.11.9+** (`targetAbi: 10.11.9.0`, net9.0, uses `IUserManager.GetUsers()` + `User.HasPermission(PermissionKind.IsAdministrator)`).
+  Jellyfin's catalog automatically picks the right variant for the running server — users don't see two entries, they see one plugin that installs the correct DLL. The manifest has one `versions[]` entry per variant per release.
+
+### Changed
+- **All reflection-based access to Jellyfin APIs has been removed.** `ResolveIsAdmin` (4 fallback paths via reflection) and `EnumerateUsers` (`Users` property vs `GetUsers()` method probing) are replaced by a single `IJellyfinCompat` interface in `Services/`, with one statically-typed implementation per variant in `Compat/Jellyfin10_XX/`. Each csproj excludes the sibling variant's folder via `<Compile Remove>`. The reflection path was correct but slow and noisy; the multi-target path produces clean, type-safe C# code in each ZIP, with version mismatches caught at build time rather than at runtime.
+
+### Notes
+- **10.11.0 – 10.11.8 are no longer supported** — these versions had `User.HasPermission()` not yet available and `IUserManager.Users` already on its way out, so neither variant cleanly serves them. If you're on one of these, update to 10.11.9 (current stable).
+- **Building** now requires both .NET 8 SDK (for jf10.10) and .NET 9 SDK (for jf10.11). The Makefile's `make pack` loops over `JF_VARIANTS` to build both. Adding a future variant (e.g. `jf12.0`) is documented in CLAUDE.md.
+
+---
+
 ## [4.0.3.0] — 2026-06-01
 
 ### Added

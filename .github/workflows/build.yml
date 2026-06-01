@@ -12,44 +12,54 @@ name: Build & Package — jellyfin-info-popup-extention
 #    provoquer un checksum mismatch dans manifest.json → Jellyfin refuse l'install.
 #
 #  Pour publier une release, utiliser : make release-patch / release-minor / release-major
+#
+#  v4.1.0.0 : la build matrix couvre les deux variants Jellyfin (10.10, 10.11).
 # =============================================================================
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build Info Popup Plugin
+    strategy:
+      matrix:
+        variant:
+          - { name: "jf10.10", csproj: "Jellyfin.Plugin.InfoPopup.jf10.10.csproj" }
+          - { name: "jf10.11", csproj: "Jellyfin.Plugin.InfoPopup.jf10.11.csproj" }
+    name: Build ${{ matrix.variant.name }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET (8 + 9)
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            9.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Restore (${{ matrix.variant.name }})
+        run: dotnet restore "Jellyfin.Plugin.InfoPopup/${{ matrix.variant.csproj }}"
 
-      - name: Build (Release)
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Publish
+      - name: Build Release (${{ matrix.variant.name }})
         run: |
-          dotnet publish \
-            Jellyfin.Plugin.InfoPopup/Jellyfin.Plugin.InfoPopup.csproj \
+          dotnet build "Jellyfin.Plugin.InfoPopup/${{ matrix.variant.csproj }}" \
+            --configuration Release --no-restore
+
+      - name: Publish (${{ matrix.variant.name }})
+        run: |
+          dotnet publish "Jellyfin.Plugin.InfoPopup/${{ matrix.variant.csproj }}" \
             --configuration Release \
-            --output ./publish \
+            --output "./publish-${{ matrix.variant.name }}" \
             --no-build
 
-      - name: Upload artifact
+      - name: Upload artifact (${{ matrix.variant.name }})
         uses: actions/upload-artifact@v4
         with:
-          name: InfoPopup-Plugin
-          path: ./publish/Jellyfin.Plugin.InfoPopup.dll
+          name: InfoPopup-Plugin-${{ matrix.variant.name }}
+          path: ./publish-${{ matrix.variant.name }}/Jellyfin.Plugin.InfoPopup.dll

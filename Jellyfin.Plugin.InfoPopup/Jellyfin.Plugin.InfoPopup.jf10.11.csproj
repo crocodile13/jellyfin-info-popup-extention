@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- ╔══════════════════════════════════════════════════════════════════════╗ -->
+    <!-- ║ VARIANT : Jellyfin 10.11.9+                                          ║ -->
+    <!-- ║                                                                      ║ -->
+    <!-- ║ Compile uniquement Compat/Jellyfin10_11/ (l'autre dossier est        ║ -->
+    <!-- ║ exclu via <Compile Remove>). Les APIs utilisées (GetUsers,           ║ -->
+    <!-- ║ HasPermission) ont été introduites par le refactor EFcore 10.11.9.   ║ -->
+    <!-- ║                                                                      ║ -->
+    <!-- ║ Pour ajouter une variant (ex: jf12.0), DUPLIQUER ce csproj +         ║ -->
+    <!-- ║ Compat/Jellyfin12_0/ + adapter les exclusions.                       ║ -->
+    <!-- ╚══════════════════════════════════════════════════════════════════════╝ -->
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>Jellyfin.Plugin.InfoPopup</AssemblyName>
+    <RootNamespace>Jellyfin.Plugin.InfoPopup</RootNamespace>
+    <!-- Pas de BaseIntermediateOutputPath/BaseOutputPath custom (v4.1.0.0) :
+         les 2 variants ont des TFM distincts (net8.0 / net9.0) → leurs
+         obj/Release/net{tfm}/ et bin/Release/net{tfm}/ ne se chevauchent pas.
+         Positionner BaseIntermediateOutputPath dans un PropertyGroup arrive
+         trop tard (warning MSB3539) et NuGet continue d'écrire dans obj/ →
+         duplicate AssemblyInfo si on relance un build sans rm -rf préalable. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <Version>4.1.0.0</Version>
+  </PropertyGroup>
+
+  <!-- Exclut l'implémentation Compat de la variant SŒUR (jf10.10) :
+       elle utilise des APIs (Users propriété, Policy) qui ont été retirées
+       dans 10.11.9 → ne compilerait pas contre Jellyfin.Controller 10.11.*. -->
+  <ItemGroup>
+    <Compile Remove="Compat/Jellyfin10_10/**" />
+    <None Include="Compat/Jellyfin10_10/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.9">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="10.11.9">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Donne accès à IStartupFilter, IApplicationBuilder, HttpContext, etc. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Icône du plugin (visible dans le tableau de bord Jellyfin) -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\assets\icon.png">
+      <LogicalName>Jellyfin.Plugin.InfoPopup.thumb.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Ressources web embarquées dans l'assembly -->
+  <ItemGroup>
+    <EmbeddedResource Include="Web\configurationpage.html" />
+    <EmbeddedResource Include="Web\client.js" />
+    <EmbeddedResource Include="Web\ip-i18n.js" />
+    <EmbeddedResource Include="Web\ip-utils.js" />
+    <EmbeddedResource Include="Web\ip-styles.js" />
+    <EmbeddedResource Include="Web\ip-admin.js" />
+    <EmbeddedResource Include="Web\ip-popup.js" />
+    <EmbeddedResource Include="Web\ip-user.js" />
+    <EmbeddedResource Include="Web\usermessagespage.html" />
+  </ItemGroup>
+
+</Project>

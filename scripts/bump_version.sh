@@ -49,11 +49,13 @@ jq \
     '.major = $major | .minor = $minor | .patch = $patch' \
     "$VERSION_FILE" > "${VERSION_FILE}.tmp" && mv "${VERSION_FILE}.tmp" "$VERSION_FILE"
 
-# Mise à jour de la version dans le .csproj
-CSPROJ="Jellyfin.Plugin.InfoPopup/Jellyfin.Plugin.InfoPopup.csproj"
-if [ -f "$CSPROJ" ]; then
+# Mise à jour de la version dans TOUS les csproj variants (v4.1.0.0).
+# Sans la boucle, seul l'ancien csproj mono était bumpé → DLL avec une version
+# qui ne matchait plus version.json sur les autres variants.
+for CSPROJ in Jellyfin.Plugin.InfoPopup/Jellyfin.Plugin.InfoPopup.*.csproj; do
+    [ -f "$CSPROJ" ] || continue
     sed -i.bak "s|<Version>.*</Version>|<Version>${NEW_VERSION}</Version>|g" "$CSPROJ"
     rm -f "${CSPROJ}.bak"
-fi
+done
 
 echo "$OLD_VERSION → $NEW_VERSION"
