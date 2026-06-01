@@ -237,7 +237,7 @@ Since **v4.1.0.0** the plugin ships two binaries per release, bundled in the sam
 | Jellyfin | Variant binary | .NET | Compat layer | Status |
 |----------|----------------|------|--------------|--------|
 | 10.10.x  | `infopopup_X.Y.Z.W-jf10.10.zip` | net8.0 | `IUserManager.Users` / `User.Policy.IsAdministrator` | Supported |
-| 10.11.0 – 10.11.8 | — | — | — | **Not supported** (upgrade to 10.11.9) |
+| 10.11.0 – 10.11.8 | — | — | — | **Not supported** — Jellyfin may offer the `jf10.10` ZIP but it will fail to load (User entity moved namespace in 10.11). Upgrade Jellyfin to 10.11.9. |
 | 10.11.9+ | `infopopup_X.Y.Z.W-jf10.11.zip` | net9.0 | `IUserManager.GetUsers()` / `User.HasPermission(PermissionKind)` | Tested (React/MUI dashboard) |
 
 ### Clients

@@ -290,7 +290,7 @@ If the global switch is OFF, even users with the per-user permission can't reply
 
 Since v4.1.0.0 the plugin ships a different DLL for Jellyfin 10.10.x and Jellyfin 10.11.9+ (the underlying user-management APIs differ between these versions). The manifest declares both with their respective `targetAbi`, and Jellyfin automatically downloads the right one for your server — so you still see and install **one** plugin entry. If you're curious which variant you got, the file name visible in the plugins folder will be either `infopopup_X.Y.Z.W-jf10.10.zip` or `infopopup_X.Y.Z.W-jf10.11.zip` (only one is installed).
 
-If you run a Jellyfin between 10.11.0 and 10.11.8, the catalog will show no compatible version. Update Jellyfin to 10.11.9 (current stable) — the plugin will then install cleanly.
+**If you run Jellyfin 10.11.0 to 10.11.8**: due to a Jellyfin internal API change between 10.11.8 and 10.11.9, no variant of this plugin will work on these specific versions. Jellyfin's catalog may still offer you the `jf10.10` ZIP (because its declared minimum compatibility is met), but installing it will result in the plugin failing to load at the next restart (you'll see a `TypeLoadException` in the Jellyfin logs and the plugin will simply not activate — the server itself stays fine). **Workaround**: update Jellyfin to 10.11.9 (current stable) — the plugin will then install cleanly. There is no way to fix this from the plugin side; the Jellyfin manifest format does not allow specifying a *maximum* compatible server version, only a minimum.
 
 ### Where is the plugin data stored?
 
