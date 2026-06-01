@@ -120,6 +120,26 @@ if [ ! -f "$MANIFEST_FILE" ] || [ ! -s "$MANIFEST_FILE" ]; then
     echo "[]" > "$MANIFEST_FILE"
 fi
 
+# Garde anti-corruption (v4.0.4.0) : refuse de continuer si le manifest existant
+# contient des null bytes (\x00). Symptôme historique : une session externe a
+# corrompu le file local (disque plein / fsync EUCLEAN / éditeur foireux) et
+# `make release-*` réécrivait le manifest sans détection → push d'un manifest
+# illisible sur GitHub → Jellyfin ne voit plus le plugin du tout (v4.0.3.0).
+# Si déclenché : `git checkout <last-good-commit> -- $MANIFEST_FILE` puis relance.
+if [ "$(tr -cd '\0' < "$MANIFEST_FILE" | wc -c)" -gt 0 ]; then
+    echo "ERREUR : $MANIFEST_FILE contient des null bytes (fichier corrompu)." >&2
+    echo "         Restaurer depuis git : git checkout HEAD -- $MANIFEST_FILE" >&2
+    echo "         puis relancer la commande." >&2
+    exit 1
+fi
+
+# Vérifie aussi que le JSON est parseable AVANT d'essayer de l'amender.
+if ! jq empty "$MANIFEST_FILE" 2>/dev/null; then
+    echo "ERREUR : $MANIFEST_FILE n'est pas un JSON valide." >&2
+    echo "         Restaurer depuis git : git checkout HEAD -- $MANIFEST_FILE" >&2
+    exit 1
+fi
+
 MANIFEST=$(cat "$MANIFEST_FILE")
 PLUGIN_GUID=$(jq -r '.[0].guid // empty' <<< "$MANIFEST" 2>/dev/null || echo "")
 
@@ -149,6 +169,26 @@ else
         --argjson entry "$NEW_VERSION_ENTRY" \
         '.[0].versions = ([$entry] + (.[0].versions | map(select(.version != $entry.version))))' \
         "$MANIFEST_FILE" > "${MANIFEST_FILE}.tmp"
+fi
+
+# Garde anti-corruption en sortie (v4.0.4.0) : valide le .tmp AVANT de remplacer
+# le manifest. Sans ça, un jq qui produit un output vide ou corrompu (disque
+# plein, fsync EUCLEAN, jq crash silencieux) écraserait le manifest existant
+# par du contenu invalide.
+if [ ! -s "${MANIFEST_FILE}.tmp" ]; then
+    echo "ERREUR : ${MANIFEST_FILE}.tmp est vide après jq." >&2
+    rm -f "${MANIFEST_FILE}.tmp"
+    exit 1
+fi
+if [ "$(tr -cd '\0' < "${MANIFEST_FILE}.tmp" | wc -c)" -gt 0 ]; then
+    echo "ERREUR : ${MANIFEST_FILE}.tmp contient des null bytes." >&2
+    rm -f "${MANIFEST_FILE}.tmp"
+    exit 1
+fi
+if ! jq empty "${MANIFEST_FILE}.tmp" 2>/dev/null; then
+    echo "ERREUR : ${MANIFEST_FILE}.tmp n'est pas un JSON valide." >&2
+    rm -f "${MANIFEST_FILE}.tmp"
+    exit 1
 fi
 
 mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"
