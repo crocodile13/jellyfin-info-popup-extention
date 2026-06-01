@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.0.3.0] — 2026-06-01
+
+### Added
+- **User Guide** at [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — non-technical walkthrough of every admin and user feature, with a FAQ. Linked from the README. Replaces the verbose Features section in the README, which now keeps a short bullet summary plus architecture/dev sections.
+
+### Fixed
+- **Reply UI no longer appears when global "Allow replies" is OFF (admin path).** The popup reply form was showing for admins even when the master switch was disabled — clicking *Send* then triggered a 403 `Replies are disabled`. The server's `EffectivePermissionsDto` for admins (in `GET /popup-data` and `GET /permissions/me`) now respects `cfg.AllowReplies` instead of always returning `CanReply=true`. Non-admin users were already correctly gated; this aligns admins with the same semantics, matching the reply endpoint's existing master-switch behavior.
+- **Admin accounts in Droits tab now display as administrator more reliably.** `ResolveIsAdmin` adds two extra fallback paths for Jellyfin variants that don't expose `User.Policy.IsAdministrator` or `HasPermission(PermissionKind)` the way earlier 10.11 builds did: it now also tries `user.GetPermission(...)` and a direct `user.IsAdministrator` property. Admin rows show the ADMIN badge + forced *Administrateur* role consistently across 10.11.x patch levels.
+- **Editing a message and then deleting it no longer leaves a ghost edit form.** When an in-edit message is part of the deletion (or returns 404 on save because another admin/retention deleted it), the editor cleanly exits, the form resets, and the messages list refreshes. Same fix in the *My Messages → Sent* editor: a 404 on save now closes the editor and refreshes the inbox.
+
+---
+
 ## [4.0.2.0] — 2026-05-31
 
 ### Fixed

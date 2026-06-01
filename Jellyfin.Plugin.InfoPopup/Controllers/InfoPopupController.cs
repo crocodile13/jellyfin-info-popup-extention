@@ -88,8 +88,13 @@ public class InfoPopupController : ControllerBase
 
     /// <summary>
     /// Détermine via réflexion si un User Jellyfin est administrateur.
-    /// Essaie successivement : (1) `user.Policy.IsAdministrator` (10.10 / début 10.11),
-    /// (2) `user.HasPermission(PermissionKind.IsAdministrator)` (10.11.9+, plus statique).
+    /// Essaie successivement :
+    ///   (1) `user.Policy.IsAdministrator` (10.10 / début 10.11) — propriété directe.
+    ///   (2) `user.HasPermission(PermissionKind.IsAdministrator)` (10.11.9+) — méthode réflexive.
+    ///   (3) `user.GetPermission(PermissionKind.IsAdministrator)` (alias présent sur certaines
+    ///       branches 10.11.x où `HasPermission` a été retirée — fallback v4.0.3.0).
+    ///   (4) Recherche directe d'une propriété `IsAdministrator` sur le user lui-même
+    ///       (cas dégénérés du modèle de données où c'est un raccourci) — fallback v4.0.3.0.
     /// Tout échec → false (permission par défaut la plus restrictive).
     /// </summary>
     private static bool ResolveIsAdmin(object user, Type type)
@@ -104,25 +109,26 @@ public class InfoPopupController : ControllerBase
                 if (isAdminProp is not null && isAdminProp.GetValue(policy) is bool b)
                     return b;
             }
-            // Path 2: user.HasPermission(PermissionKind.IsAdministrator) — chemin réflexif.
+            // Path 2/3: méthode HasPermission(PermissionKind) ou GetPermission(PermissionKind).
             // PermissionKind est un enum dans Jellyfin.Data ; on cherche la valeur nommée
-            // "IsAdministrator" puis on invoke HasPermission(enum).
-            var hasPerm = type.GetMethod("HasPermission");
-            if (hasPerm is not null)
+            // "IsAdministrator" puis on invoke la méthode trouvée.
+            foreach (var methodName in new[] { "HasPermission", "GetPermission" })
             {
-                var enumParam = hasPerm.GetParameters().FirstOrDefault()?.ParameterType;
-                if (enumParam is not null && enumParam.IsEnum)
-                {
-                    var adminVal = System.Enum.GetNames(enumParam).FirstOrDefault(n =>
-                        string.Equals(n, "IsAdministrator", System.StringComparison.OrdinalIgnoreCase));
-                    if (adminVal is not null)
-                    {
-                        var enumVal = System.Enum.Parse(enumParam, adminVal);
-                        var res = hasPerm.Invoke(user, new[] { enumVal });
-                        if (res is bool b2) return b2;
-                    }
-                }
+                var m = type.GetMethod(methodName);
+                if (m is null) continue;
+                var enumParam = m.GetParameters().FirstOrDefault()?.ParameterType;
+                if (enumParam is null || !enumParam.IsEnum) continue;
+                var adminVal = System.Enum.GetNames(enumParam).FirstOrDefault(n =>
+                    string.Equals(n, "IsAdministrator", System.StringComparison.OrdinalIgnoreCase));
+                if (adminVal is null) continue;
+                var enumVal = System.Enum.Parse(enumParam, adminVal);
+                var res = m.Invoke(user, new[] { enumVal });
+                if (res is bool b2) return b2;
             }
+            // Path 4: raccourci `IsAdministrator` posé directement sur le user.
+            var directProp = type.GetProperty("IsAdministrator");
+            if (directProp is not null && directProp.GetValue(user) is bool b3)
+                return b3;
         }
         catch { /* ignoré — défaut : non-admin */ }
         return false;
@@ -697,13 +703,19 @@ public class InfoPopupController : ControllerBase
         var unseenIds = new HashSet<string>(_seen.GetUnseenIds(userId, targeted.Select(m => m.Id)));
 
         // Construire les droits effectifs.
+        // NB v4.0.3.0 : le toggle global `AllowReplies` est un MASTER-SWITCH qui
+        // s'applique aussi aux admins (le endpoint /reply renvoie 403 pour admin
+        // si global=off — ligne ~1022). Renvoyer CanReply=true ici pour admin
+        // afficherait le formulaire de réponse dans la popup → l'admin clique
+        // « Envoyer » → 403 surprise. On répercute donc le master-switch côté admin.
         EffectivePermissionsDto perms;
+        var cfgPerms = Plugin.Instance!.Configuration;
         if (await IsAdminAsync())
         {
             perms = new EffectivePermissionsDto
             {
                 CanSendMessages = true,
-                CanReply = true,
+                CanReply = cfgPerms.AllowReplies,
                 CanEditOwnMessages = true,
                 CanDeleteOwnMessages = true,
                 CanEditOthersMessages = true,
@@ -714,11 +726,10 @@ public class InfoPopupController : ControllerBase
         else
         {
             var p = _permService.GetOrDefault(userId);
-            var cfg = Plugin.Instance!.Configuration;
             perms = new EffectivePermissionsDto
             {
                 CanSendMessages = p.CanSendMessages,
-                CanReply = cfg.AllowReplies && p.CanReply,
+                CanReply = cfgPerms.AllowReplies && p.CanReply,
                 CanEditOwnMessages = p.CanEditOwnMessages,
                 CanDeleteOwnMessages = p.CanDeleteOwnMessages,
                 CanEditOthersMessages = p.CanEditOthersMessages,
@@ -1285,11 +1296,15 @@ public class InfoPopupController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
+        // v4.0.3.0 : `AllowReplies` est un master-switch global qui s'applique
+        // aussi aux admins (le endpoint /reply renvoie 403 si global=off, y compris
+        // pour admin). Cf. GetPopupData : même logique pour éviter une UI trompeuse.
+        var cfg = Plugin.Instance!.Configuration;
         if (await IsAdminAsync())
             return Ok(new EffectivePermissionsDto
             {
                 CanSendMessages = true,
-                CanReply = true,
+                CanReply = cfg.AllowReplies,
                 CanEditOwnMessages = true,
                 CanDeleteOwnMessages = true,
                 CanEditOthersMessages = true,
@@ -1298,7 +1313,6 @@ public class InfoPopupController : ControllerBase
             });
 
         var p = _permService.GetOrDefault(userId);
-        var cfg = Plugin.Instance!.Configuration;
         return Ok(new EffectivePermissionsDto
         {
             CanSendMessages = p.CanSendMessages,

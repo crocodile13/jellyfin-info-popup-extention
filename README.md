@@ -6,25 +6,11 @@
 A Jellyfin plugin that allows administrators to broadcast popup messages to users when they log in, with per-user permissions, reply system, and a full user messaging page.
 
 ## Table of Contents
-- [Preview](#-preview)
-- [Features](#features)
-  - [Key Features](#key-features)
-  - [User Messages Page](#user-messages-page)
-  - [Admin & Editing Features](#admin--editing-features)
-  - [Reply System](#reply-system)
-  - [Permissions & Settings](#permissions--settings)
-  - [Formatting & UI](#formatting--ui)
-  - [Technical & Security](#technical--security)
+- [Preview](#preview)
+- [Features at a glance](#features-at-a-glance)
 - [Installation](#installation)
-  - [Install via Repository (Recommended)](#install-via-repository-recommended)
-  - [Manual Installation](#manual-installation)
-- [Message Formatting Syntax](#message-formatting-syntax)
+- [User Guide](docs/USER_GUIDE.md) — end-user and admin documentation
 - [Development](#development)
-  - [Prerequisites](#prerequisites)
-  - [Initial setup](#initial-setup)
-  - [Available commands](#available-commands)
-  - [Release workflow](#release-workflow)
-  - [Cleaning build artifacts from the repository](#cleaning-build-artifacts-from-the-repository)
 - [Architecture](#architecture)
 - [Compatibility](#compatibility)
 - [License](#license)
@@ -53,59 +39,20 @@ It works for broadcasting popups, but the more advanced features related to resp
 
 ---
 
-## Features
+## Features at a glance
 
-### Key Features
-- **Multilingual UI** -- Admin page, user page and popup automatically displayed in the user's Jellyfin language (English, French, Spanish, German, Portuguese, Italian, Japanese, Chinese Simplified). Falls back to English for other languages.
-- **Login popup** -- Detects user login via MutationObserver (SPA-compatible, tested on Jellyfin 10.10-10.11).
-- **Auto-close countdown** -- Optional progress bar that counts down before closing the popup automatically. Set to 0 for manual close only.
-- **Show once per user** -- Server-side tracking; works across all devices (no localStorage).
-- **Targeted messages** -- Choose which users will receive each message.
-- **Multiple unread messages** -- Each unread message appears in its own card within the same popup.
-- **Collapsible history** -- Previously seen messages shown in a collapsed accordion; body expanded on click.
-- **Edit or delete without re-display** -- Edited or deleted messages don't re-appear for users who already saw them.
+- **Login popup** announcing messages broadcast by admins, with multi-message support, optional auto-close countdown, and a collapsible history.
+- **Targeted delivery** to specific users or to everyone, with per-user "seen" tracking on the server (works across all devices, no `localStorage`).
+- **"My Messages" sidebar entry for every user** opening a full-screen overlay with an Inbox, an optional Send composer, and a Sent history.
+- **Reply system** with per-user permissions and a daily quota.
+- **Role-based permission management** (Reader, Contributor, Moderator, Custom, Administrator) with bulk apply, search, and a single global save.
+- **Read receipts** — each admin message shows who has and hasn't seen it, in a modal.
+- **WYSIWYG + Raw editor** with bold / italic / underline / strikethrough / list, keyboard shortcuts, and live formatting in both admin and user compose forms.
+- **Maintenance tools** — clear all views, clear all replies, purge soft-deleted messages, reset settings — without uninstalling the plugin.
+- **Multilingual UI** — 8 languages (English, French, Spanish, German, Portuguese, Italian, Japanese, Chinese Simplified), auto-detected from the user's Jellyfin language.
+- **Reply notifications** — corner toasts when someone replies to a sent message (polled every ~45 s while a Jellyfin tab is active).
 
-### User Messages Page
-- **Sidebar entry for all users** -- A "Messages" entry is injected into the Jellyfin sidebar via JavaScript, visible to all authenticated users (not just admins). Works in both the classic and the experimental (React/MUI) sidebar layouts.
-- **Full-screen overlay page** -- The Messages page opens as a JavaScript overlay (Inbox / Send / Sent tabs) accessible to every user, instead of the admin-only `configurationpage` route. This fixes non-admin users being redirected to the home page (#1).
-- **Collapsible inbox** -- Received messages are collapsed by default showing title, author, date and a preview. Click to expand the full body.
-- **Compose with formatting** -- Users with `CanSendMessages` permission see a Send tab with a formatting toolbar (bold, italic, underline, strikethrough, list).
-- **Recipient picker** -- Target specific users or send to everyone.
-- **Sent messages history** -- View previously sent messages.
-
-### Admin & Editing Features
-- **Admin config page** -- Three tabs: Messages (publish/edit/delete), Settings, Replies viewer.
-- **WYSIWYG editor** -- Rich text editing with Raw mode toggle for direct markdown input.
-- **Edit without re-display** -- Edited messages keep their ID; users who already saw them won't see them again.
-- **Editable targeting on edit** -- Recipient selector pre-filled with current targets.
-- **Inline row expand** -- Click a message title in the admin table to view its body inline.
-- **Full deletion** -- Deleted messages disappear immediately for all users. Cascades to replies.
-
-### Reply System
-- **User replies** -- Users can reply to popup messages (if `AllowReplies` is enabled globally and per-user).
-- **Reply viewer** -- Admin Replies tab shows all replies grouped by message, with individual or bulk delete.
-- **Rate limiting** -- Configurable daily limits per user for messages and replies.
-
-### Permissions & Settings
-- **Role-based permission UX** -- Instead of toggling six checkboxes per user, each user is assigned a role (Reader, Contributor, Moderator, Custom) via a dropdown. The detailed checkboxes remain available under a "Details" toggle for fine-grained control.
-- **Bulk apply** -- Assign a role and daily limits to every user at once via the "Apply to all" bar (`POST /InfoPopup/permissions/bulk`).
-- **Per-user permissions** -- Each role maps to the underlying flags: `CanSendMessages`, `CanReply`, `CanEditOwnMessages`, `CanDeleteOwnMessages`, `CanEditOthersMessages`, `CanDeleteOthersMessages`, plus `MaxMessagesPerDay` and `MaxRepliesPerDay` limits.
-- **Global settings** -- Popup enabled/disabled, auto-close duration, max messages in popup, allow replies, history enabled, rate limit, message retention (admin/user).
-- **Client settings endpoint** -- Non-sensitive settings exposed via `[AllowAnonymous]` endpoint for the popup JS.
-
-### Formatting & UI
-- **Body formatting** -- Lightweight syntax: `**bold**`, `_italic_`, `__underline__`, `~~strikethrough~~`, `- list` lines.
-- **Formatting toolbar** -- Buttons above the editor apply formatting in both admin and user compose forms.
-- **WYSIWYG + Raw toggle** -- Admin editor supports rich text editing or direct markdown input.
-- **Jellyfin theme integration** -- Uses native CSS variables and standard dashboard classes.
-- **Keyboard shortcut isolation** -- Plugin input fields block Jellyfin global shortcuts (e.g., "q" for Quick Connect) while typing.
-
-### Technical & Security
-- **Auto-injection** -- `client.js` injected into `index.html` via ScriptInjectionMiddleware; no manual modification required.
-- **Modular JS architecture** -- Sequential loader: `ip-i18n.js` -> `ip-utils.js` -> `ip-styles.js` -> `ip-admin.js` -> `ip-popup.js` -> `ip-user.js`. All communication via `window.__IP` namespace.
-- **XSS security** -- `escHtml()` applied before rendering; no raw HTML in the DOM.
-- **Input validation** -- Client-side and server-side validation on all inputs (title length, body length, reply length, settings ranges, GUID format).
-- **Targeting access control** -- Users only see messages intended for them, including via direct API. Returns 404 (not 403) for non-targeted messages.
+➡️ **Detailed walkthroughs and screenshots: [User Guide](docs/USER_GUIDE.md).**
 
 ---
 
@@ -132,19 +79,7 @@ https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main
    - Docker: `/config/plugins/InfoPopup/`
 3. Restart Jellyfin.
 
-## Message formatting syntax
-
-The message body supports a lightweight syntax:
-
-| Syntax | Render |
-|--------|--------|
-| `**text**` | **bold** |
-| `_text_` | *italic* |
-| `__text__` | underline |
-| `~~text~~` | strikethrough |
-| Line starting with `- ` | bulleted list item |
-
-Formatting is rendered in the user popup, in the history, in the inbox, and in the admin table expand rows.
+> Message body uses a lightweight syntax (`**bold**`, `_italic_`, `__underline__`, `~~strike~~`, `- list`). Full table and editor walkthrough: see the [User Guide](docs/USER_GUIDE.md#message-formatting).
 
 ---
 
@@ -171,32 +106,42 @@ cp .env.make.example .env.make
 make check
 ```
 
+### Release channels (dev / stable)
+
+The repo has two channels managed by the Makefile (see CLAUDE.md for full details):
+
+- **dev** (default) — pushes to the `dev` branch, updates `manifest-dev.json`, tags `vX.Y.Z.W-dev`, marks the GitHub release as *pre-release*. The plugin appears in Jellyfin catalogs as *Info Popup (Dev)*.
+- **stable** — pushes to `main`, updates `manifest.json`, marks the GitHub release as final.
+
+Dev manifest URL: `https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/dev/manifest-dev.json`
+
 ### Available commands
 
 ```bash
-make              # Help + Jellyfin repository URL
+make                       # Help + repository URLs
+make check                 # Verify dotnet, git, jq, gh CLI, gh auth
 
-make build        # Compile in Debug
-make pack         # Compile Release + create ZIP in dist/
-make clean        # Clean bin/, obj/, dist/*.zip
+make build                 # Debug build
+make build-release         # Release build (no ZIP)
+make pack                  # Release build + ZIP in dist/
+make clean                 # Delete bin/, obj/, dist/*.zip
 
-make bump-patch   # 0.4.0.0 -> 0.4.1.0
-make bump-minor   # 0.4.0.0 -> 0.5.0.0
-make bump-major   # 0.4.0.0 -> 1.0.0.0
+make bump-patch            # X.Y.Z.0 -> X.Y.(Z+1).0
+make bump-minor            # X.Y.Z.0 -> X.(Y+1).0.0
+make bump-major            # X.Y.Z.0 -> (X+1).0.0.0
 
-make release-patch
+make release-patch         # Dev: full release on dev channel
 make release-minor
 make release-major
-make release-hotfix  # Recompile + re-upload ZIP, no version bump
+make release-hotfix        # Recompile + re-upload ZIP, no version bump
+
+make release-patch STABLE=1   # Same on stable channel (run from main)
+make promote VERSION_ARG=X.Y.Z.W
+                           # Promote a tested dev version to stable
+                           # (fast-forward main, clean rebuild)
 ```
 
-### Release workflow
-
-```bash
-# 1. Add your changes to CHANGELOG.md
-# 2. Run the release
-make release-minor   # or patch / major
-```
+> Never run `make bump-*` separately before `make release-*` — the release target already bumps. Doing both bumps twice.
 
 ### Cleaning build artifacts from the repository
 
@@ -211,43 +156,59 @@ git commit -m "chore: untrack bin/ and obj/ build artifacts"
 
 ## Architecture
 
+### Layers
+
 ```
-REST API (/InfoPopup/*)               JS Client (injected into index.html)
-+---------------------------------+   +--------------------------------------------+
-| GET    /messages          [user]|   | ScriptInjectionMiddleware -> index.html    |
-| GET    /messages/{id}     [user]|<--| MutationObserver -> all SPA navigation     |
-| POST   /messages         [auth]|   | Guards: popupActive, #infoPopupConfigPage  |
-| PUT    /messages/{id}    [auth]|   | GET /InfoPopup/popup-data (1 single call)  |
-| POST   /messages/delete [ADMIN]|   | showPopup() -> renderBody() -> innerHTML   |
-| GET    /popup-data        [user]|   | close -> POST /seen -> popupActive=false   |
-| POST   /seen              [user]|   +--------------------------------------------+
-| POST   /messages/{id}/reply     |
-|                           [user]|   Admin Page (Jellyfin dashboard)
-| GET    /replies          [ADMIN]|   +--------------------------------------------+
-| DELETE /replies/{id}     [ADMIN]|   | Tabs: Messages | Settings | Replies        |
-| GET    /settings         [ADMIN]|   | WYSIWYG editor + Raw toggle                |
-| POST   /settings         [ADMIN]|   | Toolbar: B I U S * List                    |
-| GET    /client-settings   [anon]|   | Target picker: all/individual users        |
-| GET    /permissions      [ADMIN]|   | Table: inline expand, edit, multi-delete   |
-| GET    /permissions/me    [user]|   +--------------------------------------------+
-| PUT    /permissions/{id} [ADMIN]|
-| POST   /permissions/bulk [ADMIN]|
-| GET    /{module}.js       [anon]|   User Page (sidebar, all users)
-+---------------------------------+   +--------------------------------------------+
-                                      | Inbox: collapsible cards (title+author+    |
-Access control                        |   date+preview), lazy body loading         |
-+---------------------------------+   | Send: formatting toolbar + target picker   |
-| Admins: all messages            |   | Sent: sent messages history                |
-| Users:  targeted only           |   +--------------------------------------------+
-| CanSendMessages: can publish    |
-| Missing UserId -> 401           |   Persistence
-| Not targeted -> 404 (not 403)   |   +--------------------------------------------+
-+---------------------------------+   | XML  : messages + settings (PluginConfig)  |
-                                      | JSON : infopopup_seen.json (views cache)   |
-                                      | JSON : infopopup_replies.json (replies)    |
-                                      | JSON : infopopup_permissions.json (perms)  |
-                                      +--------------------------------------------+
+ScriptInjectionMiddleware → index.html → client.js?v=X.Y.Z.W (versioned URL)
+  → ip-i18n.js → ip-utils.js → ip-styles.js
+  → ip-admin.js → ip-popup.js → ip-user.js     (window.__IP namespace)
 ```
+
+The middleware injects an inline retry loader (v4.0.1.0) into `index.html` that fetches `client.js` with backoff to survive post-install 503s. `client.js` is a small sequential loader (~50 lines) that injects the six modules via `<script async=false>` so they fetch in parallel but execute in dependency order. All cross-module communication goes through `window.__IP`.
+
+### REST endpoints
+
+> `[auth]` = authenticated, perms checked. `[user]` = filtered by targeting; admins see everything. `[ADMIN]` = `RequiresElevation`. `[anon]` = `[AllowAnonymous]`.
+
+| Group | Method | Route | Auth |
+|-------|--------|-------|------|
+| Messages | GET | `/messages` · `/messages/{id}` · `/messages/sent` | user |
+|          | GET | `/messages/{id}/views` | ADMIN |
+|          | POST / PUT | `/messages` · `/messages/{id}` | auth |
+|          | POST | `/messages/delete` | ADMIN |
+|          | POST | `/messages/{id}/soft-delete` | auth (perms checked) |
+|          | GET | `/popup-data` · `/unseen` | user |
+|          | POST | `/seen` | user |
+| Replies | POST | `/messages/{id}/reply` | user |
+|         | GET | `/messages/{id}/replies` | sender or ADMIN |
+|         | GET | `/replies` | ADMIN |
+|         | GET | `/replies/received` | user |
+|         | DELETE | `/replies/{replyId}` | ADMIN |
+|         | POST | `/messages/{id}/replies/delete` | ADMIN |
+| Settings | GET / POST | `/settings` | ADMIN |
+|          | GET | `/client-settings` | anon |
+| Permissions | GET | `/permissions` · `PUT /permissions/{userId}` · `POST /permissions/bulk` | ADMIN |
+|             | GET | `/permissions/me` | user |
+| Maintenance | POST | `/admin/clear-seen` · `/admin/clear-replies` · `/admin/purge-deleted` · `/admin/reset-settings` | ADMIN |
+| Assets | GET | `/{module}.js?v=…` | anon (whitelisted JS module names) |
+
+### Access control invariants
+
+- Missing `Jellyfin-UserId` claim → **401**.
+- Non-targeted message read by a non-admin → **404** (not 403, to avoid revealing existence).
+- Effective `CanReply` = global `AllowReplies` AND per-user permission, including for admins (master switch).
+- Self-sent messages are hidden from "received" views (popup + inbox).
+- Editing or deleting a message keeps `infopopup_seen.json` untouched; an edited message is not re-displayed.
+- Deleting a message cascades to its replies (handled by the controller, not the store, to avoid circular deps).
+
+### Persistence
+
+| Store | Location | Contents |
+|-------|----------|---------|
+| Jellyfin XML | standard `PluginConfiguration` | Messages list + global settings |
+| `infopopup_seen.json` | plugin data folder | Per-user "seen" message IDs |
+| `infopopup_replies.json` | plugin data folder | All replies |
+| `infopopup_permissions.json` | plugin data folder | Per-user roles and quotas |
 
 ---
 

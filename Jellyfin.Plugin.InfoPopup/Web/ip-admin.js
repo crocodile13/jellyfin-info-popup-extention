@@ -656,7 +656,18 @@
                 return loadMessages(page, selectedIds, editState.onEdit);
             })
             .catch(function (err) {
-                showToast(page, t('toast_err_update', err.message), true);
+                // v4.0.3.0 : 404 = le message a été supprimé entre-temps (autre admin,
+                // autre onglet, rétention auto…). On sort du mode édition pour ne pas
+                // bloquer l'UI sur un fantôme et on rafraîchit la liste.
+                var msg = err && err.message ? err.message : '';
+                if (msg.indexOf('HTTP 404') !== -1) {
+                    showToast(page, t('toast_err_update', msg), true);
+                    editState.id = null;
+                    exitEditMode(page);
+                    loadMessages(page, selectedIds, editState.onEdit);
+                } else {
+                    showToast(page, t('toast_err_update', msg), true);
+                }
             })
             .finally(function () { if (btn) btn.disabled = false; });
         } else {
@@ -693,12 +704,21 @@
             var btn = page.querySelector('#ip-delete-btn');
             if (btn) btn.disabled = true;
             var ids = Array.from(selectedIds);
+            // v4.0.3.0 : si le message en cours d'édition fait partie de la suppression,
+            // on annule l'édition AVANT le POST — sinon le formulaire reste rempli avec
+            // les données d'un message fantôme et un futur clic « Enregistrer » fait
+            // un PUT 404 silencieux.
+            var editedDeleted = editState && editState.id && ids.indexOf(editState.id) !== -1;
             apiFetch('/InfoPopup/messages/delete', {
                 method: 'POST',
                 body: JSON.stringify({ ids: ids })
             })
             .then(function () {
                 showToast(page, t(count > 1 ? 'toast_deleted_p' : 'toast_deleted_s', count));
+                if (editedDeleted) {
+                    editState.id = null;
+                    exitEditMode(page);
+                }
                 selectedIds.clear();
                 return loadMessages(page, selectedIds, editState ? editState.onEdit : null);
             })
