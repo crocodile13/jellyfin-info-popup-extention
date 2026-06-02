@@ -25,7 +25,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
-    <Version>4.1.1.0</Version>
+    <Version>4.0.0.0</Version>
   </PropertyGroup>
 
   <!-- Exclut l'implémentation Compat de la variant SŒUR (jf10.10) :
