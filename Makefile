@@ -537,11 +537,17 @@ promote: check ## 🎯 Promeut une dev en stable [VERSION=X.Y.Z.W requis]
 	@gh release view "v$(VERSION_ARG)-dev" --repo "$(GITHUB_USER)/$(GITHUB_REPO)" >/dev/null 2>&1 || \
 		{ printf "%b\n" "$(RED)✗ La release v$(VERSION_ARG)-dev n'existe pas sur GitHub$(RESET)"; exit 1; }
 	@printf "%b\n" "  $(GREEN)✓ v$(VERSION_ARG)-dev trouvée$(RESET)"
-	@printf "%b\n" "  Étape 2/4 : switch sur main + fast-forward depuis le tag dev..."
+	@printf "%b\n" "  Étape 2/4 : switch sur main + merge depuis le tag dev..."
 	git fetch origin
 	git checkout main
-	git merge --ff-only "v$(VERSION_ARG)-dev" || \
-		{ printf "%b\n" "$(RED)✗ main a divergé — résolvez manuellement (rebase/merge), puis re-promotez$(RESET)"; exit 1; }
+	git merge --no-ff "v$(VERSION_ARG)-dev" \
+		-m "merge: v$(VERSION_ARG)-dev → main (release v$(VERSION_ARG))" || \
+		{ printf "%b\n" "$(RED)✗ Conflit de merge — résolvez puis 'make _do-release STABLE=1 VERSION_ARG=$(VERSION_ARG)'$(RESET)"; exit 1; }
+	@if [ -f CLAUDE.md ]; then \
+		git rm -f CLAUDE.md > /dev/null 2>&1 || true; \
+		git commit -m "chore: keep CLAUDE.md out of main (dev-only)" > /dev/null 2>&1 || true; \
+		printf "%b\n" "  $(GREEN)✓ CLAUDE.md re-retiré de main$(RESET)"; \
+	fi
 	@printf "%b\n" "  $(GREEN)✓ main mis à jour$(RESET)"
 	@printf "%b\n" "  Étape 3/4 : forcer version.json à $(VERSION_ARG)..."
 	@printf '{\n  "major": %s,\n  "minor": %s,\n  "patch": %s,\n  "targetAbi": "%s"\n}\n' \
