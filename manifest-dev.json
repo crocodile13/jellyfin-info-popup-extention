@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crocodile13/jellyfin-info-popup-extention/main/assets/icon.png",
     "versions": [
       {
+        "version": "4.3.0.0",
+        "changelog": "Release v4.3.0.0",
+        "targetAbi": "10.11.9.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v4.3.0.0-dev/infopopup_4.3.0.0-jf10.11-dev.zip",
+        "checksum": "dcc672ee2c4494c63b21976ca3c1fa25",
+        "timestamp": "2026-06-03T12:59:31Z"
+      },
+      {
+        "version": "4.3.0.0",
+        "changelog": "Release v4.3.0.0",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/crocodile13/jellyfin-info-popup-extention/releases/download/v4.3.0.0-dev/infopopup_4.3.0.0-jf10.10-dev.zip",
+        "checksum": "37aefe4f22810fce93fb8b710e3a18bf",
+        "timestamp": "2026-06-03T12:59:31Z"
+      },
+      {
         "version": "4.2.0.0",
         "changelog": "Added\n- xUnit tests now run in CI — the 11 tests on PermissionService.NormalizeUserId (the most critical helper, cf. CLAUDE.md [[guid-format-userid]]) are executed by .github/workflows/build.yml on every push/PR to main and dev. Runs in parallel with the build matrix; CI fails if any test breaks even if builds pass. Results uploaded as tests.trx artifact (14-day retention, also on failure).\n- Deleted the obsolete ci.yml workflow (built the old mono-.sln, only set up .NET 8, never ran tests, redundant with build.yml).\nChanged\n- ip-admin.js split into 6 modules — the previous 2457-line god class concentrated all admin config page logic (messages tab, settings tab, replies tab, droits tab, WYSIWYG editor, target picker, format toolbar, views modal). Now split by concern:\n  - ip-admin-editor.js (~375 lines) — markdown ↔ HTML, WYSIWYG, format toolbar\n  - ip-admin-targets.js (~225) — user cache (5min TTL) + target picker\n  - ip-admin-permissions.js (~603) — droits tab + enhanceSelect (reused by settings)\n  - ip-admin-settings.js (~389) — settings + replies tabs + maintenance section\n  - ip-admin-messages.js (~502) — messages tab, CRUD, edit mode, views modal\n  - ip-admin.js (~477) — entry point: initConfigPage, tabs, search filter, shared toast/confirm, rate-limit state\n- Cross-module helpers live in window.__IP.__admin (instead of polluting the global window.__IP). Public API consumed by ip-user.js (markdownToHtml, htmlToMarkdown, applyWysiwygFormat) stays on ns. directly for backward compatibility.\n- client.js loader now injects 11 modules (was 6) in dependency order: i18n → utils → styles → 5 admin sub-modules → admin entry → popup → user. Still parallel-fetch via <script async=false> in a DocumentFragment (v3.8.4.0).\nNotes\n- Zero behavior change for end users — pure internal restructuring. All endpoints, all UI flows, all keyboard shortcuts unchanged.\n- All cross-module admin.X references verified to have matching definitions (44 referenced ↔ 43 defined, the diff being a false grep match on the filename admin.js).\n- Whitelist _allowedModules in SettingsController.GetJsModule extended with the 5 new module names.",
         "targetAbi": "10.11.9.0",
