@@ -4,13 +4,22 @@
  * Point d'entrée unique injecté dans index.html par ScriptInjectionMiddleware.
  * Rôle : charger les modules dans l'ordre correct via injection de <script>.
  *
- * Ordre de chargement garanti :
- *   1. ip-i18n.js    — détection de langue + dictionnaires FR/EN
- *   2. ip-utils.js   — utilitaires partagés (apiFetch, renderBody, escHtml…)
- *   3. ip-styles.js  — injection CSS idempotente dans <head>
- *   4. ip-admin.js   — page de configuration administrateur
- *   5. ip-popup.js   — popup utilisateur + MutationObserver (auto-démarre)
- *   6. ip-user.js    — page utilisateur sidebar (boîte de réception + envoi)
+ * Ordre de chargement (v4.2.0.0 — ip-admin.js splitté en 5 sous-modules) :
+ *   1. ip-i18n.js              — détection de langue + dictionnaires
+ *   2. ip-utils.js             — utilitaires partagés (apiFetch, renderBody, escHtml…)
+ *   3. ip-styles.js            — injection CSS idempotente dans <head>
+ *   4. ip-admin-editor.js      — markdown ↔ HTML, WYSIWYG, toolbar
+ *   5. ip-admin-targets.js     — cache users + picker de ciblage
+ *   6. ip-admin-permissions.js — onglet Droits + enhanceSelect (réutilisé par settings)
+ *   7. ip-admin-settings.js    — onglets Paramètres + Réponses + Maintenance
+ *   8. ip-admin-messages.js    — onglet Messages + CRUD + edit mode + modal Lectures
+ *   9. ip-admin.js             — entry point + init + showToast/Confirm + canPublish
+ *  10. ip-popup.js             — popup utilisateur + MutationObserver (auto-démarre)
+ *  11. ip-user.js              — page utilisateur sidebar (boîte de réception + envoi)
+ *
+ * Toutes les dépendances inter-sous-modules sont résolues à l'exécution via
+ * `window.__IP.__admin.*` (les IIFEs n'appellent rien au chargement, seulement à init).
+ * L'ordre ci-dessus est donné par cohérence sémantique.
  *
  * Guard window.__infoPopupLoaded : empêche toute double exécution (SPA).
  */
@@ -36,6 +45,11 @@
         '/InfoPopup/ip-i18n.js',
         '/InfoPopup/ip-utils.js',
         '/InfoPopup/ip-styles.js',
+        '/InfoPopup/ip-admin-editor.js',
+        '/InfoPopup/ip-admin-targets.js',
+        '/InfoPopup/ip-admin-permissions.js',
+        '/InfoPopup/ip-admin-settings.js',
+        '/InfoPopup/ip-admin-messages.js',
         '/InfoPopup/ip-admin.js',
         '/InfoPopup/ip-popup.js',
         '/InfoPopup/ip-user.js'

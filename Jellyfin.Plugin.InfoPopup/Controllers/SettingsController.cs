@@ -198,6 +198,11 @@ public class SettingsController : InfoPopupControllerBase
             "ip-i18n.js",
             "ip-utils.js",
             "ip-styles.js",
+            "ip-admin-editor.js",
+            "ip-admin-targets.js",
+            "ip-admin-permissions.js",
+            "ip-admin-settings.js",
+            "ip-admin-messages.js",
             "ip-admin.js",
             "ip-popup.js",
             "ip-user.js"
@@ -205,7 +210,8 @@ public class SettingsController : InfoPopupControllerBase
 
     /// <summary>
     /// Sert un module JavaScript embarqué dans l'assembly.
-    /// Whitelist : client.js, ip-i18n.js, ip-utils.js, ip-styles.js, ip-admin.js, ip-popup.js, ip-user.js.
+    /// Whitelist : client.js, ip-i18n.js, ip-utils.js, ip-styles.js, ip-admin-*.js (5 sous-modules),
+    /// ip-admin.js (entry), ip-popup.js, ip-user.js.
     /// Note : le SDK .NET préserve les tirets dans les noms de ressources embarquées quand les fichiers
     /// sont déclarés explicitement via &lt;EmbeddedResource&gt; dans le .csproj.
     /// </summary>

@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [4.2.0.0] — 2026-06-03
+
+### Changed
+- **`ip-admin.js` split into 6 modules** — the previous 2457-line god class concentrated all admin config page logic (messages tab, settings tab, replies tab, droits tab, WYSIWYG editor, target picker, format toolbar, views modal). Now split by concern:
+  - `ip-admin-editor.js` (~375 lines) — markdown ↔ HTML, WYSIWYG, format toolbar
+  - `ip-admin-targets.js` (~225) — user cache (5min TTL) + target picker
+  - `ip-admin-permissions.js` (~603) — droits tab + `enhanceSelect` (reused by settings)
+  - `ip-admin-settings.js` (~389) — settings + replies tabs + maintenance section
+  - `ip-admin-messages.js` (~502) — messages tab, CRUD, edit mode, views modal
+  - `ip-admin.js` (~477) — entry point: `initConfigPage`, tabs, search filter, shared toast/confirm, rate-limit state
+- **Cross-module helpers live in `window.__IP.__admin`** (instead of polluting the global `window.__IP`). Public API consumed by `ip-user.js` (`markdownToHtml`, `htmlToMarkdown`, `applyWysiwygFormat`) stays on `ns.` directly for backward compatibility.
+- **`client.js` loader** now injects 11 modules (was 6) in dependency order: i18n → utils → styles → 5 admin sub-modules → admin entry → popup → user. Still parallel-fetch via `<script async=false>` in a DocumentFragment (v3.8.4.0).
+
+### Notes
+- Zero behavior change for end users — pure internal restructuring. All endpoints, all UI flows, all keyboard shortcuts unchanged.
+- All cross-module `admin.X` references verified to have matching definitions (44 referenced ↔ 43 defined, the diff being a false grep match on the filename `admin.js`).
+- Whitelist `_allowedModules` in `SettingsController.GetJsModule` extended with the 5 new module names.
+
+---
+
 ## [4.1.1.0] — 2026-06-01
 
 ### Added
