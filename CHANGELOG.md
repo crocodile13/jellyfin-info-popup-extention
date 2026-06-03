@@ -8,6 +8,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [4.2.0.0] — 2026-06-03
 
+### Added
+- **xUnit tests now run in CI** — the 11 tests on `PermissionService.NormalizeUserId` (the most critical helper, cf. CLAUDE.md `[[guid-format-userid]]`) are executed by `.github/workflows/build.yml` on every push/PR to `main` and `dev`. Runs in parallel with the build matrix; CI fails if any test breaks even if builds pass. Results uploaded as `tests.trx` artifact (14-day retention, also on failure).
+- **Deleted** the obsolete `ci.yml` workflow (built the old mono-`.sln`, only set up .NET 8, never ran tests, redundant with `build.yml`).
+
 ### Changed
 - **`ip-admin.js` split into 6 modules** — the previous 2457-line god class concentrated all admin config page logic (messages tab, settings tab, replies tab, droits tab, WYSIWYG editor, target picker, format toolbar, views modal). Now split by concern:
   - `ip-admin-editor.js` (~375 lines) — markdown ↔ HTML, WYSIWYG, format toolbar

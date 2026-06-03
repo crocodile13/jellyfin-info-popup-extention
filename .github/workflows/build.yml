@@ -1,7 +1,7 @@
-name: Build & Package — jellyfin-info-popup-extention
+name: Build & Test — jellyfin-info-popup-extention
 
 # =============================================================================
-#  CE WORKFLOW EST UNIQUEMENT pour la CI (validation build sur push/PR).
+#  CE WORKFLOW EST UNIQUEMENT pour la CI (validation build + tests sur push/PR).
 #
 #  POURQUOI pas de déclenchement sur les releases :
 #    Le workflow `make release-*` crée la GitHub Release et uploade le ZIP
@@ -14,6 +14,8 @@ name: Build & Package — jellyfin-info-popup-extention
 #  Pour publier une release, utiliser : make release-patch / release-minor / release-major
 #
 #  v4.1.0.0 : la build matrix couvre les deux variants Jellyfin (10.10, 10.11).
+#  v4.2.0.0 : job `test` ajouté — exécute les 11 tests xUnit (PermissionService.
+#  NormalizeUserId) sur chaque push/PR. Tourne en parallèle avec la matrice build.
 # =============================================================================
 
 on:
@@ -23,6 +25,59 @@ on:
     branches: [ main, dev ]
 
 jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Tests xUnit — méthodes statiques pures (NormalizeUserId, etc.)
+  # Tourne en parallèle de la matrice build. CI échoue si un test casse, même si
+  # les builds passent.
+  #
+  # Le projet de tests référence Jellyfin.Plugin.InfoPopup.jf10.11.csproj
+  # (variant moderne, net9.0) mais n'exécute QUE des helpers statiques purs sans
+  # chargement runtime Jellyfin — couvre donc les deux variants implicitement
+  # car PermissionService.cs est partagé.
+  # ────────────────────────────────────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    name: Test (xUnit)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET (8 + 9)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Restore (tests)
+        run: dotnet restore tests/Jellyfin.Plugin.InfoPopup.Tests/Jellyfin.Plugin.InfoPopup.Tests.csproj
+
+      - name: Build (tests)
+        run: |
+          dotnet build tests/Jellyfin.Plugin.InfoPopup.Tests/Jellyfin.Plugin.InfoPopup.Tests.csproj \
+            --configuration Release --no-restore
+
+      - name: Run tests
+        run: |
+          dotnet test tests/Jellyfin.Plugin.InfoPopup.Tests/Jellyfin.Plugin.InfoPopup.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "trx;LogFileName=tests.trx" \
+            --logger "console;verbosity=normal" \
+            --results-directory ./test-results
+
+      - name: Upload test results
+        if: always()  # uploade même quand les tests échouent — utile pour diagnose
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./test-results/
+          retention-days: 14
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Builds des 2 variants Jellyfin en matrice. Indépendant du job test (parallèle).
+  # ────────────────────────────────────────────────────────────────────────────
   build:
     runs-on: ubuntu-latest
     strategy:
