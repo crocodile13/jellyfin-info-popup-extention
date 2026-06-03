@@ -16,6 +16,12 @@
     <!-- ║ jf10.X.csproj).                                                      ║ -->
     <!-- ╚══════════════════════════════════════════════════════════════════════╝ -->
     <TargetFramework>net9.0</TargetFramework>
+    <!-- RollForward=Major : autorise le test runner à utiliser un runtime
+         .NET >= 9 si exactement 9.0.0 n'est pas installé localement (cas typique
+         sur Arch Linux qui package aspnet-runtime en 10.x sans 9.x dédié). La CI
+         GitHub Actions installe explicitement 8.0.x + 9.0.x donc roule sur 9.0
+         normalement. v4.2.0.0. -->
+    <RollForward>Major</RollForward>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
